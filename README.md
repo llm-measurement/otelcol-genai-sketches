@@ -1,0 +1,157 @@
+# otelcol-genai-sketches
+
+[![CI](https://github.com/llm-measurement/otelcol-genai-sketches/actions/workflows/ci.yml/badge.svg)](https://github.com/llm-measurement/otelcol-genai-sketches/actions/workflows/ci.yml)
+
+An OpenTelemetry Collector distribution that turns high-cardinality GenAI traces
+into bounded Prometheus metrics and keyed, bounded top-k summaries.
+
+It uses [llm-sketchkit](https://github.com/llm-measurement/llm-sketchkit) for
+canonicalization, keyed hashing, distinct counting, frequent-items estimates, and
+deduplication. Raw prompt text, user identifiers, document identifiers, and request
+identifiers are not exported as metrics or labels.
+
+## When This Fits
+
+Use this collector when you need to:
+
+- keep Prometheus label cardinality bounded while monitoring large GenAI workloads;
+- estimate distinct users, prompt signatures, or retrieval documents without keeping
+  the raw values in metric state;
+- separate real zero-token usage from spans that did not report token attributes;
+- inspect token-heavy prompt signatures without turning them into metric labels; or
+- count LLM requests correctly in traces that also contain agent, tool, retrieval,
+  workflow, and MCP spans.
+
+This is not a prompt logger, billing ledger, arbitrary attribute-to-label converter,
+anomaly detector, or differential-privacy system.
+
+## What It Produces
+
+| Signal | Meaning |
+| --- | --- |
+| `gen_ai_sketch_requests_total` | LLM request spans matched by the operation filter |
+| `gen_ai_sketch_agent_runs_total` | Root `invoke_agent` spans |
+| `gen_ai_sketch_input_tokens_total` | Reported input tokens |
+| `gen_ai_sketch_output_tokens_total` | Reported output tokens |
+| `gen_ai_sketch_total_tokens_total` | Reported input plus output tokens |
+| `gen_ai_sketch_missing_token_usage_total` | Matched requests with neither token field |
+| `gen_ai_sketch_active_slices` | Currently retained slice states |
+| `gen_ai_sketch_distinct_users` | Estimated distinct keyed user values |
+| `gen_ai_sketch_distinct_prompt_signatures` | Estimated distinct keyed prompt values |
+| `gen_ai_sketch_distinct_retrieval_docs` | Estimated distinct keyed document values |
+
+Optional MCP metrics estimate distinct sessions, methods, and resources. Weighted
+top-k prompt signatures are emitted as structured logs with estimates and lower and
+upper bounds; they never become Prometheus labels.
+
+See [Metrics](docs/METRICS.md) for semantics, labels, and query examples.
+
+## Quick Start
+
+Requirements: Docker with Compose, Go 1.26.5 or newer, and `openssl`.
+
+```bash
+git clone https://github.com/llm-measurement/otelcol-genai-sketches.git
+cd otelcol-genai-sketches
+export GENAI_SKETCH_SECRET="$(openssl rand -hex 32)"
+make example-up
+```
+
+The example sends mixed agent, tool, retrieval, and LLM spans with optional token
+usage and high-cardinality prompt signatures.
+
+- Grafana: [http://localhost:3000](http://localhost:3000)
+- Prometheus: [http://localhost:9090](http://localhost:9090)
+- Collector metrics: [http://localhost:8889/metrics](http://localhost:8889/metrics)
+
+Stop the stack with:
+
+```bash
+make example-down
+```
+
+For a local collector binary instead:
+
+```bash
+make dist
+GENAI_SKETCH_SECRET="$(openssl rand -hex 32)" make run-local
+```
+
+## Configuration
+
+Start with [the example configuration](examples/collector/config.yaml). The connector
+requires a secret of at least 16 bytes from `GENAI_SKETCH_SECRET` by default.
+
+```yaml
+connectors:
+  genaisketch:
+    window_duration: 1m
+    retention_windows: 10
+    max_slices: 2000
+    topk: 20
+    slices:
+      - name: model
+        keys: [gen_ai.request.model]
+        from_resource_attributes: [gen_ai.request.model]
+```
+
+Slice values are exported in cleartext as Prometheus labels. Use only bounded,
+low-cardinality, non-sensitive attributes such as model, team, route, or provider.
+Configured slice capacity is enforced with deterministic inactive-slice eviction and
+a single `__overflow__` value; excess traffic is never silently dropped and never
+creates a new label value.
+
+See [Configuration](docs/CONFIGURATION.md) for field mapping, operation filtering,
+resource fallback, MCP support, deduplication, and capacity limits.
+
+## Security And Privacy
+
+Keyed hashes are pseudonymous, not anonymous. Values remain linkable while the same
+secret is in use, and anyone holding the secret can test candidate values. Rotating
+the secret breaks comparison with earlier windows.
+
+The structured top-k surface contains keyed hashes and bounded estimates. Treat
+collector logs as sensitive operational data even though raw source values are not
+included. The connector rejects known high-cardinality MCP identifiers as slice keys
+and rejects overlap between plaintext slice keys and configured hashed fields.
+
+Token attributes are optional. Missing usage is counted explicitly; the connector
+does not invent token weights. Bloom-filter deduplication is bounded and may
+undercount because false positives are possible.
+
+See [Security](SECURITY.md) to report a vulnerability privately.
+
+## Evidence
+
+Recorded local measurements include:
+
+- 36 million spans accepted and exported over 60 minutes at 10,000 spans/second;
+- exact request filtering across a 36 million-span mixed tree workload: 10.8 million
+  emitted LLM spans and 10.8 million counted requests;
+- exact missing-usage accounting for 1.08 million planted missing-token LLM spans;
+- 528,924 spans/second in the mixed in-process benchmark; and
+- 1,386.8 MiB maximum collector RSS in the mixed fleet-shaped soak.
+
+These are measurements from one Apple M4 Max system, not universal capacity claims.
+Workload definitions, machine details, commands, and non-passing runs are in
+[Benchmarks](docs/BENCHMARKS.md).
+
+## Development
+
+```bash
+make tidy
+make check
+make dist
+make test-integration
+```
+
+The integration suite includes clean OTLP-to-Prometheus behavior, bounded overflow,
+deterministic eviction, restart stability, tree locality, and sentinel scans across
+metric, label, and structured-log surfaces.
+
+## Status
+
+This project is alpha software. Interfaces and metric semantics may change between
+alpha releases. See the [changelog](CHANGELOG.md) for release notes.
+
+Licensed under the [Apache License 2.0](LICENSE).

@@ -1,0 +1,20 @@
+{
+  "name": "orphaned_mcp_span",
+  "resources": [
+    {
+      "attributes": {"service.name": "fleet-fixture", "team.id": "team-orphan"},
+      "spans": [
+        {
+          "id": "41",
+          "name": "orphan tools/call",
+          "attributes": {
+            "mcp.method.name": "tools/call",
+            "mcp.session.id": "orphan-session",
+            "gen_ai.tool.name": "orphan.tool",
+            "error.type": "OrphanError"
+          }
+        }
+      ]
+    }
+  ]
+}

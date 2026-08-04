@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: Apache-2.0
+# Code authors: Vijay Erramilli and Codex
+apiVersion: 1
+
+providers:
+  - name: GenAI Sketches
+    orgId: 1
+    folder: GenAI
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    options:
+      path: /var/lib/grafana/dashboards

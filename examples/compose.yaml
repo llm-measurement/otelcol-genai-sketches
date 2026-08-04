@@ -1,0 +1,76 @@
+# SPDX-License-Identifier: Apache-2.0
+# Code authors: Vijay Erramilli and Codex
+services:
+  collector:
+    build:
+      context: ..
+      dockerfile: examples/collector/Dockerfile
+    environment:
+      GENAI_SKETCH_SECRET: ${GENAI_SKETCH_SECRET:?set GENAI_SKETCH_SECRET to a strong local secret}
+    ports:
+      - "127.0.0.1:4317:4317"
+      - "127.0.0.1:8889:8889"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: 512m
+
+  app:
+    build:
+      context: ..
+      dockerfile: examples/app/Dockerfile
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://collector:4317
+    depends_on:
+      - collector
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+    pids_limit: 128
+    mem_limit: 256m
+
+  prometheus:
+    image: prom/prometheus:v3.7.3@sha256:49214755b6153f90a597adcbff0252cc61069f8ab69ce8411285cd4a560e8038
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "127.0.0.1:9090:9090"
+    depends_on:
+      - collector
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /prometheus:uid=65534,gid=65534,mode=0750
+      - /tmp
+    pids_limit: 256
+    mem_limit: 512m
+
+  grafana:
+    image: grafana/grafana:12.3.0@sha256:70d9599b186ce287be0d2c5ba9a78acb2e86c1a68c9c41449454d0fc3eeb84e8
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - prometheus
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: 512m

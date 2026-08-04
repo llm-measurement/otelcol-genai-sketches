@@ -1,0 +1,6 @@
+dist/
+.cache/
+go.work
+go.work.sum
+*.test
+coverage.out
