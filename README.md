@@ -18,12 +18,29 @@ Use this collector when you need to:
 - estimate distinct users, prompt signatures, or retrieval documents without keeping
   the raw values in metric state;
 - separate real zero-token usage from spans that did not report token attributes;
+- investigate token maxing or runaway agent consumption by locating where reported
+  tokens accumulate across bounded slices and keyed prompt signatures;
 - inspect token-heavy prompt signatures without turning them into metric labels; or
 - count LLM requests correctly in traces that also contain agent, tool, retrieval,
   workflow, and MCP spans.
 
+These signals show token volume, not task value. The collector does not treat token
+consumption as productivity, enforce token budgets, or stop agent loops.
+
 This is not a prompt logger, billing ledger, arbitrary attribute-to-label converter,
 anomaly detector, or differential-privacy system.
+
+### Where It Fits
+
+```text
+GenAI applications -> OTLP traces -> this collector -> Prometheus metrics + bounded structured logs
+```
+
+Use this distribution when source spans already flow through OpenTelemetry. If you
+own a custom streaming, batch, or warehouse pipeline and do not need OTLP-to-metrics
+conversion, use [llm-sketchkit](https://github.com/llm-measurement/llm-sketchkit)
+directly. Prometheus, Grafana, or another Prometheus-compatible observability backend
+sits downstream of the collector.
 
 ## What It Produces
 
