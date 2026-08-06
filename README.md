@@ -12,6 +12,10 @@ identifiers are not exported as metrics or labels.
 
 ## When This Fits
 
+For agent fleets and multi-agent systems, the collector separates LLM requests from
+agent, tool, retrieval, workflow, and MCP spans while keeping metric state and label
+cardinality bounded.
+
 Use this collector when you need to:
 
 - keep Prometheus label cardinality bounded while monitoring large GenAI workloads;
