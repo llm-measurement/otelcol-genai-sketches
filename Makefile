@@ -51,7 +51,7 @@ run-local: dist
 
 .PHONY: example-up
 example-up: dist-docker
-	docker compose -f examples/compose.yaml up --build
+	docker compose -f examples/compose.yaml up -d --build
 
 .PHONY: load
 load:

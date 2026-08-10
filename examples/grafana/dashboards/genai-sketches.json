@@ -2,7 +2,7 @@
   "uid": "genai-sketches",
   "title": "GenAI Sketches",
   "schemaVersion": 41,
-  "version": 1,
+  "version": 2,
   "refresh": "5s",
   "time": {"from": "now-15m", "to": "now"},
   "panels": [
@@ -11,41 +11,51 @@
       "type": "timeseries",
       "title": "Requests/sec",
       "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
-      "targets": [{"datasource": {"type": "prometheus", "uid": "Prometheus"}, "expr": "sum(rate(gen_ai_sketch_requests_total[1m])) by (slice, slice_value)"}]
+      "targets": [{"datasource": {"type": "prometheus", "uid": "Prometheus"}, "expr": "sum(rate(gen_ai_sketch_requests_total[1m])) by (slice, slice_value)", "legendFormat": "{{slice_value}}"}]
     },
     {
       "id": 2,
       "type": "timeseries",
-      "title": "Token Rate",
+      "title": "Reported Token Rate",
       "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
-      "targets": [{"datasource": {"type": "prometheus", "uid": "Prometheus"}, "expr": "sum(rate(gen_ai_sketch_total_tokens_total[1m])) by (slice, slice_value)"}]
+      "targets": [{"datasource": {"type": "prometheus", "uid": "Prometheus"}, "expr": "sum(rate(gen_ai_sketch_total_tokens_total[1m])) by (slice, slice_value)", "legendFormat": "{{slice_value}}"}]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Reported Tokens / Request",
+      "gridPos": {"x": 0, "y": 8, "w": 16, "h": 8},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "Prometheus"}, "expr": "sum(rate(gen_ai_sketch_total_tokens_total[1m])) by (slice, slice_value) / sum(rate(gen_ai_sketch_requests_total[1m])) by (slice, slice_value)", "legendFormat": "{{slice_value}}"}]
     },
     {
       "id": 3,
       "type": "stat",
       "title": "Missing Token Usage",
-      "gridPos": {"x": 0, "y": 8, "w": 8, "h": 6},
-      "targets": [{"datasource": {"type": "prometheus", "uid": "Prometheus"}, "expr": "sum(rate(gen_ai_sketch_missing_token_usage_total[5m]))"}]
+      "gridPos": {"x": 16, "y": 8, "w": 8, "h": 8},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 0.01}, {"color": "red", "value": 0.05}]}}, "overrides": []},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "Prometheus"}, "expr": "sum(rate(gen_ai_sketch_missing_token_usage_total[5m])) / sum(rate(gen_ai_sketch_requests_total[5m]))"}]
     },
     {
       "id": 4,
       "type": "stat",
       "title": "Distinct Users",
-      "gridPos": {"x": 8, "y": 8, "w": 8, "h": 6},
+      "gridPos": {"x": 0, "y": 16, "w": 12, "h": 6},
+      "fieldConfig": {"defaults": {"color": {"mode": "fixed", "fixedColor": "blue"}}, "overrides": []},
       "targets": [{"datasource": {"type": "prometheus", "uid": "Prometheus"}, "expr": "sum(gen_ai_sketch_distinct_users)"}]
     },
     {
       "id": 5,
       "type": "stat",
       "title": "Distinct Prompts",
-      "gridPos": {"x": 16, "y": 8, "w": 8, "h": 6},
+      "gridPos": {"x": 12, "y": 16, "w": 12, "h": 6},
+      "fieldConfig": {"defaults": {"color": {"mode": "fixed", "fixedColor": "blue"}}, "overrides": []},
       "targets": [{"datasource": {"type": "prometheus", "uid": "Prometheus"}, "expr": "sum(gen_ai_sketch_distinct_prompt_signatures)"}]
     },
     {
       "id": 6,
       "type": "text",
       "title": "Top Weighted Signatures",
-      "gridPos": {"x": 0, "y": 14, "w": 24, "h": 5},
+      "gridPos": {"x": 0, "y": 22, "w": 24, "h": 5},
       "options": {
         "mode": "markdown",
         "content": "Top-k prompt signatures are intentionally not Prometheus labels. The collector emits bounded `genaisketch topk snapshot` structured logs with hash, rank, estimate, lower_bound, and upper_bound fields."

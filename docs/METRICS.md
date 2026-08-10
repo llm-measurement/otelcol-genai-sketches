@@ -57,6 +57,14 @@ hashes remain linkable under one secret even though raw prompts are absent.
 
 ## PromQL Examples
 
+Reported token rate by configured slice:
+
+```promql
+sum by (slice, slice_value, overflow) (
+  rate(gen_ai_sketch_total_tokens_total[5m])
+)
+```
+
 Request rate by configured slice:
 
 ```promql
@@ -74,9 +82,13 @@ sum(rate(gen_ai_sketch_requests_total[5m]))
 Average reported tokens per matched request:
 
 ```promql
-sum(rate(gen_ai_sketch_total_tokens_total[5m]))
+sum by (slice, slice_value, overflow) (
+  rate(gen_ai_sketch_total_tokens_total[5m])
+)
 /
-sum(rate(gen_ai_sketch_requests_total[5m]))
+sum by (slice, slice_value, overflow) (
+  rate(gen_ai_sketch_requests_total[5m])
+)
 ```
 
 Overflow traffic by slice:
@@ -90,6 +102,9 @@ Current distinct prompt estimate by slice value:
 ```promql
 gen_ai_sketch_distinct_prompt_signatures
 ```
+
+See [Investigating Token Consumption](TOKEN_USAGE.md) for a worked workflow that
+combines request rate, token rate, missing usage, slices, and top-k snapshots.
 
 ## Cardinality Contract
 

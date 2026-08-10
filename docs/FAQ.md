@@ -17,6 +17,19 @@ estimate. Raw values and keyed hashes do not appear in metrics or labels.
 This is pseudonymization, not anonymization. A party holding the secret can test
 candidate values, and the same value remains linkable while the secret is unchanged.
 
+## Can This Detect Or Stop Token Maxing?
+
+It can detect and localize unexpected reported token consumption. Compare request
+rate with token rate and tokens per request, use bounded slices to identify an
+affected team, model, provider, or route, and inspect token-weighted top-k prompt
+signatures for high-cardinality concentration.
+
+It cannot decide whether tokens were useful, infer unreported usage, recover prompt
+text, enforce a budget, stop an agent loop, or prevent a context-window error. Those
+actions require an application or control component downstream of the telemetry.
+The [token-consumption playbook](TOKEN_USAGE.md) gives a complete investigation
+workflow and PromQL examples.
+
 ## What happens when token usage is missing?
 
 The connector does not substitute zero or estimate a token count. A matched request
