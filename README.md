@@ -5,6 +5,9 @@
 An OpenTelemetry Collector distribution that turns high-cardinality GenAI traces
 into bounded Prometheus metrics and keyed, bounded top-k summaries.
 
+Use it to find where runaway LLM token volume is accumulating without retaining raw
+prompts or turning high-cardinality identities into metric labels.
+
 It uses [llm-sketchkit](https://github.com/llm-measurement/llm-sketchkit) for
 canonicalization, keyed hashing, distinct counting, frequent-items estimates, and
 deduplication. Raw prompt text, user identifiers, document identifiers, and request
@@ -46,6 +49,29 @@ conversion, use [llm-sketchkit](https://github.com/llm-measurement/llm-sketchkit
 directly. Prometheus, Grafana, or another Prometheus-compatible observability backend
 sits downstream of the collector.
 
+## Investigating Token Consumption
+
+If "token maxing" means unexpected or runaway token consumption in an LLM or agent
+workload, this collector provides bounded signals for finding where the reported
+volume is accumulating:
+
+- token rate and tokens per request by bounded dimensions such as team, model,
+  provider, or route;
+- an explicit count of requests whose instrumentation omitted token usage; and
+- token-weighted top-k prompt signatures for high-cardinality concentration, emitted
+  as structured logs rather than Prometheus labels.
+
+Comparing request rate with tokens per request helps separate traffic growth from
+larger reported requests or responses. Slice metrics localize the change, while the
+top-k surface shows whether a small number of keyed prompt signatures dominate the
+reported volume.
+
+These are investigation signals, not a control plane. They cannot determine whether
+tokens were useful, diagnose prompt contents, enforce a budget, stop an agent loop,
+or prevent a model context-window error. See [Investigating Token
+Consumption](docs/TOKEN_USAGE.md) for the instrumentation requirements, PromQL,
+interpretation guide, and operational boundaries.
+
 ## What It Produces
 
 | Signal | Meaning |
@@ -65,7 +91,8 @@ Optional MCP metrics estimate distinct sessions, methods, and resources. Weighte
 top-k prompt signatures are emitted as structured logs with estimates and lower and
 upper bounds; they never become Prometheus labels.
 
-See [Metrics](docs/METRICS.md) for semantics, labels, and query examples.
+See [Metrics](docs/METRICS.md) for signal semantics and [Investigating Token
+Consumption](docs/TOKEN_USAGE.md) for a worked investigation.
 
 ## Quick Start
 
@@ -84,6 +111,24 @@ usage and high-cardinality prompt signatures.
 - Grafana: [http://localhost:3000](http://localhost:3000)
 - Prometheus: [http://localhost:9090](http://localhost:9090)
 - Collector metrics: [http://localhost:8889/metrics](http://localhost:8889/metrics)
+
+After the containers have run for at least a minute, use the Grafana dashboard to:
+
+1. Compare **Requests/sec** with **Reported Token Rate**.
+2. Check **Reported Tokens / Request** to distinguish traffic growth from larger
+   requests or responses.
+3. Check **Missing Token Usage** before trusting token totals as complete.
+4. Compare the bounded model and team/model slices to localize concentration.
+
+Inspect the high-cardinality prompt-signature surface from the same shell:
+
+```bash
+docker compose -f examples/compose.yaml logs collector \
+  | grep 'genaisketch topk snapshot'
+```
+
+The snapshot contains keyed hashes and bounded estimates, not prompt text. The
+[token-consumption playbook](docs/TOKEN_USAGE.md) explains how to interpret it.
 
 Stop the stack with:
 
