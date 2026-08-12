@@ -1,5 +1,16 @@
 # Frequently Asked Questions
 
+## How Does This Fit Into An Agent Observability Stack?
+
+Trace and evaluation systems explain individual agent runs. This connector derives
+bounded fleet-level signals across many runs: LLM request and agent-run counts,
+reported token concentration and completeness, distinct keyed populations, and
+controlled slices for low-cardinality operational dimensions.
+
+It is the measurement layer between OTLP traces and an observability backend. It
+complements trace explorers, evaluation systems, behavior or anomaly detectors, and
+control planes; it does not replace them or diagnose individual agent decisions.
+
 ## How do I keep Prometheus cardinality bounded for high-volume LLM traces?
 
 Configure only a small set of operator-chosen slices such as model, provider, team,

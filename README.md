@@ -5,6 +5,9 @@
 An OpenTelemetry Collector distribution that turns high-cardinality GenAI traces
 into bounded Prometheus metrics and keyed, bounded top-k summaries.
 
+It provides the bounded, fleet-level measurement layer of an AI agent observability
+stack, complementing tools that inspect, evaluate, or debug individual agent runs.
+
 Use it to find where runaway LLM token volume is accumulating without retaining raw
 prompts or turning high-cardinality identities into metric labels.
 
