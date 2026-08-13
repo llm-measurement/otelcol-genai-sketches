@@ -2,8 +2,10 @@
 
 [![CI](https://github.com/llm-measurement/otelcol-genai-sketches/actions/workflows/ci.yml/badge.svg)](https://github.com/llm-measurement/otelcol-genai-sketches/actions/workflows/ci.yml)
 
-An OpenTelemetry Collector distribution that turns high-cardinality GenAI traces
-into bounded Prometheus metrics and keyed, bounded top-k summaries.
+An OpenTelemetry Collector distribution for continuous, bounded answers about
+high-cardinality agent traffic without exporting or indexing every underlying value.
+It turns GenAI traces into bounded Prometheus metrics and keyed, bounded top-k
+summaries.
 
 It provides the bounded, fleet-level measurement layer of an AI agent observability
 stack, complementing tools that inspect, evaluate, or debug individual agent runs.
