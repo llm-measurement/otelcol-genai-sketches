@@ -11,6 +11,27 @@ It is the measurement layer between OTLP traces and an observability backend. It
 complements trace explorers, evaluation systems, behavior or anomaly detectors, and
 control planes; it does not replace them or diagnose individual agent decisions.
 
+## When Is This Not For You?
+
+If telemetry volume is moderate, source values are safe to retain, and exact queries
+remain operationally fast and affordable, use exact traces or warehouse data. This
+connector is not intended to replace raw records needed for diagnosis, audit, or
+replay.
+
+Sketches are best understood as an **always-on bounded evidence plane**, not a cheaper
+archive. Beyond memory savings, the connector provides bounded metric cardinality,
+bounded structured output, explicit uncertainty for heavy-item estimates, mergeable
+sketch state, privacy-conscious aggregation, predictable processing cost, and query
+latency and operational responsiveness that do not depend on indexing every source
+value.
+
+The current connector can show which bounded slices and keyed prompt signatures
+account for reported token volume, estimate distinct keyed populations, expose
+concentration, and report missing token usage. Its exported metrics can support
+before-and-after comparisons, but it does not currently discover which unknown keys
+increased or decreased most across arbitrary windows. It also cannot determine by
+itself whether a policy change improved the measured outcome.
+
 ## How do I keep Prometheus cardinality bounded for high-volume LLM traces?
 
 Configure only a small set of operator-chosen slices such as model, provider, team,
