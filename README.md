@@ -1,6 +1,7 @@
 # otelcol-genai-sketches
 
 [![CI](https://github.com/llm-measurement/otelcol-genai-sketches/actions/workflows/ci.yml/badge.svg)](https://github.com/llm-measurement/otelcol-genai-sketches/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
 An OpenTelemetry Collector distribution for continuous, bounded answers about
 high-cardinality agent traffic without exporting or indexing every underlying value.
