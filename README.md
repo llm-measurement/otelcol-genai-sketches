@@ -102,7 +102,7 @@ Consumption](docs/TOKEN_USAGE.md) for a worked investigation.
 
 ## Quick Start
 
-Requirements: Docker with Compose, Go 1.26.5 or newer, and `openssl`.
+Requirements: Docker with Compose, Go 1.26.6 or newer, and `openssl`.
 
 ```bash
 git clone https://github.com/llm-measurement/otelcol-genai-sketches.git
