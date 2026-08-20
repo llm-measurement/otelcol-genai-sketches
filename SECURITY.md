@@ -25,7 +25,7 @@ coordinated privately through the advisory.
   are exported in cleartext.
 - Bind diagnostic and metrics endpoints to trusted interfaces and apply normal
   network access controls outside local development.
-- Build with Go 1.26.5 or newer so the generated collector includes current standard
+- Build with Go 1.26.6 or newer so the generated collector includes current standard
   library security fixes.
 - Pin published module and container versions, and review dependency updates before
   deployment.

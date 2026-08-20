@@ -1,6 +1,6 @@
 module github.com/llm-measurement/otelcol-genai-sketches
 
-go 1.26.5
+go 1.26.6
 
 require (
 	go.opentelemetry.io/proto/otlp v1.10.0

@@ -1,6 +1,7 @@
 # otelcol-genai-sketches
 
 [![CI](https://github.com/llm-measurement/otelcol-genai-sketches/actions/workflows/ci.yml/badge.svg)](https://github.com/llm-measurement/otelcol-genai-sketches/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
 An OpenTelemetry Collector distribution for continuous, bounded answers about
 high-cardinality agent traffic without exporting or indexing every underlying value.
@@ -101,7 +102,7 @@ Consumption](docs/TOKEN_USAGE.md) for a worked investigation.
 
 ## Quick Start
 
-Requirements: Docker with Compose, Go 1.26.5 or newer, and `openssl`.
+Requirements: Docker with Compose, Go 1.26.6 or newer, and `openssl`.
 
 ```bash
 git clone https://github.com/llm-measurement/otelcol-genai-sketches.git
