@@ -1,0 +1,80 @@
+# SPDX-License-Identifier: Apache-2.0
+# Code authors: Vijay Erramilli and Codex
+name: update-otel-collector
+
+on:
+  schedule:
+    - cron: "17 14 * * 2"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: update-otel-collector
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GOWORK: "off"
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: "1.26.6"
+          cache: true
+          cache-dependency-path: |
+            go.sum
+            connector/genaisketchconnector/go.sum
+      - name: Update Collector dependencies
+        run: scripts/update_otel_collector.sh
+      - name: Open update pull request
+        shell: bash
+        run: |
+          set -euo pipefail
+          tracked=(
+            Makefile
+            builder.yaml
+            connector/genaisketchconnector/go.mod
+            connector/genaisketchconnector/go.sum
+          )
+          if git diff --quiet -- "${tracked[@]}"; then
+            echo "Collector dependencies are current."
+            exit 0
+          fi
+
+          version="$(awk '$1 == "OTEL_VERSION" { print $3 }' Makefile)"
+          branch="automation/otel-collector-${version}"
+          existing="$(gh pr list --state open --head "${branch}" --json url --jq '.[0].url // empty')"
+          if [[ -n "${existing}" ]]; then
+            echo "Update pull request already exists: ${existing}"
+            exit 0
+          fi
+          if git ls-remote --exit-code --heads origin "${branch}" >/dev/null 2>&1; then
+            branch="${branch}-${GITHUB_RUN_ID}"
+          fi
+
+          git switch -c "${branch}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- "${tracked[@]}"
+          git commit -m "Update OpenTelemetry Collector to ${version}"
+          git push origin "${branch}"
+
+          release_url="https://github.com/open-telemetry/opentelemetry-collector/releases/tag/${version}"
+          pr_url="$(gh pr create \
+            --base main \
+            --head "${branch}" \
+            --title "Update OpenTelemetry Collector to ${version}" \
+            --body "Automated Collector dependency update. Review the upstream release notes at ${release_url}. The normal CI workflow is dispatched for this branch before merge.")"
+          gh workflow run ci.yml --ref "${branch}"
+          echo "Opened ${pr_url}"
