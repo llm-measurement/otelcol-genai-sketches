@@ -1,4 +1,4 @@
-OTEL_VERSION := v0.155.0
+OTEL_VERSION := v0.159.0
 DIST_BINARY := dist/otelcol-genai-sketches
 DOCKER_DIST_DIR := dist/docker
 DOCKER_GOOS ?= linux
