@@ -2,6 +2,13 @@
 
 Notable user-visible changes are recorded here.
 
+## connector/genaisketchconnector/v0.1.0-alpha.1 - 2026-08-21
+
+- Published `genaisketchconnector` as an independently versioned Go module for use
+  in custom OpenTelemetry Collector Builder distributions.
+- Updated the connector and example distribution to OpenTelemetry Collector
+  v0.159.0.
+
 ## v0.1.0-alpha.1 - 2026-08-04
 
 - Added the `genaisketch` traces-to-metrics connector and custom collector

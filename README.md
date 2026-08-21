@@ -149,6 +149,21 @@ make dist
 GENAI_SKETCH_SECRET="$(openssl rand -hex 32)" make run-local
 ```
 
+## Use In An Existing Collector
+
+The connector is also published as a standalone Go module for use with the
+[OpenTelemetry Collector Builder](https://opentelemetry.io/docs/collector/extend/ocb/).
+Add this entry to your builder manifest:
+
+```yaml
+connectors:
+  - gomod: github.com/llm-measurement/otelcol-genai-sketches/connector/genaisketchconnector v0.1.0-alpha.1
+```
+
+Then configure `genaisketch` as an exporter from the traces pipeline and a receiver
+in the metrics pipeline. The `path:` override in this repository's builder manifest
+is only for building from a local checkout.
+
 ## Configuration
 
 Start with [the example configuration](examples/collector/config.yaml). The connector
