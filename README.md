@@ -53,7 +53,7 @@ Use this distribution when source spans already flow through OpenTelemetry. If y
 own a custom streaming, batch, or warehouse pipeline and do not need OTLP-to-metrics
 conversion, use [llm-sketchkit](https://github.com/llm-measurement/llm-sketchkit)
 directly. Prometheus, Grafana, or another Prometheus-compatible observability backend
-sits downstream of the collector.
+runs downstream of the collector.
 
 ## Investigating Token Consumption
 
