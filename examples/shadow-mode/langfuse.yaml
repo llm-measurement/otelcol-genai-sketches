@@ -1,0 +1,36 @@
+# SPDX-License-Identifier: Apache-2.0
+# Code authors: Vijay Erramilli and Codex
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 127.0.0.1:4317
+      http:
+        endpoint: 127.0.0.1:4318
+
+processors:
+  batch:
+    timeout: 1s
+
+connectors:
+  genaisketch: {}
+
+exporters:
+  otlp_http/langfuse:
+    endpoint: ${env:LANGFUSE_OTLP_ENDPOINT}
+    headers:
+      authorization: Basic ${env:LANGFUSE_AUTH_STRING}
+      x-langfuse-ingestion-version: "4"
+  prometheus:
+    endpoint: 127.0.0.1:8889
+    translation_strategy: UnderscoreEscapingWithoutSuffixes
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [genaisketch, otlp_http/langfuse]
+    metrics:
+      receivers: [genaisketch]
+      exporters: [prometheus]

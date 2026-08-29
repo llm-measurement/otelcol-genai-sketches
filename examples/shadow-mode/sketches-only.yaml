@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: Apache-2.0
+# Code authors: Vijay Erramilli and Codex
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 127.0.0.1:14317
+
+processors:
+  batch:
+    timeout: 1s
+
+connectors:
+  genaisketch: {}
+
+exporters:
+  prometheus:
+    endpoint: 127.0.0.1:18889
+    translation_strategy: UnderscoreEscapingWithoutSuffixes
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [genaisketch]
+    metrics:
+      receivers: [genaisketch]
+      exporters: [prometheus]

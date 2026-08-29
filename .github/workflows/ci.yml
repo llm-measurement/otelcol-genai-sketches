@@ -37,6 +37,8 @@ jobs:
           git diff --exit-code
       - run: make check
       - run: make test-integration
+      - name: Validate Alloy coexistence configuration
+        run: make validate-alloy-config
       - name: Go vulnerability scan
         run: |
           go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./...

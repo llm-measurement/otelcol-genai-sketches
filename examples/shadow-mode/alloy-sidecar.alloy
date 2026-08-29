@@ -1,0 +1,38 @@
+// SPDX-License-Identifier: Apache-2.0
+// Code authors: Vijay Erramilli and Codex
+
+otelcol.receiver.otlp "applications" {
+  grpc {
+    endpoint = "127.0.0.1:4317"
+  }
+  http {
+    endpoint = "127.0.0.1:4318"
+  }
+  output {
+    traces = [otelcol.processor.batch.applications.input]
+  }
+}
+
+otelcol.processor.batch "applications" {
+  output {
+    traces = [
+      otelcol.exporter.otlp.existing.input,
+      otelcol.exporter.otlp.genai_sketches.input,
+    ]
+  }
+}
+
+otelcol.exporter.otlp "existing" {
+  client {
+    endpoint = sys.env("EXISTING_OTLP_GRPC_ENDPOINT")
+  }
+}
+
+otelcol.exporter.otlp "genai_sketches" {
+  client {
+    endpoint = "127.0.0.1:14317"
+    tls {
+      insecure = true
+    }
+  }
+}

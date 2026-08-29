@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: Apache-2.0
+# Code authors: Vijay Erramilli and Codex
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 127.0.0.1:4317
+      http:
+        endpoint: 127.0.0.1:4318
+
+processors:
+  batch:
+    timeout: 1s
+
+exporters:
+  otlp_grpc/existing:
+    endpoint: ${env:EXISTING_OTLP_GRPC_ENDPOINT}
+    tls:
+      insecure: ${env:EXISTING_OTLP_GRPC_INSECURE}
+  otlp_grpc/genai_sketches:
+    endpoint: 127.0.0.1:14317
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp_grpc/existing, otlp_grpc/genai_sketches]
