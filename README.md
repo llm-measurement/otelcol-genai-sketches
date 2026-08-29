@@ -5,100 +5,23 @@
 
 An OpenTelemetry Collector distribution for continuous, bounded answers about
 high-cardinality agent traffic without exporting or indexing every underlying value.
-It turns GenAI traces into bounded Prometheus metrics and keyed, bounded top-k
-summaries.
+It turns GenAI traces into bounded Prometheus metrics and keyed top-k summaries.
 
-It provides the bounded, fleet-level measurement layer of an AI agent observability
-stack, complementing tools that inspect, evaluate, or debug individual agent runs.
+Use it alongside an existing trace backend to find where reported token volume is
+accumulating, measure missing usage, and keep high-cardinality identities out of
+metric labels.
 
-Use it to find where runaway LLM token volume is accumulating without retaining raw
-prompts or turning high-cardinality identities into metric labels.
+## Start With The Question
 
-It uses [llm-sketchkit](https://github.com/llm-measurement/llm-sketchkit) for
-canonicalization, keyed hashing, distinct counting, frequent-items estimates, and
-deduplication. Raw prompt text, user identifiers, document identifiers, and request
-identifiers are not exported as metrics or labels.
+| Question | Required span data | Result | Boundary |
+| --- | --- | --- | --- |
+| Where is reported token or request volume accumulating? | A matched model operation, optional token fields, and bounded attributes such as team, model, provider, or route | Request and token rates by bounded slice, plus token-weighted prompt signatures with lower and upper bounds | Volume does not establish task value, waste, or root cause |
+| Could an identity create unsafe Prometheus cardinality? | A supported user, prompt, document, or MCP field configured as a hashed field | Distinct estimates remain metrics; keyed identities remain outside labels | The connector does not scan every arbitrary attribute for cardinality |
+| Are agent or tool spans inflating model-request accounting? | `gen_ai.operation.name`, or the documented model fallback | Only configured model operations count as requests; root agent runs have a separate counter | The connector does not provide a count for every possible span kind |
+| How much reported token usage is missing? | `gen_ai.usage.input_tokens` and/or `gen_ai.usage.output_tokens` when available | Missing usage is counted separately from real zero-token values | The collector never infers unreported tokens |
 
-## When This Fits
-
-For agent fleets and multi-agent systems, the collector separates LLM requests from
-agent, tool, retrieval, workflow, and MCP spans while keeping metric state and label
-cardinality bounded.
-
-Use this collector when you need to:
-
-- keep Prometheus label cardinality bounded while monitoring large GenAI workloads;
-- estimate distinct users, prompt signatures, or retrieval documents without keeping
-  the raw values in metric state;
-- separate real zero-token usage from spans that did not report token attributes;
-- investigate token maxing or runaway agent consumption by locating where reported
-  tokens accumulate across bounded slices and keyed prompt signatures;
-- inspect token-heavy prompt signatures without turning them into metric labels; or
-- count LLM requests correctly in traces that also contain agent, tool, retrieval,
-  workflow, and MCP spans.
-
-These signals show token volume, not task value. The collector does not treat token
-consumption as productivity, enforce token budgets, or stop agent loops.
-
-This is not a prompt logger, billing ledger, arbitrary attribute-to-label converter,
-anomaly detector, or differential-privacy system.
-
-### Where It Fits
-
-```text
-GenAI applications -> OTLP traces -> this collector -> Prometheus metrics + bounded structured logs
-```
-
-Use this distribution when source spans already flow through OpenTelemetry. If you
-own a custom streaming, batch, or warehouse pipeline and do not need OTLP-to-metrics
-conversion, use [llm-sketchkit](https://github.com/llm-measurement/llm-sketchkit)
-directly. Prometheus, Grafana, or another Prometheus-compatible observability backend
-runs downstream of the collector.
-
-## Investigating Token Consumption
-
-If "token maxing" means unexpected or runaway token consumption in an LLM or agent
-workload, this collector provides bounded signals for finding where the reported
-volume is accumulating:
-
-- token rate and tokens per request by bounded dimensions such as team, model,
-  provider, or route;
-- an explicit count of requests whose instrumentation omitted token usage; and
-- token-weighted top-k prompt signatures for high-cardinality concentration, emitted
-  as structured logs rather than Prometheus labels.
-
-Comparing request rate with tokens per request helps separate traffic growth from
-larger reported requests or responses. Slice metrics localize the change, while the
-top-k surface shows whether a small number of keyed prompt signatures dominate the
-reported volume.
-
-These are investigation signals, not a control plane. They cannot determine whether
-tokens were useful, diagnose prompt contents, enforce a budget, stop an agent loop,
-or prevent a model context-window error. See [Investigating Token
-Consumption](docs/TOKEN_USAGE.md) for the instrumentation requirements, PromQL,
-interpretation guide, and operational boundaries.
-
-## What It Produces
-
-| Signal | Meaning |
-| --- | --- |
-| `gen_ai_sketch_requests_total` | LLM request spans matched by the operation filter |
-| `gen_ai_sketch_agent_runs_total` | Root `invoke_agent` spans |
-| `gen_ai_sketch_input_tokens_total` | Reported input tokens |
-| `gen_ai_sketch_output_tokens_total` | Reported output tokens |
-| `gen_ai_sketch_total_tokens_total` | Reported input plus output tokens |
-| `gen_ai_sketch_missing_token_usage_total` | Matched requests with neither token field |
-| `gen_ai_sketch_active_slices` | Currently retained slice states |
-| `gen_ai_sketch_distinct_users` | Estimated distinct keyed user values |
-| `gen_ai_sketch_distinct_prompt_signatures` | Estimated distinct keyed prompt values |
-| `gen_ai_sketch_distinct_retrieval_docs` | Estimated distinct keyed document values |
-
-Optional MCP metrics estimate distinct sessions, methods, and resources. Weighted
-top-k prompt signatures are emitted as structured logs with estimates and lower and
-upper bounds; they never become Prometheus labels.
-
-See [Metrics](docs/METRICS.md) for signal semantics and [Investigating Token
-Consumption](docs/TOKEN_USAGE.md) for a worked investigation.
+These are fleet-level measurement signals. Trace explorers and evaluation systems
+remain the right tools for understanding one agent run or judging its output.
 
 ## Quick Start
 
@@ -111,58 +34,142 @@ export GENAI_SKETCH_SECRET="$(openssl rand -hex 32)"
 make example-up
 ```
 
-The example sends mixed agent, tool, retrieval, and LLM spans with optional token
-usage and high-cardinality prompt signatures.
+This starts a sample application, the collector, a Prometheus metrics server, and a
+provisioned Grafana dashboard.
 
 - Grafana: [http://localhost:3000](http://localhost:3000)
 - Prometheus: [http://localhost:9090](http://localhost:9090)
 - Collector metrics: [http://localhost:8889/metrics](http://localhost:8889/metrics)
 
-After the containers have run for at least a minute, use the Grafana dashboard to:
+The sample emits model, agent, tool, and retrieval spans. It also includes missing
+token fields and enough prompt variety to exercise bounded estimates.
+
+### Get A Useful Result
+
+Let the example run for at least one minute, then use the dashboard in this order:
 
 1. Compare **Requests/sec** with **Reported Token Rate**.
-2. Check **Reported Tokens / Request** to distinguish traffic growth from larger
+2. Check **Reported Tokens / Request** to separate traffic growth from larger
    requests or responses.
-3. Check **Missing Token Usage** before trusting token totals as complete.
-4. Compare the bounded model and team/model slices to localize concentration.
+3. Check **Missing Token Usage** before treating token totals as complete.
+4. Compare model and team/model slices to localize the change.
 
-Inspect the high-cardinality prompt-signature surface from the same shell:
+Then inspect the high-cardinality surface:
 
 ```bash
 docker compose -f examples/compose.yaml logs collector \
   | grep 'genaisketch topk snapshot'
 ```
 
-The snapshot contains keyed hashes and bounded estimates, not prompt text. The
-[token-consumption playbook](docs/TOKEN_USAGE.md) explains how to interpret it.
+The snapshot contains keyed hashes, estimates, and lower and upper bounds. It does
+not contain prompt text, and its hashes never become Prometheus labels.
 
-Stop the stack with:
+Stop the example with:
 
 ```bash
 make example-down
 ```
 
-For a local collector binary instead:
+The [token-consumption playbook](docs/TOKEN_USAGE.md) contains the PromQL queries and
+an interpretation table for the same workflow.
 
-```bash
-make dist
-GENAI_SKETCH_SECRET="$(openssl rand -hex 32)" make run-local
+## Keep Your Current Backend
+
+You can add the connector without replacing Datadog, Langfuse, Alloy, or another
+OTLP destination:
+
+```text
+applications -> Collector fan-out -> current trace backend
+                                  -> bounded sketch metrics
 ```
+
+The distribution includes OTLP gRPC and HTTP exporters. CI verifies that one trace
+batch can be forwarded while the connector derives metrics from it. You can also let
+an existing Collector or Alloy deployment own the fan-out and run this distribution
+as a sidecar.
+
+See [Keep Your Existing Telemetry Backend](docs/SHADOW_MODE.md) for tested generic
+OTLP configurations and coexistence paths for an ordinary Collector, Datadog,
+Langfuse, and Grafana Alloy.
+
+## When This Fits
+
+Use this collector when you need to:
+
+- keep metric cardinality bounded across a large GenAI or agent workload;
+- estimate distinct users, prompt signatures, or retrieval documents without
+  placing raw values in aggregate state;
+- separate real zero-token usage from requests that omitted token attributes;
+- investigate unexpected or runaway token consumption, sometimes called
+  "token maxing," by locating where reported tokens accumulate;
+- inspect token-heavy prompt signatures without turning them into labels; or
+- count model requests without including agent, tool, retrieval, workflow, and MCP
+  spans in the same denominator.
+
+This is not a prompt logger, billing ledger, arbitrary attribute-to-label converter,
+anomaly detector, loop stopper, budget enforcer, or differential-privacy system.
+
+If exact traces are safe to retain and remain fast and affordable to query, use them.
+The connector is an always-on bounded evidence surface, not a replacement for raw
+records needed for diagnosis, audit, or replay.
+
+## What It Produces
+
+| Signal | Meaning |
+| --- | --- |
+| `gen_ai_sketch_requests_total` | Model request spans matched by the operation filter |
+| `gen_ai_sketch_agent_runs_total` | Root `invoke_agent` spans |
+| `gen_ai_sketch_input_tokens_total` | Reported input tokens |
+| `gen_ai_sketch_output_tokens_total` | Reported output tokens |
+| `gen_ai_sketch_total_tokens_total` | Reported input plus output tokens |
+| `gen_ai_sketch_missing_token_usage_total` | Matched requests with neither token field |
+| `gen_ai_sketch_active_slices` | Currently retained slice states |
+| `gen_ai_sketch_distinct_users` | Estimated distinct keyed user values |
+| `gen_ai_sketch_distinct_prompt_signatures` | Estimated distinct keyed prompt values |
+| `gen_ai_sketch_distinct_retrieval_docs` | Estimated distinct keyed document values |
+
+Optional MCP metrics estimate distinct sessions, methods, and resources. Weighted
+top-k prompt signatures are emitted as structured logs with estimates and lower and
+upper bounds. They never become Prometheus labels.
+
+See [Metrics](docs/METRICS.md) for exact signal semantics.
+
+## How It Fits
+
+```text
+GenAI applications -> OTLP traces -> this collector -> Prometheus metrics
+                                      |              -> bounded structured logs
+                                      +--------------> optional existing OTLP backend
+```
+
+Use this distribution when source spans already flow through OpenTelemetry. If you
+own a custom streaming, batch, or warehouse pipeline and do not need OTLP-to-metrics
+conversion, use [llm-sketchkit](https://github.com/llm-measurement/llm-sketchkit)
+directly.
+
+The connector uses `llm-sketchkit` for canonicalization, keyed hashing, distinct
+counting, frequent-item estimates, and deduplication. Raw prompt text, user IDs,
+document IDs, and request IDs do not enter connector aggregate state or its derived
+metrics and snapshots.
+
+An optional forwarded trace remains the original trace. If instrumentation captured
+raw content, the existing trace backend still receives it. See the shadow-mode guide
+before enabling fan-out.
 
 ## Use In An Existing Collector
 
-The connector is also published as a standalone Go module for use with the
+The connector is also published as a standalone Go module for the
 [OpenTelemetry Collector Builder](https://opentelemetry.io/docs/collector/extend/ocb/).
-Add this entry to your builder manifest:
+Add it to a builder manifest:
 
 ```yaml
 connectors:
   - gomod: github.com/llm-measurement/otelcol-genai-sketches/connector/genaisketchconnector v0.1.0-alpha.1
 ```
 
-Then configure `genaisketch` as an exporter from the traces pipeline and a receiver
-in the metrics pipeline. The `path:` override in this repository's builder manifest
-is only for building from a local checkout.
+Configure `genaisketch` as an exporter from the traces pipeline and a receiver in the
+metrics pipeline. The `path:` override in this repository's builder manifest exists
+only for a local checkout.
 
 ## Configuration
 
@@ -184,9 +191,9 @@ connectors:
 
 Slice values are exported in cleartext as Prometheus labels. Use only bounded,
 low-cardinality, non-sensitive attributes such as model, team, route, or provider.
-Configured slice capacity is enforced with deterministic inactive-slice eviction and
-a single `__overflow__` value; excess traffic is never silently dropped and never
-creates a new label value.
+Configured slice capacity uses deterministic inactive-slice eviction and one
+`__overflow__` value. Excess traffic is counted rather than silently dropped, and it
+does not create new label values.
 
 See [Configuration](docs/CONFIGURATION.md) for field mapping, operation filtering,
 resource fallback, MCP support, deduplication, and capacity limits.
@@ -214,8 +221,8 @@ Recorded local measurements include:
 
 - 36 million spans accepted and exported over 60 minutes at 10,000 spans/second;
 - exact request filtering across a 36 million-span mixed tree workload: 10.8 million
-  emitted LLM spans and 10.8 million counted requests;
-- exact missing-usage accounting for 1.08 million planted missing-token LLM spans;
+  emitted model spans and 10.8 million counted requests;
+- exact missing-usage accounting for 1.08 million planted missing-token model spans;
 - 528,924 spans/second in the mixed in-process benchmark; and
 - 1,386.8 MiB maximum collector RSS in the mixed fleet-shaped soak.
 
@@ -232,13 +239,14 @@ make dist
 make test-integration
 ```
 
-The integration suite includes clean OTLP-to-Prometheus behavior, bounded overflow,
-deterministic eviction, restart stability, tree locality, and sentinel scans across
-metric, label, and structured-log surfaces.
+The integration suite covers OTLP-to-Prometheus behavior, gRPC and HTTP shadow-mode
+fan-out, bounded overflow, deterministic eviction, restart stability, tree locality,
+and sentinel scans across metric, label, and structured-log surfaces.
 
 ## Status
 
 This project is alpha software. Interfaces and metric semantics may change between
-alpha releases. See the [changelog](CHANGELOG.md) for release notes.
+alpha releases. Pin an exact version and test it against your own traffic before
+production use. See the [changelog](CHANGELOG.md) for release notes.
 
 Licensed under the [Apache License 2.0](LICENSE).

@@ -1,4 +1,5 @@
 OTEL_VERSION := v0.159.0
+ALLOY_IMAGE := grafana/alloy:v1.18.0@sha256:491b0578c04983fd54fe99b587b6fab4404dc46d0dc16677bd6b00cc1140b308
 DIST_BINARY := dist/otelcol-genai-sketches
 DOCKER_DIST_DIR := dist/docker
 DOCKER_GOOS ?= linux
@@ -41,8 +42,20 @@ dist-docker: $(BUILDER)
 	mkdir -p $(dir $(DOCKER_DIST_DIR))
 	GOOS=$(DOCKER_GOOS) GOARCH=$(DOCKER_GOARCH) GOCACHE=$(GOCACHE) GOMODCACHE=$(GOMODCACHE) $(BUILDER) --config=builder.yaml --output-path=$(DOCKER_DIST_DIR)
 
+.PHONY: validate-shadow-configs
+validate-shadow-configs: $(DIST_BINARY)
+	GENAI_SKETCH_SECRET=validation-secret-32-bytes-for-local-only EXISTING_OTLP_GRPC_ENDPOINT=127.0.0.1:5317 EXISTING_OTLP_GRPC_INSECURE=true ./$(DIST_BINARY) validate --config=examples/shadow-mode/collector-grpc.yaml
+	GENAI_SKETCH_SECRET=validation-secret-32-bytes-for-local-only EXISTING_OTLP_HTTP_ENDPOINT=http://127.0.0.1:5318 EXISTING_OTLP_AUTHORIZATION="Bearer validation-only" ./$(DIST_BINARY) validate --config=examples/shadow-mode/collector-http.yaml
+	GENAI_SKETCH_SECRET=validation-secret-32-bytes-for-local-only LANGFUSE_OTLP_ENDPOINT=https://cloud.langfuse.com/api/public/otel LANGFUSE_AUTH_STRING=validation-only ./$(DIST_BINARY) validate --config=examples/shadow-mode/langfuse.yaml
+	GENAI_SKETCH_SECRET=validation-secret-32-bytes-for-local-only ./$(DIST_BINARY) validate --config=examples/shadow-mode/sketches-only.yaml
+	EXISTING_OTLP_GRPC_ENDPOINT=127.0.0.1:5317 EXISTING_OTLP_GRPC_INSECURE=true ./$(DIST_BINARY) validate --config=examples/shadow-mode/upstream-collector.yaml
+
+.PHONY: validate-alloy-config
+validate-alloy-config:
+	docker run --rm --network=none --read-only --cap-drop=ALL --security-opt=no-new-privileges -e EXISTING_OTLP_GRPC_ENDPOINT=collector.example.net:4317 -v $(CURDIR)/examples/shadow-mode/alloy-sidecar.alloy:/etc/alloy/config.alloy:ro $(ALLOY_IMAGE) validate /etc/alloy/config.alloy
+
 .PHONY: test-integration
-test-integration: $(DIST_BINARY)
+test-integration: validate-shadow-configs
 	GOCACHE=$(GOCACHE) GOMODCACHE=$(GOMODCACHE) go test -tags integration ./integration -count=1
 
 .PHONY: run-local

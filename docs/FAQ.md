@@ -49,7 +49,7 @@ estimate. Raw values and keyed hashes do not appear in metrics or labels.
 This is pseudonymization, not anonymization. A party holding the secret can test
 candidate values, and the same value remains linkable while the secret is unchanged.
 
-## Can This Detect Or Stop Token Maxing?
+## Can This Detect Or Stop "Token Maxing"?
 
 It can detect and localize unexpected reported token consumption. Compare request
 rate with token rate and tokens per request, use bounded slices to identify an

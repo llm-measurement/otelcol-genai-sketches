@@ -1,7 +1,7 @@
 # Investigating Token Consumption
 
 This guide shows how to use `otelcol-genai-sketches` to investigate unexpected or
-runaway LLM token consumption, sometimes called token maxing. The collector detects
+runaway LLM token consumption, sometimes called "token maxing." The collector detects
 and localizes reported token volume. It does not enforce budgets or stop workloads.
 
 ## What You Can Answer
