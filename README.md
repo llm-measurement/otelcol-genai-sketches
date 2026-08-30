@@ -147,10 +147,10 @@ own a custom streaming, batch, or warehouse pipeline and do not need OTLP-to-met
 conversion, use [llm-sketchkit](https://github.com/llm-measurement/llm-sketchkit)
 directly.
 
-The connector uses `llm-sketchkit` for canonicalization, keyed hashing, distinct
-counting, frequent-item estimates, and deduplication. Raw prompt text, user IDs,
-document IDs, and request IDs do not enter connector aggregate state or its derived
-metrics and snapshots.
+The connector uses `llm-sketchkit v0.1.0` for canonicalization, keyed hashing,
+distinct counting, frequent-item estimates, and deduplication. Raw prompt text,
+user IDs, document IDs, and request IDs do not enter connector aggregate state or
+its derived metrics and snapshots.
 
 An optional forwarded trace remains the original trace. If instrumentation captured
 raw content, the existing trace backend still receives it. See the shadow-mode guide
