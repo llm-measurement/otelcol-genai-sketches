@@ -34,11 +34,13 @@ grep -Fqx "OTEL_VERSION := ${current}" Makefile
 grep -Fq "otelcol_version: ${current_number}" builder.yaml
 grep -Fq "go.opentelemetry.io/collector/receiver/otlpreceiver ${current}" builder.yaml
 grep -Fq "go.opentelemetry.io/collector/processor/batchprocessor ${current}" builder.yaml
+grep -Fq "go.opentelemetry.io/collector/exporter/otlpexporter ${current}" builder.yaml
+grep -Fq "go.opentelemetry.io/collector/exporter/otlphttpexporter ${current}" builder.yaml
 grep -Fq "github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusexporter ${current}" builder.yaml
 
 sed -E -i.bak "s/^OTEL_VERSION := ${current}$/OTEL_VERSION := ${target}/" Makefile
 sed -E -i.bak "s/otelcol_version: ${current_number}/otelcol_version: ${target_number}/" builder.yaml
-sed -E -i.bak "s#(go\.opentelemetry\.io/collector/(receiver/otlpreceiver|processor/batchprocessor)) ${current}#\\1 ${target}#g" builder.yaml
+sed -E -i.bak "s#(go\.opentelemetry\.io/collector/(receiver/otlpreceiver|processor/batchprocessor|exporter/otlpexporter|exporter/otlphttpexporter)) ${current}#\\1 ${target}#g" builder.yaml
 sed -E -i.bak "s#(github\.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusexporter) ${current}#\\1 ${target}#" builder.yaml
 rm -f Makefile.bak builder.yaml.bak
 
