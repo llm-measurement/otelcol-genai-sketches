@@ -1,0 +1,21 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{/* Code authors: Vijay Erramilli and Codex */}}
+{{- if .Values.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "otelcol-genai-sketches.fullname" . }}
+  labels:
+    {{- include "otelcol-genai-sketches.labels" . | nindent 4 }}
+    {{- with .Values.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "otelcol-genai-sketches.selectorLabels" . | nindent 6 }}
+  endpoints:
+    - port: metrics
+      interval: {{ .Values.serviceMonitor.interval }}
+      scrapeTimeout: {{ .Values.serviceMonitor.scrapeTimeout }}
+{{- end }}

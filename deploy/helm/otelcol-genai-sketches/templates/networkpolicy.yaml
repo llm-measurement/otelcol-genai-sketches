@@ -1,0 +1,19 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{/* Code authors: Vijay Erramilli and Codex */}}
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "otelcol-genai-sketches.fullname" . }}
+  labels:
+    {{- include "otelcol-genai-sketches.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "otelcol-genai-sketches.selectorLabels" . | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    {{- toYaml .Values.networkPolicy.ingress | nindent 4 }}
+  egress:
+    {{- toYaml .Values.networkPolicy.egress | nindent 4 }}
+{{- end }}

@@ -1,0 +1,37 @@
+{
+  "schema": "genai-accounting-reconciliation/v1",
+  "name": "Missing, zero, and invalid token fields",
+  "source": {"provider": "mixed", "instrumentation": "quality-fixture", "semantic_conventions": "reviewed-2026-09-03"},
+  "config": {"dedup_enabled": false},
+  "resources": [{
+    "attributes": {"gen_ai.provider.name": "quality"},
+    "spans": [
+      {"id": "0000000000000001", "name": "zero", "attributes": {"gen_ai.operation.name": "chat", "gen_ai.usage.input_tokens": 0, "gen_ai.usage.output_tokens": 0}},
+      {"id": "0000000000000002", "name": "partial", "attributes": {"gen_ai.operation.name": "chat", "gen_ai.usage.input_tokens": 10}},
+      {"id": "0000000000000003", "name": "absent", "attributes": {"gen_ai.operation.name": "chat"}},
+      {"id": "0000000000000004", "name": "invalid with fallback", "attributes": {"gen_ai.operation.name": "chat", "gen_ai.usage.input_tokens": "-1", "gen_ai.usage.prompt_tokens": 9, "gen_ai.usage.output_tokens": "not-a-number"}}
+    ]
+  }],
+  "expected": {
+    "metrics": {
+      "gen_ai_sketch_requests_total": 4,
+      "gen_ai_sketch_input_tokens_total": 19,
+      "gen_ai_sketch_output_tokens_total": 0,
+      "gen_ai_sketch_total_tokens_total": 19,
+      "gen_ai_sketch_cache_read_input_tokens_total": 0,
+      "gen_ai_sketch_cache_write_input_tokens_total": 0,
+      "gen_ai_sketch_reasoning_output_tokens_total": 0,
+      "gen_ai_sketch_missing_token_usage_total": 3,
+      "gen_ai_sketch_dedup_suppressed_total": 0,
+      "gen_ai_sketch_dedup_key_missing_total": 0
+    },
+    "token_observations": {
+      "input/reported": 3,
+      "input/missing": 1,
+      "input/invalid": 1,
+      "output/reported": 1,
+      "output/missing": 3,
+      "output/invalid": 1
+    }
+  }
+}

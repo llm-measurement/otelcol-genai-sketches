@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: Apache-2.0
+# Code authors: Vijay Erramilli and Codex
+apiVersion: v2
+name: otelcol-genai-sketches
+description: OpenTelemetry Collector distribution for bounded GenAI accounting and sketch metrics
+type: application
+version: 0.1.0
+appVersion: "0.1.0-alpha.1"
+kubeVersion: ">=1.27.0-0"
+home: https://github.com/llm-measurement/otelcol-genai-sketches
+sources:
+  - https://github.com/llm-measurement/otelcol-genai-sketches
+maintainers:
+  - name: Vijay Erramilli
+annotations:
+  artifacthub.io/license: Apache-2.0

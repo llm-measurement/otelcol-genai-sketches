@@ -43,22 +43,25 @@ const (
 )
 
 type runtimeConfig struct {
-	windowDuration   time.Duration
-	retentionWindows int
-	maxSlices        int
-	topK             int
-	hllppProfile     hllpp.Profile
-	frequentProfile  sketchfi.Profile
-	bloomProfile     sketchbloom.Profile
-	slices           []SliceConfig
-	fields           map[string]compiledField
-	llmOperations    map[string]struct{}
-	inputTokenAttrs  []string
-	outputTokenAttrs []string
-	dedupEnabled     bool
-	requestIDAttrs   []string
-	mcpEnabled       bool
-	toolErrors       bool
+	windowDuration       time.Duration
+	retentionWindows     int
+	maxSlices            int
+	topK                 int
+	hllppProfile         hllpp.Profile
+	frequentProfile      sketchfi.Profile
+	bloomProfile         sketchbloom.Profile
+	slices               []SliceConfig
+	fields               map[string]compiledField
+	llmOperations        map[string]struct{}
+	inputTokenAttrs      []string
+	outputTokenAttrs     []string
+	cacheReadTokenAttrs  []string
+	cacheWriteTokenAttrs []string
+	reasoningTokenAttrs  []string
+	dedupEnabled         bool
+	requestIDAttrs       []string
+	mcpEnabled           bool
+	toolErrors           bool
 }
 
 type compiledField struct {
@@ -70,10 +73,9 @@ type compiledField struct {
 }
 
 type collectorState struct {
-	cfg       runtimeConfig
-	secret    sketchhash.Secret
-	clock     clock
-	startTime pcommon.Timestamp
+	cfg    runtimeConfig
+	secret sketchhash.Secret
+	clock  clock
 
 	slices     map[string]*sliceState
 	overflows  map[string]*sliceState
@@ -83,15 +85,22 @@ type collectorState struct {
 type sliceState struct {
 	label       sliceLabel
 	windows     map[int64]*windowState
+	startTime   pcommon.Timestamp
 	lastSeen    time.Time
 	lastWindow  int64
 	lruSequence int64
 
-	requests      uint64
-	agentRuns     uint64
-	inputTokens   uint64
-	outputTokens  uint64
-	missingTokens uint64
+	requests              uint64
+	agentRuns             uint64
+	inputTokens           uint64
+	outputTokens          uint64
+	cacheReadInputTokens  uint64
+	cacheWriteInputTokens uint64
+	reasoningOutputTokens uint64
+	missingTokens         uint64
+	tokenObservations     tokenObservationCounts
+	dedupSuppressed       uint64
+	dedupKeyMissing       uint64
 }
 
 type sliceLabel struct {
@@ -151,13 +160,65 @@ type TopKItem struct {
 type spanData struct {
 	resourceAttrs pcommon.Map
 	spanAttrs     pcommon.Map
+	traceID       pcommon.TraceID
 }
 
 type spanTotals struct {
-	requests      uint64
-	inputTokens   uint64
-	outputTokens  uint64
-	missingTokens uint64
+	requests              uint64
+	inputTokens           uint64
+	outputTokens          uint64
+	cacheReadInputTokens  uint64
+	cacheWriteInputTokens uint64
+	reasoningOutputTokens uint64
+	missingTokens         uint64
+	tokenObservations     tokenObservationCounts
+}
+
+type tokenField uint8
+
+const (
+	tokenFieldInput tokenField = iota
+	tokenFieldOutput
+	tokenFieldCacheReadInput
+	tokenFieldCacheWriteInput
+	tokenFieldReasoningOutput
+	tokenFieldCount
+)
+
+var tokenFieldNames = [tokenFieldCount]string{
+	"input",
+	"output",
+	"cache_read_input",
+	"cache_write_input",
+	"reasoning_output",
+}
+
+type tokenObservationState uint8
+
+const (
+	tokenStateReported tokenObservationState = iota
+	tokenStateMissing
+	tokenStateInvalid
+	tokenStateConflict
+	tokenStateSubsetViolation
+	tokenStateCount
+)
+
+var tokenObservationStateNames = [tokenStateCount]string{
+	"reported",
+	"missing",
+	"invalid",
+	"conflict",
+	"subset_violation",
+}
+
+type tokenObservationCounts [tokenFieldCount][tokenStateCount]uint64
+
+type tokenObservation struct {
+	value    uint64
+	reported bool
+	invalid  bool
+	conflict bool
 }
 
 type spanUpdate struct {
@@ -176,6 +237,7 @@ type optionalHash struct {
 type preparedUpdate struct {
 	dedupHash       optionalHash
 	deduped         bool
+	dedupKeyMissing bool
 	userHash        optionalHash
 	promptHash      optionalHash
 	docHash         optionalHash
@@ -187,7 +249,7 @@ type preparedUpdate struct {
 	toolErrorHash   optionalHash
 }
 
-func newCollectorState(cfg *Config, secret sketchhash.Secret, clk clock, start time.Time) (*collectorState, error) {
+func newCollectorState(cfg *Config, secret sketchhash.Secret, clk clock) (*collectorState, error) {
 	runtimeCfg, err := compileRuntimeConfig(cfg)
 	if err != nil {
 		return nil, err
@@ -200,7 +262,6 @@ func newCollectorState(cfg *Config, secret sketchhash.Secret, clk clock, start t
 		cfg:       runtimeCfg,
 		secret:    secret,
 		clock:     clk,
-		startTime: pcommon.NewTimestampFromTime(start),
 		slices:    make(map[string]*sliceState),
 		overflows: make(map[string]*sliceState),
 	}, nil
@@ -223,22 +284,25 @@ func compileRuntimeConfig(cfg *Config) (runtimeConfig, error) {
 	}
 
 	runtimeCfg := runtimeConfig{
-		windowDuration:   cfg.WindowDuration,
-		retentionWindows: cfg.RetentionWindows,
-		maxSlices:        cfg.MaxSlices,
-		topK:             cfg.TopK,
-		hllppProfile:     hllpp.Profile(cfg.Profiles.HLLPP),
-		frequentProfile:  sketchfi.Profile(cfg.Profiles.FrequentItems),
-		bloomProfile:     sketchbloom.Profile(cfg.Profiles.Bloom),
-		slices:           append([]SliceConfig(nil), cfg.Slices...),
-		fields:           fields,
-		llmOperations:    llmOperations,
-		inputTokenAttrs:  append([]string(nil), cfg.Weights.InputTokensFrom...),
-		outputTokenAttrs: append([]string(nil), cfg.Weights.OutputTokensFrom...),
-		dedupEnabled:     cfg.Dedup.Enabled,
-		requestIDAttrs:   append([]string(nil), cfg.Dedup.RequestIDFrom...),
-		mcpEnabled:       cfg.MCP.Enabled,
-		toolErrors:       cfg.MCP.ToolErrors.Enabled,
+		windowDuration:       cfg.WindowDuration,
+		retentionWindows:     cfg.RetentionWindows,
+		maxSlices:            cfg.MaxSlices,
+		topK:                 cfg.TopK,
+		hllppProfile:         hllpp.Profile(cfg.Profiles.HLLPP),
+		frequentProfile:      sketchfi.Profile(cfg.Profiles.FrequentItems),
+		bloomProfile:         sketchbloom.Profile(cfg.Profiles.Bloom),
+		slices:               append([]SliceConfig(nil), cfg.Slices...),
+		fields:               fields,
+		llmOperations:        llmOperations,
+		inputTokenAttrs:      append([]string(nil), cfg.Weights.InputTokensFrom...),
+		outputTokenAttrs:     append([]string(nil), cfg.Weights.OutputTokensFrom...),
+		cacheReadTokenAttrs:  append([]string(nil), cfg.Weights.CacheReadInputTokensFrom...),
+		cacheWriteTokenAttrs: append([]string(nil), cfg.Weights.CacheWriteInputTokensFrom...),
+		reasoningTokenAttrs:  append([]string(nil), cfg.Weights.ReasoningOutputTokensFrom...),
+		dedupEnabled:         cfg.Dedup.Enabled,
+		requestIDAttrs:       append([]string(nil), cfg.Dedup.RequestIDFrom...),
+		mcpEnabled:           cfg.MCP.Enabled,
+		toolErrors:           cfg.MCP.ToolErrors.Enabled,
 	}
 	if err := validateRuntimeFields(runtimeCfg); err != nil {
 		return runtimeConfig{}, err
@@ -249,8 +313,35 @@ func compileRuntimeConfig(cfg *Config) (runtimeConfig, error) {
 func (s *collectorState) ConsumeTraces(_ context.Context, traces ptrace.Traces) (pmetric.Metrics, bool, error) {
 	now := s.clock.Now()
 	windowStart := s.windowStart(now)
-	touched := false
 
+	relevant, err := s.visitRelevantSpans(traces, nil)
+	if err != nil {
+		return pmetric.Metrics{}, false, err
+	}
+	if !relevant {
+		return pmetric.Metrics{}, false, nil
+	}
+	_, err = s.visitRelevantSpans(traces, func(data spanData, update spanUpdate) error {
+		for _, sliceCfg := range s.cfg.slices {
+			slice, err := s.sliceFor(sliceCfg, data, now, windowStart)
+			if err != nil {
+				return err
+			}
+			if err := slice.update(windowStart, s, data, update); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return pmetric.Metrics{}, false, err
+	}
+
+	return s.buildMetrics(now), true, nil
+}
+
+func (s *collectorState) visitRelevantSpans(traces ptrace.Traces, visit func(spanData, spanUpdate) error) (bool, error) {
+	relevant := false
 	resourceSpans := traces.ResourceSpans()
 	for i := 0; i < resourceSpans.Len(); i++ {
 		resourceAttrs := resourceSpans.At(i).Resource().Attributes()
@@ -259,33 +350,58 @@ func (s *collectorState) ConsumeTraces(_ context.Context, traces ptrace.Traces) 
 			spans := scopeSpans.At(j).Spans()
 			for k := 0; k < spans.Len(); k++ {
 				span := spans.At(k)
-				data := spanData{resourceAttrs: resourceAttrs, spanAttrs: span.Attributes()}
+				data := spanData{resourceAttrs: resourceAttrs, spanAttrs: span.Attributes(), traceID: span.TraceID()}
 				update, err := s.classifySpan(span, data)
 				if err != nil {
-					return pmetric.Metrics{}, false, err
+					return false, err
 				}
 				if !update.request && !update.agentRun && !update.mcp && !update.toolError {
 					continue
 				}
-				for _, sliceCfg := range s.cfg.slices {
-					slice, err := s.sliceFor(sliceCfg, data, now, windowStart)
-					if err != nil {
-						return pmetric.Metrics{}, false, err
+				relevant = true
+				if visit == nil {
+					if err := s.validateHashedInputs(data, update); err != nil {
+						return false, err
 					}
-					if err := slice.update(windowStart, s, data, update); err != nil {
-						return pmetric.Metrics{}, false, err
-					}
-					touched = true
+					continue
+				}
+				if err := visit(data, update); err != nil {
+					return false, err
 				}
 			}
 		}
 	}
+	return relevant, nil
+}
 
-	if !touched {
-		return pmetric.Metrics{}, false, nil
+func (s *collectorState) validateHashedInputs(data spanData, update spanUpdate) error {
+	if update.request {
+		if s.cfg.dedupEnabled {
+			if requestID, ok := lookupRequestID(data, s.cfg.requestIDAttrs); ok {
+				if _, err := s.hashCanonical(sketchcanon.TextV1, sketchhash.SessionV1, requestID); err != nil {
+					return err
+				}
+			}
+		}
+		for _, field := range []string{fieldUserKey, fieldPromptKey, fieldDocKey} {
+			if _, err := s.hashDataField(field, data); err != nil {
+				return err
+			}
+		}
 	}
-
-	return s.buildMetrics(now), true, nil
+	if update.mcp {
+		for _, field := range []string{fieldMCPSessionKey, fieldMCPMethodKey, fieldMCPResourceKey} {
+			if _, err := s.hashDataField(field, data); err != nil {
+				return err
+			}
+		}
+	}
+	if update.toolError {
+		if _, _, err := s.hashToolErrorSignature(data); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *collectorState) classifySpan(span ptrace.Span, data spanData) (spanUpdate, error) {
@@ -301,7 +417,7 @@ func (s *collectorState) classifySpan(span ptrace.Span, data spanData) (spanUpda
 		toolError: s.cfg.mcpEnabled && s.cfg.toolErrors && hasToolError(data),
 	}
 	if request {
-		totals, err := tokenTotals(span.Attributes(), s.cfg.inputTokenAttrs, s.cfg.outputTokenAttrs)
+		totals, err := tokenTotals(span.Attributes(), s.cfg)
 		if err != nil {
 			return spanUpdate{}, err
 		}
@@ -330,8 +446,9 @@ func (s *collectorState) sliceFor(sliceCfg SliceConfig, data spanData, now time.
 
 func (s *collectorState) createSlice(label sliceLabel, now time.Time, windowStart int64) (*sliceState, error) {
 	state := &sliceState{
-		label:   label,
-		windows: make(map[int64]*windowState),
+		label:     label,
+		windows:   make(map[int64]*windowState),
+		startTime: pcommon.NewTimestampFromTime(now),
 	}
 	s.touch(state, now, windowStart)
 	s.slices[label.sortKey] = state
@@ -351,8 +468,9 @@ func (s *collectorState) overflowSlice(sliceName string, now time.Time, windowSt
 		sortKey:  "overflow:" + sliceName,
 	}
 	state := &sliceState{
-		label:   label,
-		windows: make(map[int64]*windowState),
+		label:     label,
+		windows:   make(map[int64]*windowState),
+		startTime: pcommon.NewTimestampFromTime(now),
 	}
 	s.touch(state, now, windowStart)
 	s.overflows[sliceName] = state
@@ -410,29 +528,37 @@ func (s *sliceState) update(windowStart int64, owner *collectorState, data spanD
 	}
 
 	prepared, err := owner.prepareUpdate(window, data, update)
-	if err != nil || prepared.deduped {
+	if err != nil {
 		return err
 	}
-	if err := s.checkCounters(window, update); err != nil {
+	if prepared.deduped {
+		if _, err := checkedAddUint64("slice.dedup_suppressed", s.dedupSuppressed, 1); err != nil {
+			return err
+		}
+		s.dedupSuppressed++
+		return nil
+	}
+	if err := s.checkCounters(window, update, prepared); err != nil {
 		return err
 	}
 	if err := owner.applyErrorCheckedSketches(window, prepared); err != nil {
 		return err
 	}
 	owner.applyNoErrorSketches(window, prepared)
-	s.addCounters(window, update)
+	s.addCounters(window, update, prepared)
 	return nil
 }
 
 func (s *collectorState) prepareUpdate(window *windowState, data spanData, update spanUpdate) (preparedUpdate, error) {
 	var prepared preparedUpdate
 	if update.request {
-		dedupHash, deduped, err := s.prepareDedup(window, data)
+		dedupHash, deduped, keyMissing, err := s.prepareDedup(window, data)
 		if err != nil || deduped {
 			prepared.deduped = deduped
 			return prepared, err
 		}
 		prepared.dedupHash = dedupHash
+		prepared.dedupKeyMissing = keyMissing
 		if prepared.userHash, err = s.hashDataField(fieldUserKey, data); err != nil {
 			return preparedUpdate{}, err
 		}
@@ -473,22 +599,22 @@ func (s *collectorState) prepareUpdate(window *windowState, data spanData, updat
 	return prepared, nil
 }
 
-func (s *collectorState) prepareDedup(window *windowState, data spanData) (optionalHash, bool, error) {
+func (s *collectorState) prepareDedup(window *windowState, data spanData) (optionalHash, bool, bool, error) {
 	if !s.cfg.dedupEnabled || window.dedupRequests == nil {
-		return optionalHash{}, false, nil
+		return optionalHash{}, false, false, nil
 	}
-	requestID, ok := lookupString(data, s.cfg.requestIDAttrs)
+	requestID, ok := lookupRequestID(data, s.cfg.requestIDAttrs)
 	if !ok {
-		return optionalHash{}, false, nil
+		return optionalHash{}, false, true, nil
 	}
 	hashValue, err := s.hashCanonical(sketchcanon.TextV1, sketchhash.SessionV1, requestID)
 	if err != nil {
-		return optionalHash{}, false, err
+		return optionalHash{}, false, false, err
 	}
-	return optionalHash{value: hashValue, ok: true}, window.dedupRequests.MayContainHash(hashValue), nil
+	return optionalHash{value: hashValue, ok: true}, window.dedupRequests.MayContainHash(hashValue), false, nil
 }
 
-func (s *sliceState) checkCounters(window *windowState, update spanUpdate) error {
+func (s *sliceState) checkCounters(window *windowState, update spanUpdate, prepared preparedUpdate) error {
 	for _, item := range []struct {
 		name    string
 		current uint64
@@ -497,6 +623,9 @@ func (s *sliceState) checkCounters(window *windowState, update spanUpdate) error
 		{name: "slice.requests", current: s.requests, delta: update.totals.requests},
 		{name: "slice.input_tokens", current: s.inputTokens, delta: update.totals.inputTokens},
 		{name: "slice.output_tokens", current: s.outputTokens, delta: update.totals.outputTokens},
+		{name: "slice.cache_read_input_tokens", current: s.cacheReadInputTokens, delta: update.totals.cacheReadInputTokens},
+		{name: "slice.cache_write_input_tokens", current: s.cacheWriteInputTokens, delta: update.totals.cacheWriteInputTokens},
+		{name: "slice.reasoning_output_tokens", current: s.reasoningOutputTokens, delta: update.totals.reasoningOutputTokens},
 		{name: "slice.missing_tokens", current: s.missingTokens, delta: update.totals.missingTokens},
 		{name: "window.requests", current: window.requests, delta: update.totals.requests},
 		{name: "window.input_tokens", current: window.inputTokens, delta: update.totals.inputTokens},
@@ -512,6 +641,20 @@ func (s *sliceState) checkCounters(window *windowState, update spanUpdate) error
 			return err
 		}
 		if _, err := checkedAddUint64("window.agent_runs", window.agentRuns, 1); err != nil {
+			return err
+		}
+	}
+	for field := tokenField(0); field < tokenFieldCount; field++ {
+		for state := tokenObservationState(0); state < tokenStateCount; state++ {
+			delta := update.totals.tokenObservations[field][state]
+			name := tokenFieldNames[field] + "." + tokenObservationStateNames[state]
+			if _, err := checkedAddUint64("slice.token_observations."+name, s.tokenObservations[field][state], delta); err != nil {
+				return err
+			}
+		}
+	}
+	if prepared.dedupKeyMissing {
+		if _, err := checkedAddUint64("slice.dedup_key_missing", s.dedupKeyMissing, 1); err != nil {
 			return err
 		}
 	}
@@ -576,15 +719,27 @@ func (s *collectorState) applyNoErrorSketches(window *windowState, prepared prep
 	addHash(window.distinctMCPResources, prepared.mcpResourceHash)
 }
 
-func (s *sliceState) addCounters(window *windowState, update spanUpdate) {
+func (s *sliceState) addCounters(window *windowState, update spanUpdate, prepared preparedUpdate) {
 	s.requests += update.totals.requests
 	s.inputTokens += update.totals.inputTokens
 	s.outputTokens += update.totals.outputTokens
+	s.cacheReadInputTokens += update.totals.cacheReadInputTokens
+	s.cacheWriteInputTokens += update.totals.cacheWriteInputTokens
+	s.reasoningOutputTokens += update.totals.reasoningOutputTokens
 	s.missingTokens += update.totals.missingTokens
 	window.requests += update.totals.requests
 	window.inputTokens += update.totals.inputTokens
 	window.outputTokens += update.totals.outputTokens
 	window.missingTokens += update.totals.missingTokens
+	for field := tokenField(0); field < tokenFieldCount; field++ {
+		for state := tokenObservationState(0); state < tokenStateCount; state++ {
+			delta := update.totals.tokenObservations[field][state]
+			s.tokenObservations[field][state] += delta
+		}
+	}
+	if prepared.dedupKeyMissing {
+		s.dedupKeyMissing++
+	}
 	if update.agentRun {
 		s.agentRuns++
 		window.agentRuns++
@@ -729,32 +884,96 @@ func topKWeight(totals spanTotals) (int64, bool, error) {
 	return int64(weight), true, nil
 }
 
-func tokenTotals(spanAttrs pcommon.Map, inputAttrs []string, outputAttrs []string) (spanTotals, error) {
-	input, inputOK, err := lookupUintFromMap(spanAttrs, inputAttrs)
-	if err != nil {
-		return spanTotals{}, err
+func tokenTotals(spanAttrs pcommon.Map, cfg runtimeConfig) (spanTotals, error) {
+	sources := [tokenFieldCount][]string{
+		cfg.inputTokenAttrs,
+		cfg.outputTokenAttrs,
+		cfg.cacheReadTokenAttrs,
+		cfg.cacheWriteTokenAttrs,
+		cfg.reasoningTokenAttrs,
 	}
-	output, outputOK, err := lookupUintFromMap(spanAttrs, outputAttrs)
-	if err != nil {
-		return spanTotals{}, err
+	var observations [tokenFieldCount]tokenObservation
+	for field := tokenField(0); field < tokenFieldCount; field++ {
+		observation, err := observeTokenField(spanAttrs, sources[field])
+		if err != nil {
+			return spanTotals{}, err
+		}
+		observations[field] = observation
 	}
-	if inputOK && outputOK {
-		if _, err := checkedTokenSum(input, output); err != nil {
+
+	input := observations[tokenFieldInput]
+	output := observations[tokenFieldOutput]
+	if input.reported && output.reported {
+		if _, err := checkedTokenSum(input.value, output.value); err != nil {
 			return spanTotals{}, err
 		}
 	}
 
 	totals := spanTotals{requests: 1}
-	if inputOK {
-		totals.inputTokens = input
+	if input.reported {
+		totals.inputTokens = input.value
 	}
-	if outputOK {
-		totals.outputTokens = output
+	if output.reported {
+		totals.outputTokens = output.value
 	}
-	if !inputOK || !outputOK {
+	if !input.reported || !output.reported {
 		totals.missingTokens = 1
 	}
+	totals.cacheReadInputTokens = observations[tokenFieldCacheReadInput].value
+	totals.cacheWriteInputTokens = observations[tokenFieldCacheWriteInput].value
+	totals.reasoningOutputTokens = observations[tokenFieldReasoningOutput].value
+
+	for field := tokenField(0); field < tokenFieldCount; field++ {
+		observation := observations[field]
+		if observation.reported {
+			totals.tokenObservations[field][tokenStateReported] = 1
+		} else if field == tokenFieldInput || field == tokenFieldOutput {
+			totals.tokenObservations[field][tokenStateMissing] = 1
+		}
+		if observation.invalid {
+			totals.tokenObservations[field][tokenStateInvalid] = 1
+		}
+		if observation.conflict {
+			totals.tokenObservations[field][tokenStateConflict] = 1
+		}
+	}
+	markSubsetViolation(&totals, tokenFieldCacheReadInput, input, observations[tokenFieldCacheReadInput])
+	markSubsetViolation(&totals, tokenFieldCacheWriteInput, input, observations[tokenFieldCacheWriteInput])
+	markSubsetViolation(&totals, tokenFieldReasoningOutput, output, observations[tokenFieldReasoningOutput])
 	return totals, nil
+}
+
+func observeTokenField(attributes pcommon.Map, sources []string) (tokenObservation, error) {
+	var observation tokenObservation
+	for _, source := range sources {
+		value, present := attributes.Get(source)
+		if !present {
+			continue
+		}
+		parsed, valid, err := valueAsUint(value)
+		if err != nil {
+			return tokenObservation{}, fmt.Errorf("attribute %q: %w", source, err)
+		}
+		if !valid {
+			observation.invalid = true
+			continue
+		}
+		if !observation.reported {
+			observation.value = parsed
+			observation.reported = true
+			continue
+		}
+		if observation.value != parsed {
+			observation.conflict = true
+		}
+	}
+	return observation, nil
+}
+
+func markSubsetViolation(totals *spanTotals, field tokenField, parent tokenObservation, detail tokenObservation) {
+	if parent.reported && detail.reported && detail.value > parent.value {
+		totals.tokenObservations[field][tokenStateSubsetViolation] = 1
+	}
 }
 
 func sliceLabelFor(sliceCfg SliceConfig, data spanData) sliceLabel {
@@ -796,6 +1015,21 @@ func lookupString(data spanData, keys []string) (string, bool) {
 	return lookupStringSources(data, keys, keys)
 }
 
+func lookupRequestID(data spanData, keys []string) (string, bool) {
+	for _, key := range keys {
+		if key == "trace_id" {
+			if !data.traceID.IsEmpty() {
+				return data.traceID.String(), true
+			}
+			continue
+		}
+		if value, ok := lookupStringInMap(data.spanAttrs, []string{key}); ok && value != "" {
+			return value, true
+		}
+	}
+	return "", false
+}
+
 func lookupStringSources(data spanData, spanKeys []string, resourceKeys []string) (string, bool) {
 	if value, ok := lookupStringInMap(data.spanAttrs, spanKeys); ok {
 		return value, true
@@ -810,21 +1044,6 @@ func lookupStringInMap(attributes pcommon.Map, keys []string) (string, bool) {
 		}
 	}
 	return "", false
-}
-
-func lookupUintFromMap(attributes pcommon.Map, keys []string) (uint64, bool, error) {
-	for _, key := range keys {
-		if value, ok := attributes.Get(key); ok {
-			parsed, ok, err := valueAsUint(value)
-			if err != nil {
-				return 0, false, fmt.Errorf("attribute %q: %w", key, err)
-			}
-			if ok {
-				return parsed, true, nil
-			}
-		}
-	}
-	return 0, false, nil
 }
 
 func spanAttributeString(attributes pcommon.Map, key string) (string, bool) {
@@ -867,8 +1086,11 @@ func valueAsUint(value pcommon.Value) (uint64, bool, error) {
 		return uint64(value.Int()), true, nil
 	case pcommon.ValueTypeDouble:
 		d := value.Double()
-		if d < 0 || math.Trunc(d) != d || d > float64(maxInt64Value) {
+		if d < 0 || math.IsNaN(d) || math.Trunc(d) != d {
 			return 0, false, nil
+		}
+		if d >= float64(maxInt64Value) {
+			return 0, false, fmt.Errorf("token value exceeds %d", maxInt64Value)
 		}
 		return uint64(d), true, nil
 	case pcommon.ValueTypeStr:
@@ -897,16 +1119,24 @@ func (s *collectorState) buildMetrics(now time.Time) pmetric.Metrics {
 	currentWindow := s.windowStart(now)
 	for _, slice := range s.metricSlices() {
 		labels := slice.metricLabels()
-		appendSum(scopeMetrics, requestsMetricName, "Cumulative count of spans matching the configured GenAI LLM operation filter.", "{request}", slice.requests, labels, s.startTime, timestamp)
-		appendSum(scopeMetrics, agentRunsMetricName, "Cumulative count of root invoke_agent operations.", "{run}", slice.agentRuns, labels, s.startTime, timestamp)
-		appendSum(scopeMetrics, inputTokensMetricName, "Cumulative input tokens observed on operation-filter matches.", "{token}", slice.inputTokens, labels, s.startTime, timestamp)
-		appendSum(scopeMetrics, outputTokensMetricName, "Cumulative output tokens observed on operation-filter matches.", "{token}", slice.outputTokens, labels, s.startTime, timestamp)
+		appendSum(scopeMetrics, requestsMetricName, "Cumulative count of spans matching the configured GenAI LLM operation filter.", "{request}", slice.requests, labels, slice.startTime, timestamp)
+		appendSum(scopeMetrics, agentRunsMetricName, "Cumulative count of root invoke_agent operations.", "{run}", slice.agentRuns, labels, slice.startTime, timestamp)
+		appendSum(scopeMetrics, inputTokensMetricName, "Cumulative input tokens observed on operation-filter matches.", "{token}", slice.inputTokens, labels, slice.startTime, timestamp)
+		appendSum(scopeMetrics, outputTokensMetricName, "Cumulative output tokens observed on operation-filter matches.", "{token}", slice.outputTokens, labels, slice.startTime, timestamp)
+		appendSum(scopeMetrics, cacheReadInputTokensMetricName, "Cumulative cache-read input tokens reported as a subset of input usage.", "{token}", slice.cacheReadInputTokens, labels, slice.startTime, timestamp)
+		appendSum(scopeMetrics, cacheWriteInputTokensMetricName, "Cumulative cache-write input tokens reported as a subset of input usage.", "{token}", slice.cacheWriteInputTokens, labels, slice.startTime, timestamp)
+		appendSum(scopeMetrics, reasoningOutputTokensMetricName, "Cumulative reasoning output tokens reported as a subset of output usage.", "{token}", slice.reasoningOutputTokens, labels, slice.startTime, timestamp)
 		totalTokens, ok := addUint64(slice.inputTokens, slice.outputTokens)
 		if !ok {
 			totalTokens = math.MaxUint64
 		}
-		appendSum(scopeMetrics, totalTokensMetricName, "Cumulative input plus output tokens observed on operation-filter matches.", "{token}", totalTokens, labels, s.startTime, timestamp)
-		appendSum(scopeMetrics, missingTokenUsageMetricName, "Cumulative operation-filter matches missing configured token usage attributes.", "{request}", slice.missingTokens, labels, s.startTime, timestamp)
+		appendSum(scopeMetrics, totalTokensMetricName, "Cumulative input plus output tokens observed on operation-filter matches.", "{token}", totalTokens, labels, slice.startTime, timestamp)
+		appendSum(scopeMetrics, missingTokenUsageMetricName, "Cumulative operation-filter matches for which input or output usage is unavailable.", "{request}", slice.missingTokens, labels, slice.startTime, timestamp)
+		appendTokenObservationSums(scopeMetrics, slice.tokenObservations, labels, slice.startTime, timestamp)
+		if s.cfg.dedupEnabled {
+			appendSum(scopeMetrics, dedupSuppressedMetricName, "Cumulative requests suppressed by the optional per-window Bloom deduplicator.", "{request}", slice.dedupSuppressed, labels, slice.startTime, timestamp)
+			appendSum(scopeMetrics, dedupKeyMissingMetricName, "Cumulative requests counted without a configured deduplication key.", "{request}", slice.dedupKeyMissing, labels, slice.startTime, timestamp)
+		}
 
 		window := slice.windows[currentWindow]
 		if window == nil {
@@ -1043,6 +1273,45 @@ func appendSum(scopeMetrics pmetric.ScopeMetrics, name string, description strin
 	point.SetTimestamp(timestamp)
 	point.SetIntValue(saturatingInt64(value))
 	setLabels(point.Attributes(), labels)
+}
+
+func appendTokenObservationSums(scopeMetrics pmetric.ScopeMetrics, counts tokenObservationCounts, labels map[string]string, start pcommon.Timestamp, timestamp pcommon.Timestamp) {
+	hasObservations := false
+	for field := tokenField(0); field < tokenFieldCount && !hasObservations; field++ {
+		for state := tokenObservationState(0); state < tokenStateCount; state++ {
+			if counts[field][state] > 0 {
+				hasObservations = true
+				break
+			}
+		}
+	}
+	if !hasObservations {
+		return
+	}
+
+	metric := scopeMetrics.Metrics().AppendEmpty()
+	metric.SetName(tokenFieldObservationsMetricName)
+	metric.SetDescription("Cumulative fixed-state observations of configured token fields.")
+	metric.SetUnit("{observation}")
+
+	sum := metric.SetEmptySum()
+	sum.SetAggregationTemporality(pmetric.AggregationTemporalityCumulative)
+	sum.SetIsMonotonic(true)
+	for field := tokenField(0); field < tokenFieldCount; field++ {
+		for state := tokenObservationState(0); state < tokenStateCount; state++ {
+			value := counts[field][state]
+			if value == 0 {
+				continue
+			}
+			point := sum.DataPoints().AppendEmpty()
+			point.SetStartTimestamp(start)
+			point.SetTimestamp(timestamp)
+			point.SetIntValue(saturatingInt64(value))
+			setLabels(point.Attributes(), labels)
+			point.Attributes().PutStr("token_field", tokenFieldNames[field])
+			point.Attributes().PutStr("state", tokenObservationStateNames[state])
+		}
+	}
 }
 
 func appendGauge(scopeMetrics pmetric.ScopeMetrics, name string, description string, unit string, value float64, labels map[string]string, timestamp pcommon.Timestamp) {

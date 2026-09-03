@@ -18,19 +18,25 @@ import (
 const (
 	scopeName = "github.com/llm-measurement/otelcol-genai-sketches/connector/genaisketchconnector"
 
-	requestsMetricName             = "gen_ai_sketch_requests_total"
-	agentRunsMetricName            = "gen_ai_sketch_agent_runs_total"
-	inputTokensMetricName          = "gen_ai_sketch_input_tokens_total"
-	outputTokensMetricName         = "gen_ai_sketch_output_tokens_total"
-	totalTokensMetricName          = "gen_ai_sketch_total_tokens_total"
-	missingTokenUsageMetricName    = "gen_ai_sketch_missing_token_usage_total"
-	activeSlicesMetricName         = "gen_ai_sketch_active_slices"
-	distinctUsersMetricName        = "gen_ai_sketch_distinct_users"
-	distinctPromptsMetricName      = "gen_ai_sketch_distinct_prompt_signatures"
-	distinctDocsMetricName         = "gen_ai_sketch_distinct_retrieval_docs"
-	distinctMCPSessionsMetricName  = "gen_ai_sketch_distinct_mcp_sessions"
-	distinctMCPMethodsMetricName   = "gen_ai_sketch_distinct_mcp_methods"
-	distinctMCPResourcesMetricName = "gen_ai_sketch_distinct_mcp_resources"
+	requestsMetricName               = "gen_ai_sketch_requests_total"
+	agentRunsMetricName              = "gen_ai_sketch_agent_runs_total"
+	inputTokensMetricName            = "gen_ai_sketch_input_tokens_total"
+	outputTokensMetricName           = "gen_ai_sketch_output_tokens_total"
+	totalTokensMetricName            = "gen_ai_sketch_total_tokens_total"
+	cacheReadInputTokensMetricName   = "gen_ai_sketch_cache_read_input_tokens_total"
+	cacheWriteInputTokensMetricName  = "gen_ai_sketch_cache_write_input_tokens_total"
+	reasoningOutputTokensMetricName  = "gen_ai_sketch_reasoning_output_tokens_total"
+	missingTokenUsageMetricName      = "gen_ai_sketch_missing_token_usage_total"
+	tokenFieldObservationsMetricName = "gen_ai_sketch_token_field_observations_total"
+	dedupSuppressedMetricName        = "gen_ai_sketch_dedup_suppressed_total"
+	dedupKeyMissingMetricName        = "gen_ai_sketch_dedup_key_missing_total"
+	activeSlicesMetricName           = "gen_ai_sketch_active_slices"
+	distinctUsersMetricName          = "gen_ai_sketch_distinct_users"
+	distinctPromptsMetricName        = "gen_ai_sketch_distinct_prompt_signatures"
+	distinctDocsMetricName           = "gen_ai_sketch_distinct_retrieval_docs"
+	distinctMCPSessionsMetricName    = "gen_ai_sketch_distinct_mcp_sessions"
+	distinctMCPMethodsMetricName     = "gen_ai_sketch_distinct_mcp_methods"
+	distinctMCPResourcesMetricName   = "gen_ai_sketch_distinct_mcp_resources"
 
 	debugLogInterval = 5 * time.Second
 )
@@ -62,7 +68,7 @@ func (c *tracesConnector) Start(context.Context, component.Host) error {
 		return err
 	}
 
-	state, err := newCollectorState(c.cfg, secret, c.clock, c.clock.Now())
+	state, err := newCollectorState(c.cfg, secret, c.clock)
 	if err != nil {
 		return err
 	}
@@ -112,7 +118,7 @@ func (c *tracesConnector) ConsumeTraces(ctx context.Context, traces ptrace.Trace
 		if err != nil {
 			return err
 		}
-		state, err := newCollectorState(c.cfg, secret, c.clock, c.clock.Now())
+		state, err := newCollectorState(c.cfg, secret, c.clock)
 		if err != nil {
 			return err
 		}

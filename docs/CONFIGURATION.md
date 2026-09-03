@@ -47,7 +47,7 @@ slices:
 ```
 
 For each key, the connector checks the span first. It checks the resource only when
-that key is listed in `resource_fallbacks`. Missing parts use the fixed `<missing>`
+that key is listed in `from_resource_attributes`. Missing parts use the fixed `<missing>`
 value; oversized label parts use `<too_long>`.
 
 Slice values are plaintext Prometheus labels. Restrict them to operator-chosen,
@@ -70,7 +70,7 @@ connector does not inherit operation or model attributes from parent spans.
 ## Field Mapping
 
 The `fields` map selects ordered attribute candidates for user identity, prompt
-signature, retrieval document, stable request ID, operation, model, and token usage.
+signature, retrieval document, and MCP identity.
 Each hashed field searches all configured span candidates before all configured
 resource candidates. Parent and child spans are evaluated independently.
 
@@ -92,16 +92,37 @@ state at the cost of wider error. Profile definitions come from the pinned
 
 ## Token Weights
 
-Input and output token fields are independently optional. Weighted prompt top-k
-summaries use the configured token weights only when the fields are present. Missing
+Token source lists are ordered. The first valid source wins; a different value in a
+later source is counted as a conflict rather than added. Input and output are
+independently optional on incoming spans, but both source lists must be configured.
+Weighted prompt top-k summaries require both aggregate fields. Missing or invalid
 fields are counted explicitly and are never replaced with guessed values.
+
+```yaml
+weights:
+  input_tokens_from: [gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens]
+  output_tokens_from: [gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens]
+  cache_read_input_tokens_from: [gen_ai.usage.cache_read.input_tokens]
+  cache_write_input_tokens_from:
+    [gen_ai.usage.cache_write.input_tokens, gen_ai.usage.cache_creation.input_tokens]
+  reasoning_output_tokens_from: [gen_ai.usage.reasoning.output_tokens]
+  fallback_when_missing: request_count_only
+```
+
+Cache and reasoning values are reported separately as subsets; they are not added to
+input, output, or total tokens. See [Production Accounting Semantics](ACCOUNTING.md)
+for precedence, validity, lifecycle, and reconciliation rules.
 
 ## Deduplication
 
-Deduplication is optional and requires a stable request-ID field mapping. It uses a
-bounded Bloom filter. False positives can suppress a previously unseen request and
-therefore undercount; use it only when duplicate suppression is worth that explicit
-tradeoff.
+Deduplication is optional and requires a stable span-level request-ID source. The
+defaults are `gen_ai.response.id` and `request.id`, in that order. Resource
+attributes are not used. The special `trace_id` source is available only when one
+trace is known to contain at most one model request; it is deliberately not a
+default. Deduplication uses a bounded, per-slice, per-window Bloom filter. False
+positives can suppress a previously unseen request and therefore undercount; use it
+only when duplicate suppression is worth that explicit tradeoff. Suppressed
+requests and requests missing a deduplication key have separate counters.
 
 ## MCP
 

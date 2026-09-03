@@ -2,6 +2,20 @@
 
 Notable user-visible changes are recorded here.
 
+## Unreleased
+
+- Defined the versioned `genai-accounting/v1` request and token contract, including
+  ordered aliases, missing and invalid values, cache and reasoning subsets, and
+  optional per-window request deduplication.
+- Added exact reconciliation fixtures for current and legacy provider fields,
+  lifecycle cases, conflicting values, retries, and deduplication.
+- Added fixed-cardinality token quality metrics and separate cache-read,
+  cache-write, reasoning, and deduplication counters.
+- Added a production image, Helm chart, central and sidecar Kubernetes examples,
+  accounting alerts, sizing guidance, upgrade guidance, and a support policy.
+- Added multi-architecture release automation with image signatures, SBOMs,
+  provenance, checksums, license notices, license checks, and vulnerability scans.
+
 ## connector/genaisketchconnector/v0.1.0-alpha.1 - 2026-08-21
 
 - Published `genaisketchconnector` as an independently versioned Go module for use

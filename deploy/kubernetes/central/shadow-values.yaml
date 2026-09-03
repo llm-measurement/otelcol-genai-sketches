@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: Apache-2.0
+# Code authors: Vijay Erramilli and Codex
+shadow:
+  enabled: true
+  endpoint: collector.example.net:4317
+  insecure: false
+  auth:
+    existingSecret: existing-otlp-authorization
+    key: authorization

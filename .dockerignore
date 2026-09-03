@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: Apache-2.0
+# Code authors: Vijay Erramilli and Codex
+.git
+.github
+.cache
+dist
+docs/local
+go.work
+go.work.sum
+coverage.out
+**/*_test.go
+**/testdata
+examples
+deploy

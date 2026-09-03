@@ -123,7 +123,7 @@ func loadSecret(tb testing.TB) sketchhash.Secret {
 func newLoadState(tb testing.TB, clk *fixedClock, cfg *Config, secret sketchhash.Secret) *collectorState {
 	tb.Helper()
 
-	state, err := newCollectorState(cfg, secret, clk, clk.Now())
+	state, err := newCollectorState(cfg, secret, clk)
 	if err != nil {
 		tb.Fatalf("newCollectorState: %v", err)
 	}

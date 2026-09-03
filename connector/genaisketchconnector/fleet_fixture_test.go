@@ -308,7 +308,7 @@ func newFleetFixtureState(t *testing.T, cfg *Config) *collectorState {
 		t.Fatalf("SecretFromEnv: %v", err)
 	}
 	clk := &fixedClock{now: time.Unix(5_000, 0)}
-	state, err := newCollectorState(cfg, secret, clk, clk.Now())
+	state, err := newCollectorState(cfg, secret, clk)
 	if err != nil {
 		t.Fatalf("newCollectorState: %v", err)
 	}
@@ -628,15 +628,21 @@ func mustJSON(t *testing.T, value any) []byte {
 }
 
 type stateFingerprintSlice struct {
-	SliceName     string                   `json:"slice"`
-	SliceValue    string                   `json:"slice_value"`
-	Overflow      bool                     `json:"overflow"`
-	Requests      uint64                   `json:"requests"`
-	AgentRuns     uint64                   `json:"agent_runs"`
-	InputTokens   uint64                   `json:"input_tokens"`
-	OutputTokens  uint64                   `json:"output_tokens"`
-	MissingTokens uint64                   `json:"missing_tokens"`
-	Windows       []stateFingerprintWindow `json:"windows"`
+	SliceName             string                   `json:"slice"`
+	SliceValue            string                   `json:"slice_value"`
+	Overflow              bool                     `json:"overflow"`
+	Requests              uint64                   `json:"requests"`
+	AgentRuns             uint64                   `json:"agent_runs"`
+	InputTokens           uint64                   `json:"input_tokens"`
+	OutputTokens          uint64                   `json:"output_tokens"`
+	CacheReadInputTokens  uint64                   `json:"cache_read_input_tokens"`
+	CacheWriteInputTokens uint64                   `json:"cache_write_input_tokens"`
+	ReasoningOutputTokens uint64                   `json:"reasoning_output_tokens"`
+	MissingTokens         uint64                   `json:"missing_tokens"`
+	TokenObservations     tokenObservationCounts   `json:"token_observations"`
+	DedupSuppressed       uint64                   `json:"dedup_suppressed"`
+	DedupKeyMissing       uint64                   `json:"dedup_key_missing"`
+	Windows               []stateFingerprintWindow `json:"windows"`
 }
 
 type stateFingerprintWindow struct {
@@ -662,14 +668,20 @@ func stateFingerprint(t *testing.T, state *collectorState) []byte {
 	out := make([]stateFingerprintSlice, 0, len(all))
 	for _, slice := range all {
 		fingerprint := stateFingerprintSlice{
-			SliceName:     slice.label.name,
-			SliceValue:    slice.label.value,
-			Overflow:      slice.label.overflow,
-			Requests:      slice.requests,
-			AgentRuns:     slice.agentRuns,
-			InputTokens:   slice.inputTokens,
-			OutputTokens:  slice.outputTokens,
-			MissingTokens: slice.missingTokens,
+			SliceName:             slice.label.name,
+			SliceValue:            slice.label.value,
+			Overflow:              slice.label.overflow,
+			Requests:              slice.requests,
+			AgentRuns:             slice.agentRuns,
+			InputTokens:           slice.inputTokens,
+			OutputTokens:          slice.outputTokens,
+			CacheReadInputTokens:  slice.cacheReadInputTokens,
+			CacheWriteInputTokens: slice.cacheWriteInputTokens,
+			ReasoningOutputTokens: slice.reasoningOutputTokens,
+			MissingTokens:         slice.missingTokens,
+			TokenObservations:     slice.tokenObservations,
+			DedupSuppressed:       slice.dedupSuppressed,
+			DedupKeyMissing:       slice.dedupKeyMissing,
 		}
 		starts := make([]int64, 0, len(slice.windows))
 		for start := range slice.windows {

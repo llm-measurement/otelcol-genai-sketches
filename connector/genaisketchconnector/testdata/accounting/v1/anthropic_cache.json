@@ -1,0 +1,53 @@
+{
+  "schema": "genai-accounting-reconciliation/v1",
+  "name": "Anthropic cache creation and read subsets",
+  "source": {"provider": "anthropic", "instrumentation": "otel-genai", "semantic_conventions": "reviewed-2026-09-03"},
+  "config": {"dedup_enabled": false},
+  "resources": [{
+    "attributes": {"gen_ai.provider.name": "anthropic"},
+    "spans": [
+      {
+        "id": "0000000000000001",
+        "name": "chat claude",
+        "attributes": {
+          "gen_ai.operation.name": "chat",
+          "gen_ai.usage.input_tokens": 150,
+          "gen_ai.usage.output_tokens": 30,
+          "gen_ai.usage.cache_read.input_tokens": 100,
+          "gen_ai.usage.cache_write.input_tokens": 40
+        }
+      },
+      {
+        "id": "0000000000000002",
+        "name": "chat claude zero",
+        "attributes": {
+          "gen_ai.operation.name": "chat",
+          "gen_ai.usage.input_tokens": 0,
+          "gen_ai.usage.output_tokens": 0,
+          "gen_ai.usage.cache_read.input_tokens": 0,
+          "gen_ai.usage.cache_write.input_tokens": 0
+        }
+      }
+    ]
+  }],
+  "expected": {
+    "metrics": {
+      "gen_ai_sketch_requests_total": 2,
+      "gen_ai_sketch_input_tokens_total": 150,
+      "gen_ai_sketch_output_tokens_total": 30,
+      "gen_ai_sketch_total_tokens_total": 180,
+      "gen_ai_sketch_cache_read_input_tokens_total": 100,
+      "gen_ai_sketch_cache_write_input_tokens_total": 40,
+      "gen_ai_sketch_reasoning_output_tokens_total": 0,
+      "gen_ai_sketch_missing_token_usage_total": 0,
+      "gen_ai_sketch_dedup_suppressed_total": 0,
+      "gen_ai_sketch_dedup_key_missing_total": 0
+    },
+    "token_observations": {
+      "input/reported": 2,
+      "output/reported": 2,
+      "cache_read_input/reported": 2,
+      "cache_write_input/reported": 2
+    }
+  }
+}

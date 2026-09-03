@@ -1,0 +1,15 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{/* Code authors: Vijay Erramilli and Codex */}}
+{{- if .Values.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "otelcol-genai-sketches.fullname" . }}
+  labels:
+    {{- include "otelcol-genai-sketches.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "otelcol-genai-sketches.selectorLabels" . | nindent 6 }}
+{{- end }}

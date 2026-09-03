@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: Apache-2.0
+# Code authors: Vijay Erramilli and Codex
+# Merge this list item into spec.template.spec.containers in an application Deployment.
+- name: genai-sketches
+  image: ghcr.io/llm-measurement/otelcol-genai-sketches:0.1.0-alpha.1
+  imagePullPolicy: IfNotPresent
+  args: ["--config", "/etc/otelcol-genai-sketches/config.yaml"]
+  env:
+    - name: GENAI_SKETCH_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: genai-sketch-secret
+          key: secret
+    - {name: GENAI_SKETCH_MEMORY_LIMIT_MIB, value: "922"}
+    - {name: GENAI_SKETCH_MEMORY_SPIKE_MIB, value: "154"}
+  ports:
+    - {name: sketch-metrics, containerPort: 8889}
+    - {name: sketch-health, containerPort: 13133}
+  startupProbe:
+    httpGet: {path: /, port: sketch-health}
+    failureThreshold: 30
+    periodSeconds: 2
+  readinessProbe:
+    httpGet: {path: /, port: sketch-health}
+  livenessProbe:
+    httpGet: {path: /, port: sketch-health}
+    periodSeconds: 30
+  resources:
+    requests: {cpu: 250m, memory: 256Mi}
+    limits: {cpu: "1", memory: 1Gi}
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 65532
+    runAsGroup: 65532
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    seccompProfile: {type: RuntimeDefault}
+    capabilities: {drop: [ALL]}

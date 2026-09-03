@@ -12,7 +12,7 @@ The exported signals can help answer:
 - Did the average reported tokens per request increase?
 - Which bounded team, model, provider, or route slice carries the increase?
 - Is reported token volume concentrated in a small number of prompt signatures?
-- How much of the request stream omitted token usage entirely?
+- How much of the request stream has incomplete aggregate token usage?
 
 The signals cannot establish whether token use was productive, recover prompt text,
 identify an agent-loop root cause, or determine remaining model context capacity.
@@ -25,9 +25,10 @@ Matched LLM request spans should carry:
 - `gen_ai.usage.input_tokens` when input usage is available; and
 - `gen_ai.usage.output_tokens` when output usage is available.
 
-The attribute names are configurable in `fields` and `weights`. Input and output
-usage are independently optional. The collector sums only reported values and never
-invents missing token counts.
+The attribute names are configurable in `weights`. Input and output usage are
+independently optional on spans. The collector sums only reported values and never
+invents missing token counts. Cache-read and cache-write tokens are subsets of input;
+reasoning tokens are a subset of output, so none is added again to total tokens.
 
 Configure a small number of bounded, non-sensitive slices for dimensions operators
 can act on, such as team, model, provider, or route. Slice values are exported as
@@ -95,7 +96,7 @@ sum by (slice, slice_value, overflow) (
 )
 ```
 
-Fraction of matched requests with no reported token usage:
+Fraction of matched requests missing input or output usage:
 
 ```promql
 sum(rate(gen_ai_sketch_missing_token_usage_total[5m]))

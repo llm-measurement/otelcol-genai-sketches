@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: Apache-2.0
+# Code authors: Vijay Erramilli and Codex
+**
+!examples/
+!examples/app/
+!examples/app/Dockerfile
+!examples/app/app.py
+!examples/app/requirements.txt
