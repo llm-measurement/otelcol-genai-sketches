@@ -37,6 +37,12 @@ jobs:
           git diff --exit-code
       - run: make check
       - run: make test-integration
+      - name: Verify generated gRPC version
+        run: |
+          expected="$(go list -m -f '{{.Version}}' google.golang.org/grpc)"
+          actual="$(go -C dist list -m -f '{{with .Replace}}{{.Version}}{{else}}{{.Version}}{{end}}' google.golang.org/grpc)"
+          printf 'root grpc=%s generated grpc=%s\n' "$expected" "$actual"
+          test "$actual" = "$expected"
       - name: Validate Alloy coexistence configuration
         run: make validate-alloy-config
       - name: Go vulnerability scan
@@ -72,6 +78,12 @@ jobs:
             otelcol-genai-sketches/go.sum
             otelcol-genai-sketches/connector/genaisketchconnector/go.sum
       - run: make dist-docker
+      - name: Verify generated gRPC version
+        run: |
+          expected="$(go list -m -f '{{.Version}}' google.golang.org/grpc)"
+          actual="$(go -C dist/docker list -m -f '{{with .Replace}}{{.Version}}{{else}}{{.Version}}{{end}}' google.golang.org/grpc)"
+          printf 'root grpc=%s generated grpc=%s\n' "$expected" "$actual"
+          test "$actual" = "$expected"
       - name: Generated distro vulnerability scan
         run: go -C dist/docker run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./...
       - name: Bring up example stack
