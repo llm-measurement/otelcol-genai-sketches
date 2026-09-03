@@ -1,0 +1,121 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{/* Code authors: Vijay Erramilli and Codex */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "otelcol-genai-sketches.fullname" . }}
+  labels:
+    {{- include "otelcol-genai-sketches.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    {{- toYaml .Values.strategy | nindent 4 }}
+  selector:
+    matchLabels:
+      {{- include "otelcol-genai-sketches.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "otelcol-genai-sketches.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "otelcol-genai-sketches.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: collector
+          image: {{ include "otelcol-genai-sketches.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["--config", "/etc/otelcol-genai-sketches/collector.yaml"]
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          env:
+            - name: GENAI_SKETCH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "existingSecret is required" .Values.existingSecret }}
+                  key: {{ required "secretKey is required" .Values.secretKey }}
+            {{- if and .Values.shadow.enabled .Values.shadow.auth.existingSecret }}
+            - name: SHADOW_AUTHORIZATION
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.shadow.auth.existingSecret }}
+                  key: {{ .Values.shadow.auth.key }}
+            {{- end }}
+          ports:
+            - name: otlp-grpc
+              containerPort: {{ .Values.service.otlpGrpcPort }}
+            - name: otlp-http
+              containerPort: {{ .Values.service.otlpHTTPPort }}
+            - name: metrics
+              containerPort: {{ .Values.service.metricsPort }}
+            - name: health
+              containerPort: 13133
+          startupProbe:
+            httpGet: {path: /, port: health}
+            failureThreshold: 30
+            periodSeconds: 2
+          readinessProbe:
+            httpGet: {path: /, port: health}
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet: {path: /, port: health}
+            periodSeconds: 30
+            timeoutSeconds: 3
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/otelcol-genai-sketches
+              readOnly: true
+            {{- if .Values.receiverTLS.enabled }}
+            - name: receiver-tls
+              mountPath: /var/run/genai-sketches/tls
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "otelcol-genai-sketches.fullname" . }}
+        {{- if .Values.receiverTLS.enabled }}
+        - name: receiver-tls
+          secret:
+            secretName: {{ required "receiverTLS.existingSecret is required when receiverTLS.enabled=true" .Values.receiverTLS.existingSecret }}
+            defaultMode: 0440
+            items:
+              - {key: {{ .Values.receiverTLS.certKey }}, path: tls.crt}
+              - {key: {{ .Values.receiverTLS.privateKeyKey }}, path: tls.key}
+              {{- if .Values.receiverTLS.clientCAKey }}
+              - {key: {{ .Values.receiverTLS.clientCAKey }}, path: ca.crt}
+              {{- end }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

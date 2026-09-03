@@ -1,0 +1,49 @@
+{
+  "schema": "genai-accounting-reconciliation/v1",
+  "name": "Alias conflicts and subset violations",
+  "source": {"provider": "mixed", "instrumentation": "conflict-fixture", "semantic_conventions": "reviewed-2026-09-03"},
+  "config": {"dedup_enabled": false},
+  "resources": [{
+    "attributes": {"gen_ai.provider.name": "conflict"},
+    "spans": [{
+      "id": "0000000000000001",
+      "name": "conflicting usage",
+      "attributes": {
+        "gen_ai.operation.name": "chat",
+        "gen_ai.usage.input_tokens": 100,
+        "gen_ai.usage.prompt_tokens": 90,
+        "gen_ai.usage.output_tokens": 20,
+        "gen_ai.usage.completion_tokens": 20,
+        "gen_ai.usage.cache_read.input_tokens": 120,
+        "gen_ai.usage.cache_write.input_tokens": 30,
+        "gen_ai.usage.cache_creation.input_tokens": 31,
+        "gen_ai.usage.reasoning.output_tokens": 21
+      }
+    }]
+  }],
+  "expected": {
+    "metrics": {
+      "gen_ai_sketch_requests_total": 1,
+      "gen_ai_sketch_input_tokens_total": 100,
+      "gen_ai_sketch_output_tokens_total": 20,
+      "gen_ai_sketch_total_tokens_total": 120,
+      "gen_ai_sketch_cache_read_input_tokens_total": 120,
+      "gen_ai_sketch_cache_write_input_tokens_total": 30,
+      "gen_ai_sketch_reasoning_output_tokens_total": 21,
+      "gen_ai_sketch_missing_token_usage_total": 0,
+      "gen_ai_sketch_dedup_suppressed_total": 0,
+      "gen_ai_sketch_dedup_key_missing_total": 0
+    },
+    "token_observations": {
+      "input/reported": 1,
+      "input/conflict": 1,
+      "output/reported": 1,
+      "cache_read_input/reported": 1,
+      "cache_read_input/subset_violation": 1,
+      "cache_write_input/reported": 1,
+      "cache_write_input/conflict": 1,
+      "reasoning_output/reported": 1,
+      "reasoning_output/subset_violation": 1
+    }
+  }
+}

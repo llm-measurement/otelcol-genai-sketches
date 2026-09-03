@@ -77,9 +77,12 @@ type FieldConfig struct {
 }
 
 type WeightsConfig struct {
-	InputTokensFrom     []string `mapstructure:"input_tokens_from"`
-	OutputTokensFrom    []string `mapstructure:"output_tokens_from"`
-	FallbackWhenMissing string   `mapstructure:"fallback_when_missing"`
+	InputTokensFrom           []string `mapstructure:"input_tokens_from"`
+	OutputTokensFrom          []string `mapstructure:"output_tokens_from"`
+	CacheReadInputTokensFrom  []string `mapstructure:"cache_read_input_tokens_from"`
+	CacheWriteInputTokensFrom []string `mapstructure:"cache_write_input_tokens_from"`
+	ReasoningOutputTokensFrom []string `mapstructure:"reasoning_output_tokens_from"`
+	FallbackWhenMissing       string   `mapstructure:"fallback_when_missing"`
 }
 
 type DedupConfig struct {
@@ -148,13 +151,29 @@ func defaultConfig() *Config {
 			},
 		},
 		Weights: WeightsConfig{
-			InputTokensFrom:     []string{"gen_ai.usage.input_tokens"},
-			OutputTokensFrom:    []string{"gen_ai.usage.output_tokens"},
+			InputTokensFrom: []string{
+				"gen_ai.usage.input_tokens",
+				"gen_ai.usage.prompt_tokens",
+			},
+			OutputTokensFrom: []string{
+				"gen_ai.usage.output_tokens",
+				"gen_ai.usage.completion_tokens",
+			},
+			CacheReadInputTokensFrom: []string{
+				"gen_ai.usage.cache_read.input_tokens",
+			},
+			CacheWriteInputTokensFrom: []string{
+				"gen_ai.usage.cache_write.input_tokens",
+				"gen_ai.usage.cache_creation.input_tokens",
+			},
+			ReasoningOutputTokensFrom: []string{
+				"gen_ai.usage.reasoning.output_tokens",
+			},
 			FallbackWhenMissing: "request_count_only",
 		},
 		Dedup: DedupConfig{
 			Enabled:       false,
-			RequestIDFrom: []string{"request.id", "trace_id"},
+			RequestIDFrom: []string{"gen_ai.response.id", "request.id"},
 		},
 	}
 }
@@ -216,6 +235,7 @@ func (cfg *Config) Validate() error {
 
 	errs = append(errs, validateSlices(cfg.Slices))
 	errs = append(errs, validateFields(cfg.Fields))
+	errs = append(errs, validateTokenSources(cfg.Weights))
 
 	if _, err := compileRuntimeConfig(cfg); err != nil {
 		errs = append(errs, err)
@@ -227,6 +247,7 @@ func (cfg *Config) Validate() error {
 	if cfg.Dedup.Enabled && len(cfg.Dedup.RequestIDFrom) == 0 {
 		errs = append(errs, errors.New("dedup.request_id_from must contain at least one attribute key when dedup.enabled is true"))
 	}
+	errs = append(errs, validateAttributeSources("dedup.request_id_from", cfg.Dedup.RequestIDFrom))
 	if overlaps := cfg.SensitiveSliceHashedFieldOverlaps(); len(overlaps) > 0 {
 		errs = append(errs, fmt.Errorf("slice keys overlap sensitive hashed-field source attributes: %s", strings.Join(overlaps, ", ")))
 	}
@@ -348,12 +369,38 @@ func validateAttributeSources(path string, attributes []string) error {
 	if len(attributes) > maxAttributeSources {
 		errs = append(errs, fmt.Errorf("%s must contain at most %d attribute keys", path, maxAttributeSources))
 	}
+	seen := make(map[string]struct{}, len(attributes))
 	for i, attr := range attributes {
 		if strings.TrimSpace(attr) == "" {
 			errs = append(errs, fmt.Errorf("%s[%d] must not be empty", path, i))
 		} else if len(attr) > maxAttributeKeyBytes {
 			errs = append(errs, fmt.Errorf("%s[%d] must be <= %d bytes", path, i, maxAttributeKeyBytes))
 		}
+		if _, ok := seen[attr]; ok && attr != "" {
+			errs = append(errs, fmt.Errorf("%s[%d] %q is duplicated", path, i, attr))
+		}
+		seen[attr] = struct{}{}
+	}
+	return errors.Join(errs...)
+}
+
+func validateTokenSources(weights WeightsConfig) error {
+	var errs []error
+	for _, item := range []struct {
+		path     string
+		sources  []string
+		required bool
+	}{
+		{path: "weights.input_tokens_from", sources: weights.InputTokensFrom, required: true},
+		{path: "weights.output_tokens_from", sources: weights.OutputTokensFrom, required: true},
+		{path: "weights.cache_read_input_tokens_from", sources: weights.CacheReadInputTokensFrom},
+		{path: "weights.cache_write_input_tokens_from", sources: weights.CacheWriteInputTokensFrom},
+		{path: "weights.reasoning_output_tokens_from", sources: weights.ReasoningOutputTokensFrom},
+	} {
+		if item.required && len(item.sources) == 0 {
+			errs = append(errs, fmt.Errorf("%s must contain at least one attribute key", item.path))
+		}
+		errs = append(errs, validateAttributeSources(item.path, item.sources))
 	}
 	return errors.Join(errs...)
 }

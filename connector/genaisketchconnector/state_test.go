@@ -5,6 +5,7 @@ package genaisketchconnector
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -82,6 +83,58 @@ func TestTokenOverflowRejectedBeforeStateMutation(t *testing.T) {
 	}
 	if len(state.slices) != 0 {
 		t.Fatalf("slices mutated on rejected token sum: %d", len(state.slices))
+	}
+}
+
+func TestTokenOverflowRejectsWholeBatchBeforeStateMutation(t *testing.T) {
+	state := newTestState(t, testConfig(func(cfg *Config) {
+		cfg.Slices = []SliceConfig{{Name: "by_model", Keys: []string{"gen_ai.request.model"}}}
+	}))
+	traces := tracesFromSpans(testSpan{
+		Model:        "valid-model",
+		InputTokens:  ptr(10),
+		OutputTokens: ptr(2),
+	})
+	span := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().AppendEmpty()
+	span.SetName("genai.request")
+	span.Attributes().PutStr("gen_ai.operation.name", "chat")
+	span.Attributes().PutStr("gen_ai.request.model", "invalid-model")
+	span.Attributes().PutDouble("gen_ai.usage.input_tokens", math.Exp2(63))
+	span.Attributes().PutInt("gen_ai.usage.output_tokens", 1)
+
+	_, _, err := state.ConsumeTraces(context.Background(), traces)
+	if err == nil || !strings.Contains(err.Error(), "token value exceeds") {
+		t.Fatalf("ConsumeTraces error = %v, want token bound rejection", err)
+	}
+	if len(state.slices) != 0 {
+		t.Fatalf("slices mutated before full-batch validation: %d", len(state.slices))
+	}
+}
+
+func TestHashInputErrorRejectsWholeBatchBeforeStateMutation(t *testing.T) {
+	state := newTestState(t, testConfig(func(cfg *Config) {
+		cfg.Slices = []SliceConfig{{Name: "by_model", Keys: []string{"gen_ai.request.model"}}}
+	}))
+	traces := tracesFromSpans(testSpan{
+		Model:        "valid-model",
+		Prompt:       "valid prompt",
+		InputTokens:  ptr(10),
+		OutputTokens: ptr(2),
+	})
+	span := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().AppendEmpty()
+	span.SetName("genai.request")
+	span.Attributes().PutStr("gen_ai.operation.name", "chat")
+	span.Attributes().PutStr("gen_ai.request.model", "invalid-model")
+	span.Attributes().PutStr("gen_ai.request.prompt", strings.Repeat("x", maxAttributeValueBytes+1))
+	span.Attributes().PutInt("gen_ai.usage.input_tokens", 1)
+	span.Attributes().PutInt("gen_ai.usage.output_tokens", 1)
+
+	_, _, err := state.ConsumeTraces(context.Background(), traces)
+	if err == nil || !strings.Contains(err.Error(), "fields.prompt_key value exceeds") {
+		t.Fatalf("ConsumeTraces error = %v, want hash input bound rejection", err)
+	}
+	if len(state.slices) != 0 {
+		t.Fatalf("slices mutated before full-batch validation: %d", len(state.slices))
 	}
 }
 
@@ -228,15 +281,15 @@ func TestHashFieldStableAcrossStatesWithSameSecret(t *testing.T) {
 		t.Fatalf("SecretFromEnv B: %v", err)
 	}
 
-	left, err := newCollectorState(cfg, secretA, &fixedClock{now: time.Unix(1, 0)}, time.Unix(1, 0))
+	left, err := newCollectorState(cfg, secretA, &fixedClock{now: time.Unix(1, 0)})
 	if err != nil {
 		t.Fatalf("newCollectorState left: %v", err)
 	}
-	right, err := newCollectorState(cfg, secretA, &fixedClock{now: time.Unix(2, 0)}, time.Unix(2, 0))
+	right, err := newCollectorState(cfg, secretA, &fixedClock{now: time.Unix(2, 0)})
 	if err != nil {
 		t.Fatalf("newCollectorState right: %v", err)
 	}
-	other, err := newCollectorState(cfg, secretB, &fixedClock{now: time.Unix(3, 0)}, time.Unix(3, 0))
+	other, err := newCollectorState(cfg, secretB, &fixedClock{now: time.Unix(3, 0)})
 	if err != nil {
 		t.Fatalf("newCollectorState other: %v", err)
 	}
@@ -434,6 +487,158 @@ func TestDedupSuppressesRepeatedRequestID(t *testing.T) {
 	}
 }
 
+func TestDedupSupportsTraceIDAndReportsSuppression(t *testing.T) {
+	state := newTestState(t, testConfig(func(cfg *Config) {
+		cfg.Dedup.Enabled = true
+		cfg.Dedup.RequestIDFrom = []string{"trace_id"}
+		cfg.Slices = []SliceConfig{{Name: "by_model", Keys: []string{"gen_ai.request.model"}}}
+	}))
+
+	traces := ptrace.NewTraces()
+	spans := traces.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans()
+	traceID := pcommon.TraceID{0x01, 0x02, 0x03, 0x04}
+	for i := 0; i < 2; i++ {
+		span := spans.AppendEmpty()
+		span.SetTraceID(traceID)
+		span.Attributes().PutStr("gen_ai.operation.name", "chat")
+		span.Attributes().PutStr("gen_ai.request.model", "trace-dedup-model")
+		span.Attributes().PutInt("gen_ai.usage.input_tokens", 10)
+		span.Attributes().PutInt("gen_ai.usage.output_tokens", 2)
+	}
+
+	metrics := mustConsumeTraces(t, state, traces)
+	labels := map[string]string{"slice": "by_model", "slice_value": "gen_ai.request.model=trace-dedup-model", "overflow": "false"}
+	if got := intMetricValue(t, metrics, requestsMetricName, labels); got != 1 {
+		t.Fatalf("trace-deduped requests = %d, want 1", got)
+	}
+	if got := intMetricValue(t, metrics, dedupSuppressedMetricName, labels); got != 1 {
+		t.Fatalf("dedup suppressions = %d, want 1", got)
+	}
+}
+
+func TestDedupTraceIDDoesNotFallBackToAnAttribute(t *testing.T) {
+	state := newTestState(t, testConfig(func(cfg *Config) {
+		cfg.Dedup.Enabled = true
+		cfg.Dedup.RequestIDFrom = []string{"trace_id"}
+		cfg.Slices = []SliceConfig{{Name: "by_model", Keys: []string{"gen_ai.request.model"}}}
+	}))
+
+	traces := ptrace.NewTraces()
+	spans := traces.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans()
+	for i := 0; i < 2; i++ {
+		span := spans.AppendEmpty()
+		span.Attributes().PutStr("trace_id", "not-the-otel-trace-id")
+		span.Attributes().PutStr("gen_ai.operation.name", "chat")
+		span.Attributes().PutStr("gen_ai.request.model", "missing-trace-id")
+		span.Attributes().PutInt("gen_ai.usage.input_tokens", 10)
+		span.Attributes().PutInt("gen_ai.usage.output_tokens", 2)
+	}
+
+	metrics := mustConsumeTraces(t, state, traces)
+	labels := map[string]string{"slice": "by_model", "slice_value": "gen_ai.request.model=missing-trace-id", "overflow": "false"}
+	if got := intMetricValue(t, metrics, requestsMetricName, labels); got != 2 {
+		t.Fatalf("requests = %d, want 2", got)
+	}
+	if got := intMetricValue(t, metrics, dedupSuppressedMetricName, labels); got != 0 {
+		t.Fatalf("dedup suppressions = %d, want 0", got)
+	}
+	if got := intMetricValue(t, metrics, dedupKeyMissingMetricName, labels); got != 2 {
+		t.Fatalf("missing dedup keys = %d, want 2", got)
+	}
+}
+
+func TestDedupDoesNotUseResourceRequestID(t *testing.T) {
+	state := newTestState(t, testConfig(func(cfg *Config) {
+		cfg.Dedup.Enabled = true
+		cfg.Dedup.RequestIDFrom = []string{"request.id"}
+		cfg.Slices = []SliceConfig{{Name: "by_model", Keys: []string{"gen_ai.request.model"}}}
+	}))
+
+	traces := ptrace.NewTraces()
+	resourceSpans := traces.ResourceSpans().AppendEmpty()
+	resourceSpans.Resource().Attributes().PutStr("request.id", "resource-wide-id")
+	spans := resourceSpans.ScopeSpans().AppendEmpty().Spans()
+	for i := 0; i < 2; i++ {
+		span := spans.AppendEmpty()
+		span.Attributes().PutStr("gen_ai.operation.name", "chat")
+		span.Attributes().PutStr("gen_ai.request.model", "resource-id-model")
+		span.Attributes().PutInt("gen_ai.usage.input_tokens", 10)
+		span.Attributes().PutInt("gen_ai.usage.output_tokens", 2)
+	}
+
+	metrics := mustConsumeTraces(t, state, traces)
+	labels := map[string]string{"slice": "by_model", "slice_value": "gen_ai.request.model=resource-id-model", "overflow": "false"}
+	if got := intMetricValue(t, metrics, requestsMetricName, labels); got != 2 {
+		t.Fatalf("requests = %d, want 2", got)
+	}
+	if got := intMetricValue(t, metrics, dedupKeyMissingMetricName, labels); got != 2 {
+		t.Fatalf("missing dedup keys = %d, want 2", got)
+	}
+}
+
+func TestRecreatedSliceGetsNewCumulativeStartTime(t *testing.T) {
+	clk := &fixedClock{now: time.Unix(100, 0)}
+	state := newTestStateWithClock(t, clk, testConfig(func(cfg *Config) {
+		cfg.WindowDuration = time.Second
+		cfg.RetentionWindows = 2
+		cfg.MaxSlices = 1
+		cfg.Slices = []SliceConfig{{Name: "by_model", Keys: []string{"gen_ai.request.model"}}}
+	}))
+
+	mustConsume(t, state, testSpan{Model: "model-a", InputTokens: ptr(1), OutputTokens: ptr(1)})
+	key := "by_model\x00gen_ai.request.model=model-a"
+	firstStart := state.slices[key].startTime
+
+	clk.Set(clk.Now().Add(3 * time.Second))
+	mustConsume(t, state, testSpan{Model: "model-b", InputTokens: ptr(1), OutputTokens: ptr(1)})
+	if _, ok := state.slices[key]; ok {
+		t.Fatal("inactive model-a slice was not evicted")
+	}
+
+	clk.Set(clk.Now().Add(3 * time.Second))
+	mustConsume(t, state, testSpan{Model: "model-a", InputTokens: ptr(1), OutputTokens: ptr(1)})
+	if got := state.slices[key].startTime; got <= firstStart {
+		t.Fatalf("recreated slice start = %d, want greater than %d", got, firstStart)
+	}
+}
+
+func TestTokenObservationLabelsAreFixed(t *testing.T) {
+	state := newTestState(t, testConfig(func(cfg *Config) {
+		cfg.Slices = []SliceConfig{{Name: "by_model", Keys: []string{"gen_ai.request.model"}}}
+	}))
+	metrics := mustConsume(t, state, testSpan{Model: "fixed-label-model", InputTokens: ptr(1)})
+
+	allowedFields := map[string]bool{}
+	for _, value := range tokenFieldNames {
+		allowedFields[value] = true
+	}
+	allowedStates := map[string]bool{}
+	for _, value := range tokenObservationStateNames {
+		allowedStates[value] = true
+	}
+	resourceMetrics := metrics.ResourceMetrics()
+	for i := 0; i < resourceMetrics.Len(); i++ {
+		scopeMetrics := resourceMetrics.At(i).ScopeMetrics()
+		for j := 0; j < scopeMetrics.Len(); j++ {
+			metricSlice := scopeMetrics.At(j).Metrics()
+			for k := 0; k < metricSlice.Len(); k++ {
+				metric := metricSlice.At(k)
+				if metric.Name() != tokenFieldObservationsMetricName {
+					continue
+				}
+				points := metric.Sum().DataPoints()
+				for l := 0; l < points.Len(); l++ {
+					field, fieldOK := points.At(l).Attributes().Get("token_field")
+					state, stateOK := points.At(l).Attributes().Get("state")
+					if !fieldOK || !allowedFields[field.Str()] || !stateOK || !allowedStates[state.Str()] {
+						t.Fatalf("unexpected token observation labels: %s/%s", field.AsString(), state.AsString())
+					}
+				}
+			}
+		}
+	}
+}
+
 func newTestState(t *testing.T, cfg *Config) *collectorState {
 	t.Helper()
 	return newTestStateWithClock(t, &fixedClock{now: time.Unix(1000, 0)}, cfg)
@@ -447,7 +652,7 @@ func newTestStateWithClock(t *testing.T, clk *fixedClock, cfg *Config) *collecto
 	if err != nil {
 		t.Fatalf("SecretFromEnv: %v", err)
 	}
-	state, err := newCollectorState(cfg, secret, clk, clk.Now())
+	state, err := newCollectorState(cfg, secret, clk)
 	if err != nil {
 		t.Fatalf("newCollectorState: %v", err)
 	}

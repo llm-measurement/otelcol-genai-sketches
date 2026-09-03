@@ -15,10 +15,28 @@ low-cardinality and non-sensitive. `gen_ai_sketch_active_slices` has only its fi
 | `gen_ai_sketch_input_tokens_total` | Sum of reported input-token attributes |
 | `gen_ai_sketch_output_tokens_total` | Sum of reported output-token attributes |
 | `gen_ai_sketch_total_tokens_total` | Sum of reported input and output tokens |
-| `gen_ai_sketch_missing_token_usage_total` | Matched request spans with neither token attribute |
+| `gen_ai_sketch_cache_read_input_tokens_total` | Reported cache-read input tokens; never added to total tokens |
+| `gen_ai_sketch_cache_write_input_tokens_total` | Reported cache-write input tokens; never added to total tokens |
+| `gen_ai_sketch_reasoning_output_tokens_total` | Reported reasoning output tokens; never added to total tokens |
+| `gen_ai_sketch_missing_token_usage_total` | Matched request spans missing either aggregate token attribute |
+| `gen_ai_sketch_token_field_observations_total` | Fixed-field completeness and quality states |
+| `gen_ai_sketch_dedup_suppressed_total` | Probable duplicates suppressed when optional deduplication is enabled |
+| `gen_ai_sketch_dedup_key_missing_total` | Requests counted without a configured deduplication key |
 
-Token totals are not inferred. A present zero is a zero; an absent field contributes
-to the missing-usage counter instead.
+Token totals are not inferred. A present zero is a zero. If input or output is
+absent or invalid, the request contributes to the missing-usage counter. Cache-read
+and cache-write are subsets of input; reasoning is a subset of output.
+
+Each cumulative series begins when its retained slice is created. Collector restart,
+or eviction followed by recreation of the same label set, creates a counter reset.
+Use Prometheus `rate()` or `increase()` across those resets.
+
+`gen_ai_sketch_token_field_observations_total` adds only two fixed labels:
+`token_field` is one of `input`, `output`, `cache_read_input`,
+`cache_write_input`, or `reasoning_output`; `state` is one of `reported`,
+`missing`, `invalid`, `conflict`, or `subset_violation`. Optional detail fields do
+not emit `missing`. Alias conflicts use the first valid configured value and report
+the conflict instead of adding both values.
 
 ## Gauges
 
@@ -105,6 +123,8 @@ gen_ai_sketch_distinct_prompt_signatures
 
 See [Investigating Token Consumption](TOKEN_USAGE.md) for a worked workflow that
 combines request rate, token rate, missing usage, slices, and top-k snapshots.
+The complete accounting rules and lifecycle cases are in
+[Production Accounting Semantics](ACCOUNTING.md).
 
 ## Cardinality Contract
 

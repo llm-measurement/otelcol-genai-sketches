@@ -13,6 +13,13 @@ func TestDefaultConfigValidates(t *testing.T) {
 	}
 }
 
+func TestDefaultDedupSourcesDoNotUseTraceID(t *testing.T) {
+	got := strings.Join(defaultConfig().Dedup.RequestIDFrom, ",")
+	if want := "gen_ai.response.id,request.id"; got != want {
+		t.Fatalf("default dedup sources = %q, want %q", got, want)
+	}
+}
+
 func TestValidateReportsHelpfulPaths(t *testing.T) {
 	cfg := defaultConfig()
 	cfg.WindowDuration = 0
@@ -126,5 +133,40 @@ func TestValidateRejectsSliceResourceSourceOutsideKeys(t *testing.T) {
 	err := cfg.Validate()
 	if err == nil || !strings.Contains(err.Error(), "must also appear in slices[0].keys") {
 		t.Fatalf("Validate() error = %v, want slice resource-source rejection", err)
+	}
+}
+
+func TestValidateRequiresAggregateTokenSources(t *testing.T) {
+	for _, field := range []string{"input", "output"} {
+		t.Run(field, func(t *testing.T) {
+			cfg := defaultConfig()
+			if field == "input" {
+				cfg.Weights.InputTokensFrom = nil
+			} else {
+				cfg.Weights.OutputTokensFrom = nil
+			}
+			err := cfg.Validate()
+			if err == nil || !strings.Contains(err.Error(), "must contain at least one attribute key") {
+				t.Fatalf("Validate() error = %v, want required token-source rejection", err)
+			}
+		})
+	}
+}
+
+func TestValidateRejectsDuplicateTokenSource(t *testing.T) {
+	cfg := defaultConfig()
+	cfg.Weights.InputTokensFrom = []string{"gen_ai.usage.input_tokens", "gen_ai.usage.input_tokens"}
+	err := cfg.Validate()
+	if err == nil || !strings.Contains(err.Error(), "weights.input_tokens_from[1]") || !strings.Contains(err.Error(), "duplicated") {
+		t.Fatalf("Validate() error = %v, want duplicate token-source rejection", err)
+	}
+}
+
+func TestValidateRejectsDuplicateDedupSource(t *testing.T) {
+	cfg := defaultConfig()
+	cfg.Dedup.RequestIDFrom = []string{"request.id", "request.id"}
+	err := cfg.Validate()
+	if err == nil || !strings.Contains(err.Error(), "dedup.request_id_from[1]") || !strings.Contains(err.Error(), "duplicated") {
+		t.Fatalf("Validate() error = %v, want duplicate dedup-source rejection", err)
 	}
 }

@@ -349,7 +349,7 @@ connectors:
       input_tokens_from: ["gen_ai.usage.input_tokens"]
       output_tokens_from: ["gen_ai.usage.output_tokens"]
       fallback_when_missing: request_count_only
-    dedup: {enabled: false, request_id_from: ["request.id", "trace_id"]}
+    dedup: {enabled: false, request_id_from: ["gen_ai.response.id", "request.id"]}
 exporters:
   prometheus:
     endpoint: 127.0.0.1:%d

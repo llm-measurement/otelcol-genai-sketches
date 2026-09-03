@@ -1,0 +1,9 @@
+The collector is available inside the cluster at:
+
+  {{ include "otelcol-genai-sketches.fullname" . }}.{{ .Release.Namespace }}.svc:{{ .Values.service.otlpGrpcPort }}
+
+Prometheus metrics are on port {{ .Values.service.metricsPort }}. The health endpoint
+is intentionally not exposed through the Service.
+
+This chart runs one stateful aggregation replica. Read docs/DEPLOYMENT.md before
+sharding traffic or rotating GENAI_SKETCH_SECRET.

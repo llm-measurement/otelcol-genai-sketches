@@ -1,0 +1,173 @@
+# SPDX-License-Identifier: Apache-2.0
+# Code authors: Vijay Erramilli and Codex
+replicaCount: 1
+
+image:
+  repository: ghcr.io/llm-measurement/otelcol-genai-sketches
+  pullPolicy: IfNotPresent
+  tag: ""
+  digest: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+existingSecret: genai-sketch-secret
+secretKey: secret
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: [ALL]
+
+strategy:
+  type: Recreate
+
+resources:
+  requests:
+    cpu: "1"
+    memory: 1Gi
+  limits:
+    cpu: "2"
+    memory: 2Gi
+
+service:
+  type: ClusterIP
+  annotations: {}
+  otlpGrpcPort: 4317
+  otlpHTTPPort: 4318
+  metricsPort: 8889
+
+serviceMonitor:
+  enabled: false
+  labels: {}
+  interval: 30s
+  scrapeTimeout: 10s
+
+prometheusRule:
+  enabled: false
+  labels: {}
+  sliceName: by_model
+  window: 10m
+  for: 2m
+  missingUsageRatio: 0.05
+  overflowRequests: 0
+  qualityObservations: 0
+  dedupMissingRatio: 0.01
+
+connector:
+  windowDuration: 60s
+  retentionWindows: 10
+  maxSlices: 2000
+  topK: 20
+  profiles:
+    hllpp: small
+    frequentItems: small
+    bloom: micro
+  operations: [chat, generate_content, text_completion, embeddings]
+  mcp:
+    enabled: false
+    toolErrors: false
+  slices:
+    - name: by_model
+      keys: [gen_ai.request.model]
+      from_resource_attributes: [gen_ai.request.model]
+    - name: by_team_model
+      keys: [team.id, gen_ai.request.model]
+      from_resource_attributes: [team.id, gen_ai.request.model]
+  fields:
+    user_key:
+      from_attributes: [enduser.id, user.id]
+      from_resource_attributes: [enduser.id, user.id]
+      canonicalization: text_v1
+      domain: "user:v1"
+    prompt_key:
+      from_attributes: [gen_ai.request.prompt]
+      from_resource_attributes: [gen_ai.request.prompt]
+      canonicalization: text_v1
+      domain: "prompt:v1"
+    doc_key:
+      from_attributes: [retrieval.doc_id]
+      from_resource_attributes: [retrieval.doc_id]
+      canonicalization: text_v1
+      domain: "retrieval-doc:v1"
+    mcp_session_key:
+      from_attributes: [mcp.session.id]
+      from_resource_attributes: [mcp.session.id]
+      canonicalization: text_v1
+      domain: "mcp-session:v1"
+    mcp_method_key:
+      from_attributes: [mcp.method.name]
+      from_resource_attributes: [mcp.method.name]
+      canonicalization: text_v1
+      domain: "mcp-method:v1"
+    mcp_resource_key:
+      from_attributes: [mcp.resource.uri]
+      from_resource_attributes: [mcp.resource.uri]
+      canonicalization: text_v1
+      domain: "retrieval-doc:v1"
+  weights:
+    input_tokens_from: [gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens]
+    output_tokens_from: [gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens]
+    cache_read_input_tokens_from: [gen_ai.usage.cache_read.input_tokens]
+    cache_write_input_tokens_from: [gen_ai.usage.cache_write.input_tokens, gen_ai.usage.cache_creation.input_tokens]
+    reasoning_output_tokens_from: [gen_ai.usage.reasoning.output_tokens]
+    fallback_when_missing: request_count_only
+  dedup:
+    enabled: false
+    requestIDFrom: [gen_ai.response.id, request.id]
+
+memoryLimiter:
+  checkInterval: 1s
+  limitMiB: 1843
+  spikeLimitMiB: 307
+
+batch:
+  timeout: 1s
+
+receiverTLS:
+  enabled: false
+  existingSecret: ""
+  certKey: tls.crt
+  privateKeyKey: tls.key
+  clientCAKey: ""
+
+shadow:
+  enabled: false
+  endpoint: ""
+  insecure: false
+  auth:
+    existingSecret: ""
+    key: authorization
+
+networkPolicy:
+  enabled: false
+  ingress: []
+  egress: []
+
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+
+terminationGracePeriodSeconds: 30
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []

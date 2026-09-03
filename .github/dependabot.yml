@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: Apache-2.0
+# Code authors: Vijay Erramilli and Codex
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule: {interval: weekly}
+    groups:
+      go-runtime:
+        patterns: ["*"]
+  - package-ecosystem: gomod
+    directory: /connector/genaisketchconnector
+    schedule: {interval: weekly}
+    groups:
+      connector-go:
+        patterns: ["*"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: {interval: weekly}
+    groups:
+      actions:
+        patterns: ["*"]
+  - package-ecosystem: docker
+    directory: /packaging/docker
+    schedule: {interval: weekly}
+  - package-ecosystem: docker
+    directory: /examples/collector
+    schedule: {interval: weekly}

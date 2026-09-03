@@ -1,0 +1,109 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{/* Code authors: Vijay Erramilli and Codex */}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "otelcol-genai-sketches.fullname" . }}
+  labels:
+    {{- include "otelcol-genai-sketches.labels" . | nindent 4 }}
+data:
+  collector.yaml: |
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:{{ .Values.service.otlpGrpcPort }}
+            {{- if .Values.receiverTLS.enabled }}
+            tls:
+              cert_file: /var/run/genai-sketches/tls/tls.crt
+              key_file: /var/run/genai-sketches/tls/tls.key
+              {{- if .Values.receiverTLS.clientCAKey }}
+              client_ca_file: /var/run/genai-sketches/tls/ca.crt
+              {{- end }}
+            {{- end }}
+          http:
+            endpoint: 0.0.0.0:{{ .Values.service.otlpHTTPPort }}
+            {{- if .Values.receiverTLS.enabled }}
+            tls:
+              cert_file: /var/run/genai-sketches/tls/tls.crt
+              key_file: /var/run/genai-sketches/tls/tls.key
+              {{- if .Values.receiverTLS.clientCAKey }}
+              client_ca_file: /var/run/genai-sketches/tls/ca.crt
+              {{- end }}
+            {{- end }}
+
+    processors:
+      memory_limiter:
+        check_interval: {{ .Values.memoryLimiter.checkInterval }}
+        limit_mib: {{ .Values.memoryLimiter.limitMiB }}
+        spike_limit_mib: {{ .Values.memoryLimiter.spikeLimitMiB }}
+      batch:
+        timeout: {{ .Values.batch.timeout }}
+
+    connectors:
+      genaisketch:
+        window_duration: {{ .Values.connector.windowDuration }}
+        retention_windows: {{ .Values.connector.retentionWindows }}
+        max_slices: {{ .Values.connector.maxSlices }}
+        topk: {{ .Values.connector.topK }}
+        profiles:
+          hllpp: {{ .Values.connector.profiles.hllpp }}
+          frequent_items: {{ .Values.connector.profiles.frequentItems }}
+          bloom: {{ .Values.connector.profiles.bloom }}
+        hashing: {algo: hmac_sha256_64, secret_env: GENAI_SKETCH_SECRET}
+        operation_filter:
+          llm_operations:
+            {{- toYaml .Values.connector.operations | nindent 12 }}
+        mcp:
+          enabled: {{ .Values.connector.mcp.enabled }}
+          tool_errors:
+            enabled: {{ .Values.connector.mcp.toolErrors }}
+        slices:
+          {{- toYaml .Values.connector.slices | nindent 10 }}
+        fields:
+          {{- toYaml .Values.connector.fields | nindent 10 }}
+        weights:
+          {{- toYaml .Values.connector.weights | nindent 10 }}
+        dedup:
+          enabled: {{ .Values.connector.dedup.enabled }}
+          request_id_from:
+            {{- toYaml .Values.connector.dedup.requestIDFrom | nindent 12 }}
+
+    exporters:
+      prometheus:
+        endpoint: 0.0.0.0:{{ .Values.service.metricsPort }}
+        translation_strategy: UnderscoreEscapingWithoutSuffixes
+      {{- if .Values.shadow.enabled }}
+      otlp/existing:
+        endpoint: {{ required "shadow.endpoint is required when shadow.enabled=true" .Values.shadow.endpoint | quote }}
+        tls:
+          insecure: {{ .Values.shadow.insecure }}
+        {{- if .Values.shadow.auth.existingSecret }}
+        headers:
+          authorization: ${env:SHADOW_AUTHORIZATION}
+        {{- end }}
+        sending_queue:
+          enabled: true
+          queue_size: 1000
+        retry_on_failure:
+          enabled: true
+      {{- end }}
+
+    service:
+      extensions: [health_check]
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters:
+            - genaisketch
+            {{- if .Values.shadow.enabled }}
+            - otlp/existing
+            {{- end }}
+        metrics:
+          receivers: [genaisketch]
+          exporters: [prometheus]

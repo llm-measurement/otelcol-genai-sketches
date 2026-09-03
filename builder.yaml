@@ -12,6 +12,10 @@ receivers:
 
 processors:
   - gomod: go.opentelemetry.io/collector/processor/batchprocessor v0.160.0
+  - gomod: go.opentelemetry.io/collector/processor/memorylimiterprocessor v0.160.0
+
+extensions:
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.160.0
 
 connectors:
   - gomod: github.com/llm-measurement/otelcol-genai-sketches/connector/genaisketchconnector v0.0.0
@@ -24,3 +28,4 @@ exporters:
 
 replaces:
   - google.golang.org/grpc => google.golang.org/grpc v1.83.1
+  - golang.org/x/crypto => golang.org/x/crypto v0.56.0

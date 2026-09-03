@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: Apache-2.0
+# Code authors: Vijay Erramilli and Codex
+existingSecret: genai-sketch-secret
+secretKey: secret
+
+image:
+  repository: ghcr.io/llm-measurement/otelcol-genai-sketches
+  digest: ""
+
+serviceMonitor:
+  enabled: false
+
+connector:
+  maxSlices: 2000
+  slices:
+    - name: by_model
+      keys: [gen_ai.request.model]
+      from_resource_attributes: [gen_ai.request.model]
+    - name: by_team_model
+      keys: [team.id, gen_ai.request.model]
+      from_resource_attributes: [team.id, gen_ai.request.model]

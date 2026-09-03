@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "otelcol-genai-sketches values",
+  "type": "object",
+  "required": ["existingSecret", "secretKey", "image", "connector"],
+  "properties": {
+    "replicaCount": {"type": "integer", "minimum": 1, "maximum": 1},
+    "existingSecret": {"type": "string", "minLength": 1},
+    "secretKey": {"type": "string", "minLength": 1},
+    "image": {
+      "type": "object",
+      "required": ["repository"],
+      "properties": {
+        "repository": {"type": "string", "minLength": 1},
+        "tag": {"type": "string"},
+        "digest": {"type": "string", "pattern": "^$|^sha256:[a-f0-9]{64}$"},
+        "pullPolicy": {"enum": ["Always", "IfNotPresent", "Never"]}
+      }
+    },
+    "service": {
+      "type": "object",
+      "properties": {
+        "type": {"const": "ClusterIP"}
+      }
+    },
+    "prometheusRule": {
+      "type": "object",
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "sliceName": {"type": "string", "minLength": 1},
+        "window": {"type": "string", "pattern": "^[1-9][0-9]*(ms|s|m|h|d|w|y)$"},
+        "for": {"type": "string", "pattern": "^[1-9][0-9]*(ms|s|m|h|d|w|y)$"},
+        "missingUsageRatio": {"type": "number", "minimum": 0, "maximum": 1},
+        "overflowRequests": {"type": "number", "minimum": 0},
+        "qualityObservations": {"type": "number", "minimum": 0},
+        "dedupMissingRatio": {"type": "number", "minimum": 0, "maximum": 1}
+      }
+    },
+    "connector": {
+      "type": "object",
+      "required": ["maxSlices", "slices"],
+      "properties": {
+        "maxSlices": {"type": "integer", "minimum": 1, "maximum": 5000},
+        "topK": {"type": "integer", "minimum": 1, "maximum": 100},
+        "retentionWindows": {"type": "integer", "minimum": 1, "maximum": 120},
+        "slices": {"type": "array", "minItems": 1, "maxItems": 32}
+      }
+    },
+    "receiverTLS": {
+      "type": "object",
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "existingSecret": {"type": "string"}
+      }
+    },
+    "shadow": {
+      "type": "object",
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "endpoint": {"type": "string"}
+      }
+    }
+  }
+}

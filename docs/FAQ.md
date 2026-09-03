@@ -65,9 +65,10 @@ workflow and PromQL examples.
 ## What happens when token usage is missing?
 
 The connector does not substitute zero or estimate a token count. A matched request
-with neither configured usage field increments
-`gen_ai_sketch_missing_token_usage_total`. Tool and agent spans without usage do not
-inflate that denominator.
+with either aggregate input or output field unavailable increments
+`gen_ai_sketch_missing_token_usage_total`. Fixed-state observations distinguish
+reported, missing, invalid, conflicting, and subset-violating fields. Tool and agent
+spans without usage do not inflate that denominator.
 
 ## How are requests counted in agent and tool traces?
 
@@ -103,7 +104,10 @@ comparison and linkability stop. Rotate at a window boundary when continuity mat
 
 Yes. Optional request deduplication uses a Bloom filter, which can return false
 positives. That bounded-memory tradeoff can suppress a new request. The feature is
-off unless configured with a stable request-ID source.
+off unless configured with a stable request-ID source, and its suppressions are
+reported separately. `trace_id` is an explicit opt-in and is unsafe when one trace
+contains several model requests. Do not use deduplication as an exact billing or
+quota ledger.
 
 ## What happens when a configured attribute is absent or too large?
 

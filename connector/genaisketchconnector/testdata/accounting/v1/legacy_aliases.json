@@ -1,0 +1,34 @@
+{
+  "schema": "genai-accounting-reconciliation/v1",
+  "name": "Legacy aggregate and cache creation aliases",
+  "source": {"provider": "mixed", "instrumentation": "legacy-otel", "semantic_conventions": "pre-2026 aliases"},
+  "config": {"dedup_enabled": false},
+  "resources": [{
+    "attributes": {"gen_ai.provider.name": "legacy"},
+    "spans": [{
+      "id": "0000000000000001",
+      "name": "legacy completion",
+      "attributes": {
+        "gen_ai.operation.name": "text_completion",
+        "gen_ai.usage.prompt_tokens": 42,
+        "gen_ai.usage.completion_tokens": 7,
+        "gen_ai.usage.cache_creation.input_tokens": 11
+      }
+    }]
+  }],
+  "expected": {
+    "metrics": {
+      "gen_ai_sketch_requests_total": 1,
+      "gen_ai_sketch_input_tokens_total": 42,
+      "gen_ai_sketch_output_tokens_total": 7,
+      "gen_ai_sketch_total_tokens_total": 49,
+      "gen_ai_sketch_cache_read_input_tokens_total": 0,
+      "gen_ai_sketch_cache_write_input_tokens_total": 11,
+      "gen_ai_sketch_reasoning_output_tokens_total": 0,
+      "gen_ai_sketch_missing_token_usage_total": 0,
+      "gen_ai_sketch_dedup_suppressed_total": 0,
+      "gen_ai_sketch_dedup_key_missing_total": 0
+    },
+    "token_observations": {"input/reported": 1, "output/reported": 1, "cache_write_input/reported": 1}
+  }
+}

@@ -1,0 +1,20 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{/* Code authors: Vijay Erramilli and Codex */}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "otelcol-genai-sketches.fullname" . }}
+  labels:
+    {{- include "otelcol-genai-sketches.labels" . | nindent 4 }}
+  {{- with .Values.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    {{- include "otelcol-genai-sketches.selectorLabels" . | nindent 4 }}
+  ports:
+    - {name: otlp-grpc, port: {{ .Values.service.otlpGrpcPort }}, targetPort: otlp-grpc}
+    - {name: otlp-http, port: {{ .Values.service.otlpHTTPPort }}, targetPort: otlp-http}
+    - {name: metrics, port: {{ .Values.service.metricsPort }}, targetPort: metrics}

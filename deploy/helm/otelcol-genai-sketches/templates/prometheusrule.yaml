@@ -1,0 +1,59 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{/* Code authors: Vijay Erramilli and Codex */}}
+{{- if .Values.prometheusRule.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "otelcol-genai-sketches.fullname" . }}
+  labels:
+    {{- include "otelcol-genai-sketches.labels" . | nindent 4 }}
+    {{- with .Values.prometheusRule.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+    - name: otelcol-genai-sketches.accounting
+      rules:
+        - alert: GenAISketchMissingTokenUsageHigh
+          expr: |
+            sum(rate(gen_ai_sketch_missing_token_usage_total{slice={{ .Values.prometheusRule.sliceName | quote }}}[{{ .Values.prometheusRule.window }}]))
+            /
+            clamp_min(sum(rate(gen_ai_sketch_requests_total{slice={{ .Values.prometheusRule.sliceName | quote }}}[{{ .Values.prometheusRule.window }}])), 1)
+            > {{ .Values.prometheusRule.missingUsageRatio }}
+          for: {{ .Values.prometheusRule.for }}
+          labels: {severity: warning}
+          annotations:
+            summary: GenAI token usage is incomplete
+            description: The configured request view is missing input or output usage above its allowed ratio.
+        - alert: GenAISketchSliceOverflow
+          expr: |
+            sum(increase(gen_ai_sketch_requests_total{slice={{ .Values.prometheusRule.sliceName | quote }},overflow="true"}[{{ .Values.prometheusRule.window }}]))
+            > {{ .Values.prometheusRule.overflowRequests }}
+          for: {{ .Values.prometheusRule.for }}
+          labels: {severity: warning}
+          annotations:
+            summary: GenAI accounting is using the overflow slice
+            description: New values exceeded the configured bounded slice capacity or could not replace an inactive value.
+        - alert: GenAISketchTokenQualityObserved
+          expr: |
+            sum(increase(gen_ai_sketch_token_field_observations_total{slice={{ .Values.prometheusRule.sliceName | quote }},state=~"invalid|conflict|subset_violation"}[{{ .Values.prometheusRule.window }}]))
+            > {{ .Values.prometheusRule.qualityObservations }}
+          for: {{ .Values.prometheusRule.for }}
+          labels: {severity: warning}
+          annotations:
+            summary: GenAI token accounting quality changed
+            description: Token fields were invalid, aliases conflicted, or a detail exceeded its aggregate parent.
+        {{- if .Values.connector.dedup.enabled }}
+        - alert: GenAISketchDedupKeyMissingHigh
+          expr: |
+            sum(rate(gen_ai_sketch_dedup_key_missing_total{slice={{ .Values.prometheusRule.sliceName | quote }}}[{{ .Values.prometheusRule.window }}]))
+            /
+            clamp_min(sum(rate(gen_ai_sketch_requests_total{slice={{ .Values.prometheusRule.sliceName | quote }}}[{{ .Values.prometheusRule.window }}])), 1)
+            > {{ .Values.prometheusRule.dedupMissingRatio }}
+          for: {{ .Values.prometheusRule.for }}
+          labels: {severity: warning}
+          annotations:
+            summary: GenAI deduplication keys are missing
+            description: Requests are being counted without the configured deduplication key above its allowed ratio.
+        {{- end }}
+{{- end }}

@@ -18,7 +18,7 @@ metric labels.
 | Where is reported token or request volume accumulating? | A matched model operation, optional token fields, and bounded attributes such as team, model, provider, or route | Request and token rates by bounded slice, plus token-weighted prompt signatures with lower and upper bounds | Volume does not establish task value, waste, or root cause |
 | Could an identity create unsafe Prometheus cardinality? | A supported user, prompt, document, or MCP field configured as a hashed field | Distinct estimates remain metrics; keyed identities remain outside labels | The connector does not scan every arbitrary attribute for cardinality |
 | Are agent or tool spans inflating model-request accounting? | `gen_ai.operation.name`, or the documented model fallback | Only configured model operations count as requests; root agent runs have a separate counter | The connector does not provide a count for every possible span kind |
-| How much reported token usage is missing? | `gen_ai.usage.input_tokens` and/or `gen_ai.usage.output_tokens` when available | Missing usage is counted separately from real zero-token values | The collector never infers unreported tokens |
+| How much reported token usage is incomplete? | `gen_ai.usage.input_tokens` and `gen_ai.usage.output_tokens` when available | A request with either aggregate field unavailable is counted separately from real zero-token values | The collector never infers unreported tokens |
 
 These are fleet-level measurement signals. Trace explorers and evaluation systems
 remain the right tools for understanding one agent run or judging its output.
@@ -73,6 +73,11 @@ make example-down
 The [token-consumption playbook](docs/TOKEN_USAGE.md) contains the PromQL queries and
 an interpretation table for the same workflow.
 
+For a persistent environment, use the production image and Helm chart produced by a
+tagged release, as described in [Deployment](docs/DEPLOYMENT.md). Release images are
+signed for both supported architectures. The demo image and Compose stack are not
+the production package.
+
 ## Keep Your Current Backend
 
 You can add the connector without replacing Datadog, Langfuse, Alloy, or another
@@ -122,7 +127,11 @@ records needed for diagnosis, audit, or replay.
 | `gen_ai_sketch_input_tokens_total` | Reported input tokens |
 | `gen_ai_sketch_output_tokens_total` | Reported output tokens |
 | `gen_ai_sketch_total_tokens_total` | Reported input plus output tokens |
-| `gen_ai_sketch_missing_token_usage_total` | Matched requests with neither token field |
+| `gen_ai_sketch_cache_read_input_tokens_total` | Reported cache-read input tokens; a subset of input |
+| `gen_ai_sketch_cache_write_input_tokens_total` | Reported cache-write input tokens; a subset of input |
+| `gen_ai_sketch_reasoning_output_tokens_total` | Reported reasoning output tokens; a subset of output |
+| `gen_ai_sketch_missing_token_usage_total` | Matched requests missing either aggregate token field |
+| `gen_ai_sketch_token_field_observations_total` | Fixed-state token completeness and quality observations |
 | `gen_ai_sketch_active_slices` | Currently retained slice states |
 | `gen_ai_sketch_distinct_users` | Estimated distinct keyed user values |
 | `gen_ai_sketch_distinct_prompt_signatures` | Estimated distinct keyed prompt values |
@@ -132,7 +141,8 @@ Optional MCP metrics estimate distinct sessions, methods, and resources. Weighte
 top-k prompt signatures are emitted as structured logs with estimates and lower and
 upper bounds. They never become Prometheus labels.
 
-See [Metrics](docs/METRICS.md) for exact signal semantics.
+See [Production Accounting Semantics](docs/ACCOUNTING.md) for the versioned
+accounting contract and [Metrics](docs/METRICS.md) for the exported surface.
 
 ## How It Fits
 
@@ -209,9 +219,10 @@ collector logs as sensitive operational data even though raw source values are n
 included. The connector rejects known high-cardinality MCP identifiers as slice keys
 and rejects overlap between plaintext slice keys and configured hashed fields.
 
-Token attributes are optional. Missing usage is counted explicitly; the connector
-does not invent token weights. Bloom-filter deduplication is bounded and may
-undercount because false positives are possible.
+Token attributes are optional. Missing or invalid aggregate usage is counted
+explicitly; the connector does not invent token weights. Bloom-filter deduplication
+is bounded and may undercount because false positives are possible. It is not a
+billing or quota ledger.
 
 See [Security](SECURITY.md) to report a vulnerability privately.
 
@@ -239,6 +250,10 @@ make dist
 make test-integration
 ```
 
+Packaging checks are available with `make production-image` and `make helm-check`.
+See [Sizing](docs/SIZING.md) and [Upgrading](docs/UPGRADING.md) before a production
+rollout.
+
 The integration suite covers OTLP-to-Prometheus behavior, gRPC and HTTP shadow-mode
 fan-out, bounded overflow, deterministic eviction, restart stability, tree locality,
 and sentinel scans across metric, label, and structured-log surfaces.
@@ -247,6 +262,7 @@ and sentinel scans across metric, label, and structured-log surfaces.
 
 This project is alpha software. Interfaces and metric semantics may change between
 alpha releases. Pin an exact version and test it against your own traffic before
-production use. See the [changelog](CHANGELOG.md) for release notes.
+production use. See the [changelog](CHANGELOG.md) for release notes and the
+[release and support policy](SUPPORT.md) for the supported release line.
 
 Licensed under the [Apache License 2.0](LICENSE).
