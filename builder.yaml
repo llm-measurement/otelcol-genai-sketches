@@ -4,23 +4,23 @@ dist:
   name: otelcol-genai-sketches
   description: GenAI sketch metrics collector
   output_path: ./dist
-  otelcol_version: 0.159.0
+  otelcol_version: 0.160.0
   version: 0.1.0-dev
 
 receivers:
-  - gomod: go.opentelemetry.io/collector/receiver/otlpreceiver v0.159.0
+  - gomod: go.opentelemetry.io/collector/receiver/otlpreceiver v0.160.0
 
 processors:
-  - gomod: go.opentelemetry.io/collector/processor/batchprocessor v0.159.0
+  - gomod: go.opentelemetry.io/collector/processor/batchprocessor v0.160.0
 
 connectors:
   - gomod: github.com/llm-measurement/otelcol-genai-sketches/connector/genaisketchconnector v0.0.0
     path: ./connector/genaisketchconnector
 
 exporters:
-  - gomod: go.opentelemetry.io/collector/exporter/otlpexporter v0.159.0
-  - gomod: go.opentelemetry.io/collector/exporter/otlphttpexporter v0.159.0
-  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusexporter v0.159.0
+  - gomod: go.opentelemetry.io/collector/exporter/otlpexporter v0.160.0
+  - gomod: go.opentelemetry.io/collector/exporter/otlphttpexporter v0.160.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusexporter v0.160.0
 
 replaces:
   - google.golang.org/grpc => google.golang.org/grpc v1.83.1
