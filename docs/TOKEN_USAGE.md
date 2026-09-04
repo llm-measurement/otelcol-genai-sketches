@@ -40,14 +40,21 @@ IDs, or other sensitive or high-cardinality values as slices.
 ```bash
 git clone https://github.com/llm-measurement/otelcol-genai-sketches.git
 cd otelcol-genai-sketches
-export GENAI_SKETCH_SECRET="$(openssl rand -hex 32)"
-make example-up
+sh examples/demo.sh up
 ```
 
 The command returns after the containers start. After at least a minute, open the
 provisioned dashboard at [http://localhost:3000](http://localhost:3000). The example
 deliberately emits uneven model traffic, high-cardinality prompt signatures, and
 some requests without usage so each investigation surface is visible.
+
+Only Docker with Compose v2 and a shell are needed after checkout. The first run
+builds the collector inside Docker and can take several minutes.
+
+For controlled examples with exact expected results, see
+[tool spans versus model requests](investigations/TOOL_SPANS.md) and
+[missing usage versus lower consumption](investigations/MISSING_USAGE.md).
+Run both against the live stack with `sh examples/demo.sh investigate`.
 
 ## PromQL Workflow
 

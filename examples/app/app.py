@@ -38,28 +38,59 @@ def configure_tracing():
     return trace.get_tracer("genaisketch-example-app")
 
 
-def emit_span(tracer):
+def emit_span(
+    tracer,
+    rng=random,
+    tool_count=1,
+    include_usage=None,
+    model=None,
+    team=None,
+    token_usage=None,
+):
     global REQUEST_COUNT
     REQUEST_COUNT += 1
-    model = random.choices(MODELS, weights=[7, 2, 1])[0]
-    team = random.choice(TEAMS)
-    base_prompt = random.choices(PROMPTS, weights=[6, 3, 2, 1])[0]
-    suffix = random.choices(PROMPT_SUFFIXES, weights=PROMPT_WEIGHTS)[0]
+    model = model or rng.choices(MODELS, weights=[7, 2, 1])[0]
+    team = team or rng.choice(TEAMS)
+    base_prompt = rng.choices(PROMPTS, weights=[6, 3, 2, 1])[0]
+    suffix = rng.choices(PROMPT_SUFFIXES, weights=PROMPT_WEIGHTS)[0]
     prompt = f"{base_prompt} #{suffix:03d}"
-    input_tokens = random.randint(80, 900)
-    output_tokens = random.randint(20, 450)
-    include_usage = REQUEST_COUNT % 10 != 0
+    input_tokens, output_tokens = token_usage or (
+        rng.randint(80, 900),
+        rng.randint(20, 450),
+    )
+    if include_usage is None:
+        include_usage = REQUEST_COUNT % 10 != 0
 
-    with tracer.start_as_current_span("genai.request") as span:
-        span.set_attribute("gen_ai.request.model", model)
-        span.set_attribute("gen_ai.request.prompt", prompt)
-        if include_usage:
-            span.set_attribute("gen_ai.usage.input_tokens", input_tokens)
-            span.set_attribute("gen_ai.usage.output_tokens", output_tokens)
-        span.set_attribute("team.id", team)
-        span.set_attribute("enduser.id", f"user-{random.randint(1, 80):03d}")
-        span.set_attribute("retrieval.doc_id", random.choice(DOCS))
-        span.set_attribute("request.id", str(uuid.uuid4()))
+    with tracer.start_as_current_span(
+        "agent.run", attributes={"gen_ai.operation.name": "invoke_agent"}
+    ):
+        with tracer.start_as_current_span(
+            "retrieval", attributes={"gen_ai.operation.name": "retrieval"}
+        ):
+            pass
+        for _ in range(tool_count):
+            with tracer.start_as_current_span(
+                "tool.call", attributes={"gen_ai.operation.name": "execute_tool"}
+            ):
+                pass
+        with tracer.start_as_current_span("genai.request") as span:
+            span.set_attribute("gen_ai.operation.name", "chat")
+            span.set_attribute("gen_ai.request.model", model)
+            span.set_attribute("gen_ai.request.prompt", prompt)
+            if include_usage:
+                span.set_attribute("gen_ai.usage.input_tokens", input_tokens)
+                span.set_attribute("gen_ai.usage.output_tokens", output_tokens)
+            span.set_attribute("team.id", team)
+            span.set_attribute("enduser.id", f"user-{rng.randint(1, 80):03d}")
+            span.set_attribute("retrieval.doc_id", rng.choice(DOCS))
+            span.set_attribute("request.id", str(uuid.uuid4()))
+
+    return {
+        "spans": tool_count + 3,
+        "requests": 1,
+        "tokens": input_tokens + output_tokens if include_usage else 0,
+        "missing": int(not include_usage),
+    }
 
 
 def main():

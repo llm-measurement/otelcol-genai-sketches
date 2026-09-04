@@ -130,7 +130,7 @@ jobs:
   example-smoke:
     runs-on: ubuntu-latest
     needs: test
-    timeout-minutes: 5
+    timeout-minutes: 15
     env:
       GOWORK: "off"
       GENAI_SKETCH_SECRET: smoke-secret-32-bytes-for-ci-only
@@ -142,24 +142,12 @@ jobs:
         with:
           path: otelcol-genai-sketches
           persist-credentials: false
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version: "1.26.6"
-          cache: true
-          cache-dependency-path: |
-            otelcol-genai-sketches/go.sum
-            otelcol-genai-sketches/connector/genaisketchconnector/go.sum
-      - run: make dist-docker
-      - name: Verify generated gRPC version
-        run: |
-          expected="$(go list -m -f '{{.Version}}' google.golang.org/grpc)"
-          actual="$(go -C dist/docker list -m -f '{{with .Replace}}{{.Version}}{{else}}{{.Version}}{{end}}' google.golang.org/grpc)"
-          printf 'root grpc=%s generated grpc=%s\n' "$expected" "$actual"
-          test "$actual" = "$expected"
-      - name: Generated distro vulnerability scan
-        run: go -C dist/docker run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./...
       - name: Bring up example stack
-        run: docker compose -f examples/compose.yaml up -d --build
+        run: sh examples/demo.sh up
+      - name: Check synthetic span mix
+        run: docker compose -f examples/compose.yaml run --rm --no-deps app python -m unittest -v test_app
+      - name: Check dashboard aggregation rules
+        run: python3 -m unittest discover -s examples -p test_dashboard.py
       - name: Wait for exported metrics
         run: |
           for i in $(seq 1 60); do
@@ -172,6 +160,19 @@ jobs:
             sleep 5
           done
           docker compose -f examples/compose.yaml logs
+          exit 1
+      - name: Reconcile worked investigations
+        run: |
+          docker compose -f examples/compose.yaml run --rm -T --no-deps app python /app/investigate.py > /tmp/investigation-results.json
+          diff -u docs/investigations/results.json /tmp/investigation-results.json
+      - name: Require the bounded top-k surface
+        run: |
+          for i in $(seq 1 15); do
+            if sh examples/demo.sh logs | grep 'genaisketch topk snapshot' >/dev/null; then
+              exit 0
+            fi
+            sleep 5
+          done
           exit 1
       - name: Tear down example stack
         if: always()

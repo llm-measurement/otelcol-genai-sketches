@@ -4,12 +4,15 @@ services:
   collector:
     build:
       context: ..
-      dockerfile: examples/collector/Dockerfile
+      dockerfile: packaging/docker/Dockerfile
+    command: ["--config", "/etc/otelcol-genai-sketches/demo.yaml"]
+    volumes:
+      - ./collector/config.yaml:/etc/otelcol-genai-sketches/demo.yaml:ro
     environment:
       GENAI_SKETCH_SECRET: ${GENAI_SKETCH_SECRET:?set GENAI_SKETCH_SECRET to a strong local secret}
     ports:
-      - "127.0.0.1:4317:4317"
-      - "127.0.0.1:8889:8889"
+      - "127.0.0.1:${GENAI_DEMO_OTLP_PORT:-4317}:4317"
+      - "127.0.0.1:${GENAI_DEMO_METRICS_PORT:-8889}:8889"
     read_only: true
     cap_drop:
       - ALL
@@ -24,6 +27,7 @@ services:
       dockerfile: examples/app/Dockerfile
     environment:
       OTEL_EXPORTER_OTLP_ENDPOINT: http://collector:4317
+      PROMETHEUS_URL: http://prometheus:9090
     depends_on:
       - collector
     read_only: true
@@ -41,7 +45,7 @@ services:
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     ports:
-      - "127.0.0.1:9090:9090"
+      - "127.0.0.1:${GENAI_DEMO_PROMETHEUS_PORT:-9090}:9090"
     depends_on:
       - collector
     read_only: true
@@ -65,7 +69,7 @@ services:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
     ports:
-      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:${GENAI_DEMO_GRAFANA_PORT:-3000}:3000"
     depends_on:
       - prometheus
     cap_drop:

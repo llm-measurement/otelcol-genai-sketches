@@ -1,0 +1,12 @@
+{
+  "captured": "2026-09-04",
+  "format": "90-second silent, captioned walkthrough of captured synthetic output; not a real-time screen recording",
+  "scenes": [
+    {"image": "../images/demo-dashboard.jpg", "seconds": 15, "caption": "GenAI traces become bounded metrics in your existing telemetry pipeline.\nThis is the actual Grafana demo, running on synthetic traffic."},
+    {"image": "../images/demo-dashboard.jpg", "seconds": 15, "caption": "Compare model-request rate, reported token rate, and missing usage.\nModel names are cleartext labels. Prompt hashes are not metric labels."},
+    {"image": "../images/tool-spans.png", "seconds": 15, "caption": "The investigation sends 100 agent runs with one tool call each.\nThen it sends 100 more runs with eight tool calls each."},
+    {"image": "../images/tool-spans.png", "seconds": 15, "caption": "400 spans become 1,100 spans. Model requests stay at 100.\nThe collector counts model operations, not every span in a trace."},
+    {"image": "../images/missing-usage.png", "seconds": 15, "caption": "Now omit usage fields on half the model requests.\nReported tokens fall by half; known synthetic consumption stays the same."},
+    {"image": "../images/missing-usage.png", "seconds": 15, "caption": "Missing usage rises to 50 of 100 requests. Missing is not zero.\nTry it: sh examples/demo.sh up, then sh examples/demo.sh investigate"}
+  ]
+}
