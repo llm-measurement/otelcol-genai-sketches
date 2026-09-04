@@ -73,6 +73,28 @@ func TestConsumeTracesIgnoresNonGenAISpans(t *testing.T) {
 	}
 }
 
+func TestTopKZeroDoesNotStartLogLoop(t *testing.T) {
+	t.Setenv("GENAI_SKETCH_SECRET", "test-secret-32-bytes-for-unit-tests")
+	cfg := defaultConfig()
+	cfg.TopK = 0
+	conn := newTracesConnector(componentTelemetry(), cfg, &captureMetrics{})
+
+	if err := conn.Start(context.Background(), nil); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := conn.Shutdown(context.Background()); err != nil {
+			t.Errorf("Shutdown: %v", err)
+		}
+	})
+
+	conn.mu.Lock()
+	defer conn.mu.Unlock()
+	if conn.debugCancel != nil || conn.debugDone != nil {
+		t.Fatal("topk: 0 started the structured-log loop")
+	}
+}
+
 func TestValidateRejectsSensitiveSliceHashedSourceOverlap(t *testing.T) {
 	cfg := defaultConfig()
 	cfg.Slices = []SliceConfig{{Name: "by_team", Keys: []string{"team.id"}}}

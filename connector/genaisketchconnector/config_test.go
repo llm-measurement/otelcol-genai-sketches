@@ -20,6 +20,23 @@ func TestDefaultDedupSourcesDoNotUseTraceID(t *testing.T) {
 	}
 }
 
+func TestValidateAllowsZeroTopKToDisableLogSurface(t *testing.T) {
+	cfg := defaultConfig()
+	cfg.TopK = 0
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("topk: 0 should validate: %v", err)
+	}
+}
+
+func TestValidateRejectsNegativeTopK(t *testing.T) {
+	cfg := defaultConfig()
+	cfg.TopK = -1
+	err := cfg.Validate()
+	if err == nil || !strings.Contains(err.Error(), "topk must be greater than or equal to 0") {
+		t.Fatalf("Validate() error = %v, want negative topk rejection", err)
+	}
+}
+
 func TestValidateReportsHelpfulPaths(t *testing.T) {
 	cfg := defaultConfig()
 	cfg.WindowDuration = 0

@@ -29,13 +29,17 @@ control.
 | `window_duration` | `1m` | `24h` | Fixed sketch window |
 | `retention_windows` | `10` | `120` | Retained completed windows |
 | `max_slices` | `2000` | `5000` | Total retained slice states |
-| `topk` | `20` | `100` | Entries per structured top-k summary |
+| `topk` | `20` | `0`-`100` | Entries per structured top-k summary; `0` disables the surface |
 
 At most 32 slices may be configured, with at most 8 keys per slice. Slice capacity is
 global. Inactive slices become eligible for deterministic least-recently-used
 eviction only after they have been absent for more than one window. When capacity is
 still unavailable, observations are combined into one `__overflow__` value for that
 slice. No observation is silently dropped and no unconfigured label value is created.
+
+Set `topk: 0` when structured top-k logs are not permitted. The connector then
+does not allocate or update frequent-items state and emits no top-k snapshots.
+Counters and distinct estimates remain enabled.
 
 ## Slices
 

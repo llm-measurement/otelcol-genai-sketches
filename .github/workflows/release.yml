@@ -16,6 +16,7 @@ concurrency:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ghcr.io/${{ github.repository }}
+  CHART_NAME: ghcr.io/llm-measurement/charts/otelcol-genai-sketches
 
 jobs:
   verify:
@@ -193,7 +194,8 @@ jobs:
         with:
           version: v4.2.4
 
-      - name: Build and publish Helm chart
+      - name: Build, publish, and sign Helm chart
+        id: chart
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -202,9 +204,29 @@ jobs:
             --version "${version}" --app-version "${version}" --destination release
           printf '%s' "${GH_TOKEN}" | helm registry login ghcr.io \
             --username "${GITHUB_ACTOR}" --password-stdin
-          helm push "release/otelcol-genai-sketches-${version}.tgz" \
-            oci://ghcr.io/llm-measurement/charts
-          (cd release && sha256sum image-digest.txt sbom-index.json *.tgz > SHA256SUMS)
+          push_output="$(helm push "release/otelcol-genai-sketches-${version}.tgz" \
+            oci://ghcr.io/llm-measurement/charts 2>&1)"
+          printf '%s\n' "${push_output}"
+          chart_digest="$(printf '%s\n' "${push_output}" | awk '$1 == "Digest:" {print $2}' | tail -n 1)"
+          if [[ ! "${chart_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "unable to determine published chart digest" >&2
+            exit 1
+          fi
+          printf '%s@%s\n' "${CHART_NAME}" "${chart_digest}" > release/chart-digest.txt
+          printf 'digest=%s\n' "${chart_digest}" >> "${GITHUB_OUTPUT}"
+          cosign sign --yes "${CHART_NAME}@${chart_digest}"
+          cosign verify \
+            --certificate-identity "https://github.com/${GITHUB_REPOSITORY}/.github/workflows/release.yml@${GITHUB_REF}" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            "${CHART_NAME}@${chart_digest}"
+          (cd release && sha256sum image-digest.txt chart-digest.txt sbom-index.json *.tgz > SHA256SUMS)
+
+      - name: Attest Helm chart provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-name: ${{ env.CHART_NAME }}
+          subject-digest: ${{ steps.chart.outputs.digest }}
+          push-to-registry: true
 
       - name: Upload release metadata
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -225,3 +247,33 @@ jobs:
             gh release create "${GITHUB_REF_NAME}" --generate-notes "${flags[@]}"
           fi
           gh release upload "${GITHUB_REF_NAME}" release/* --clobber
+
+      - name: Verify anonymous artifact access
+        env:
+          IMAGE_DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          retry() {
+            local attempts=12
+            until "$@"; do
+              attempts=$((attempts - 1))
+              if ((attempts == 0)); then
+                return 1
+              fi
+              sleep 10
+            done
+          }
+          version="${GITHUB_REF_NAME#v}"
+          docker logout ghcr.io >/dev/null
+          helm registry logout ghcr.io >/dev/null
+          retry docker buildx imagetools inspect "${IMAGE_NAME}@${IMAGE_DIGEST}"
+          mkdir -p /tmp/public-chart
+          retry helm pull "oci://${CHART_NAME}" \
+            --version "${version}" --destination /tmp/public-chart
+          retry curl --fail --silent --show-error --location \
+            --output /tmp/public-image-digest.txt \
+            "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/image-digest.txt"
+          retry curl --fail --silent --show-error --location \
+            --output /tmp/public-chart-digest.txt \
+            "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/chart-digest.txt"
+          cmp release/image-digest.txt /tmp/public-image-digest.txt
+          cmp release/chart-digest.txt /tmp/public-chart-digest.txt

@@ -13,8 +13,12 @@ chart for a persistent environment.
 Use an immutable digest from the GitHub release, not a mutable tag:
 
 ```bash
-IMAGE=ghcr.io/llm-measurement/otelcol-genai-sketches
-DIGEST=sha256:replace-with-release-digest
+RELEASE=v0.1.0-alpha.2
+IMAGE_REF="$(curl -fsSL \
+  "https://github.com/llm-measurement/otelcol-genai-sketches/releases/download/${RELEASE}/image-digest.txt")"
+IMAGE="${IMAGE_REF%@*}"
+DIGEST="${IMAGE_REF#*@}"
+VERSION="${RELEASE#v}"
 
 cosign verify \
   --certificate-identity-regexp 'https://github.com/llm-measurement/otelcol-genai-sketches/.github/workflows/release.yml@refs/tags/v.*' \
@@ -22,6 +26,23 @@ cosign verify \
   "$IMAGE@$DIGEST"
 
 gh attestation verify "oci://$IMAGE@$DIGEST" \
+  --repo llm-measurement/otelcol-genai-sketches
+```
+
+The chart is signed and attested separately. Verify its immutable reference too:
+
+```bash
+CHART_REF="$(curl -fsSL \
+  "https://github.com/llm-measurement/otelcol-genai-sketches/releases/download/${RELEASE}/chart-digest.txt")"
+CHART="${CHART_REF%@*}"
+CHART_DIGEST="${CHART_REF#*@}"
+
+cosign verify \
+  --certificate-identity-regexp 'https://github.com/llm-measurement/otelcol-genai-sketches/.github/workflows/release.yml@refs/tags/v.*' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  "$CHART@$CHART_DIGEST"
+
+gh attestation verify "oci://$CHART@$CHART_DIGEST" \
   --repo llm-measurement/otelcol-genai-sketches
 ```
 
@@ -33,8 +54,16 @@ docker buildx imagetools inspect "$IMAGE@$DIGEST" --format '{{ json .SBOM }}'
 docker buildx imagetools inspect "$IMAGE@$DIGEST" --format '{{ json .Provenance }}'
 ```
 
-Each GitHub release also carries the image index digest, an SBOM index export, and
-SHA-256 checksums for the downloadable metadata.
+Each GitHub release also carries the image and chart digests, an SBOM index export,
+the packaged chart, and SHA-256 checksums. Verify all downloaded files together:
+
+```bash
+mkdir -p release-assets
+gh release download "$RELEASE" \
+  --repo llm-measurement/otelcol-genai-sketches \
+  --dir release-assets
+(cd release-assets && sha256sum --check SHA256SUMS)
+```
 
 Successful verification proves that the referenced digest was signed by this
 repository's release workflow for the stated tag and has not changed since. It does
@@ -55,7 +84,6 @@ openssl rand -hex 32 | kubectl -n observability create secret generic \
 Install the chart published with the release:
 
 ```bash
-VERSION=replace-with-release-version
 helm upgrade --install genai-sketches \
   oci://ghcr.io/llm-measurement/charts/otelcol-genai-sketches \
   --version "$VERSION" \
@@ -121,9 +149,40 @@ Prometheus target label; do not add pod IDs to connector slice labels.
 - Configuration changes restart the pod. `Recreate` avoids overlapping aggregation
   replicas during an upgrade.
 - `pprof`, `zpages`, and public debug endpoints are absent. Top-k remains a bounded
-  structured-log surface and should be routed to restricted log storage.
+  structured-log surface and should be routed to restricted log storage. Set
+  `connector.topK=0` to disable that surface and its frequent-items state.
 - NetworkPolicy is opt-in because namespace selectors differ by cluster. Enabling it
   with empty rules denies ingress and egress.
+
+## Air-Gapped Registry Mirror
+
+On a staging host that can reach both registries, copy the image without changing
+its manifest digest:
+
+```bash
+MIRROR=registry.example.com/observability/otelcol-genai-sketches
+skopeo copy --all --preserve-digests \
+  "docker://$IMAGE@$DIGEST" "docker://$MIRROR:$VERSION"
+test "$(skopeo inspect --format '{{.Digest}}' "docker://$MIRROR:$VERSION")" = "$DIGEST"
+```
+
+Digest equality verifies the image manifest and referenced platform images. OCI
+signature and attestation referrers do not follow every registry copy operation;
+mirror them with tooling supported by both registries or retain an offline
+verification bundle as part of the transfer procedure.
+
+Download the chart and `SHA256SUMS` from the same GitHub release, verify the
+checksum, then transfer the chart into the disconnected environment. Push it to a
+private OCI registry with `helm push` or install the verified `.tgz` directly.
+
+## FIPS Environments
+
+The standard release is not claimed or certified as FIPS 140-3 validated. Choosing
+HMAC-SHA-256 does not make the complete binary or deployment compliant. A regulated
+deployment must build and run the collector with an approved Go cryptographic
+module, toolchain, operating environment, and validation process required by that
+organization. Verify the resulting private artifact independently; do not reuse the
+standard release's signature or attestation for a rebuilt binary.
 
 ## Accounting Alerts
 

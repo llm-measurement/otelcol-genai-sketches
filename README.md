@@ -139,7 +139,8 @@ records needed for diagnosis, audit, or replay.
 
 Optional MCP metrics estimate distinct sessions, methods, and resources. Weighted
 top-k prompt signatures are emitted as structured logs with estimates and lower and
-upper bounds. They never become Prometheus labels.
+upper bounds. They never become Prometheus labels. Set `topk: 0` to disable the
+structured-log surface and its frequent-items state.
 
 See [Production Accounting Semantics](docs/ACCOUNTING.md) for the versioned
 accounting contract and [Metrics](docs/METRICS.md) for the exported surface.
@@ -174,7 +175,7 @@ Add it to a builder manifest:
 
 ```yaml
 connectors:
-  - gomod: github.com/llm-measurement/otelcol-genai-sketches/connector/genaisketchconnector v0.1.0-alpha.1
+  - gomod: github.com/llm-measurement/otelcol-genai-sketches/connector/genaisketchconnector v0.1.0-alpha.2
 ```
 
 Configure `genaisketch` as an exporter from the traces pipeline and a receiver in the
@@ -216,8 +217,9 @@ the secret breaks comparison with earlier windows.
 
 The structured top-k surface contains keyed hashes and bounded estimates. Treat
 collector logs as sensitive operational data even though raw source values are not
-included. The connector rejects known high-cardinality MCP identifiers as slice keys
-and rejects overlap between plaintext slice keys and configured hashed fields.
+included, or set `topk: 0` to disable that surface. The connector rejects known
+high-cardinality MCP identifiers as slice keys and rejects overlap between plaintext
+slice keys and configured hashed fields.
 
 Token attributes are optional. Missing or invalid aggregate usage is counted
 explicitly; the connector does not invent token weights. Bloom-filter deduplication
