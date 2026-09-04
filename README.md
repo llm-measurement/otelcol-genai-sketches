@@ -262,9 +262,12 @@ and sentinel scans across metric, label, and structured-log surfaces.
 
 ## Status
 
-This project is alpha software. Interfaces and metric semantics may change between
-alpha releases. Pin an exact version and test it against your own traffic before
-production use. See the [changelog](CHANGELOG.md) for release notes and the
+**Current status: Alpha.** The connector is ready for evaluation and limited,
+non-critical workloads. Signed multi-architecture images, a Helm chart, SBOMs,
+provenance, upgrade guidance, and production-shaped tests are provided.
+Configuration and metric semantics may still change before 1.0. Pin an exact
+release and image digest, then validate it against representative traffic. See the
+[changelog](CHANGELOG.md) for release notes and the
 [release and support policy](SUPPORT.md) for the supported release line.
 
 Licensed under the [Apache License 2.0](LICENSE).

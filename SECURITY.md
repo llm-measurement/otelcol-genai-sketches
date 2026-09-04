@@ -2,8 +2,8 @@
 
 ## Supported Versions
 
-This project is alpha software. Security fixes are provided for the latest published
-alpha release only.
+Security fixes are provided for the latest published Alpha release only. Older
+Alpha releases and untagged commits do not receive routine fixes.
 
 ## Reporting A Vulnerability
 

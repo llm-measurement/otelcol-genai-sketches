@@ -4,6 +4,9 @@ Notable user-visible changes are recorded here.
 
 ## Unreleased
 
+- Aligned the connector's OpenTelemetry stability metadata and public status
+  documentation at Alpha.
+
 ## v0.1.0-alpha.2 - 2026-09-03
 
 - Added a production image, Helm chart, central and sidecar Kubernetes examples,
