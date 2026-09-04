@@ -27,5 +27,5 @@ exporters:
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusexporter v0.160.0
 
 replaces:
-  - google.golang.org/grpc => google.golang.org/grpc v1.83.1
+  - google.golang.org/grpc => google.golang.org/grpc v1.83.2
   - golang.org/x/crypto => golang.org/x/crypto v0.56.0
