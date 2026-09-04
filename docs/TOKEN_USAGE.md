@@ -132,8 +132,9 @@ an inefficient prompt, abuse, or waste.
 
 ## Inspecting Token-Weighted Top-K
 
-The collector emits periodic `genaisketch topk snapshot` structured log records. In
-the example stack:
+With `topk` greater than zero, the collector emits periodic `genaisketch topk
+snapshot` structured log records. Set `topk: 0` to omit this surface and its
+frequent-items state. In the example stack:
 
 ```bash
 docker compose -f examples/compose.yaml logs collector \

@@ -4,6 +4,18 @@ Notable user-visible changes are recorded here.
 
 ## Unreleased
 
+## v0.1.0-alpha.2 - 2026-09-03
+
+- Added a production image, Helm chart, central and sidecar Kubernetes examples,
+  accounting alerts, sizing guidance, upgrade guidance, and a support policy.
+- Added multi-architecture release automation with image and chart signatures,
+  SBOMs, provenance, checksums, license notices, license checks, and vulnerability
+  scans.
+- Added an anonymous-access check so a release fails if its image, chart, or release
+  metadata cannot be fetched without repository credentials.
+
+## connector/genaisketchconnector/v0.1.0-alpha.2 - 2026-09-03
+
 - Defined the versioned `genai-accounting/v1` request and token contract, including
   ordered aliases, missing and invalid values, cache and reasoning subsets, and
   optional per-window request deduplication.
@@ -11,10 +23,8 @@ Notable user-visible changes are recorded here.
   lifecycle cases, conflicting values, retries, and deduplication.
 - Added fixed-cardinality token quality metrics and separate cache-read,
   cache-write, reasoning, and deduplication counters.
-- Added a production image, Helm chart, central and sidecar Kubernetes examples,
-  accounting alerts, sizing guidance, upgrade guidance, and a support policy.
-- Added multi-architecture release automation with image signatures, SBOMs,
-  provenance, checksums, license notices, license checks, and vulnerability scans.
+- Added `topk: 0` to disable structured top-k logs and avoid allocating their
+  frequent-items state while preserving counters and distinct estimates.
 
 ## connector/genaisketchconnector/v0.1.0-alpha.1 - 2026-08-21
 

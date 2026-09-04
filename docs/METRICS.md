@@ -69,6 +69,10 @@ Every five seconds, the connector can emit a structured `genaisketch topk snapsh
 log containing keyed prompt signatures, weighted estimates, and lower and upper
 bounds. These signatures never appear as Prometheus metric labels.
 
+Set `topk: 0` to disable this log surface. Disabled top-k also avoids constructing
+or updating the corresponding frequent-items state; it does not disable counters or
+distinct estimates.
+
 The lower and upper bounds bracket the estimate and become no tighter through
 presentation or rounding. Treat this log surface as sensitive operational data:
 hashes remain linkable under one secret even though raw prompts are absent.

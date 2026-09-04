@@ -108,6 +108,7 @@ production-image:
 helm-check:
 	$(HELM) lint deploy/helm/otelcol-genai-sketches
 	$(HELM) template genai-sketches deploy/helm/otelcol-genai-sketches --namespace observability > /dev/null
+	$(HELM) template genai-sketches deploy/helm/otelcol-genai-sketches --namespace observability --set connector.topK=0 > /dev/null
 	$(HELM) template genai-sketches deploy/helm/otelcol-genai-sketches --namespace observability --set receiverTLS.enabled=true --set receiverTLS.existingSecret=receiver-tls --set shadow.enabled=true --set shadow.endpoint=collector.example.net:4317 --set serviceMonitor.enabled=true --set prometheusRule.enabled=true --set connector.dedup.enabled=true --set networkPolicy.enabled=true --set podDisruptionBudget.enabled=true > /dev/null
 
 .PHONY: prometheus-rule-check

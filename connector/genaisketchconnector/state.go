@@ -568,7 +568,7 @@ func (s *collectorState) prepareUpdate(window *windowState, data spanData, updat
 		if prepared.docHash, err = s.hashDataField(fieldDocKey, data); err != nil {
 			return preparedUpdate{}, err
 		}
-		if update.totals.missingTokens == 0 && prepared.promptHash.ok {
+		if s.cfg.topK > 0 && update.totals.missingTokens == 0 && prepared.promptHash.ok {
 			weight, ok, err := topKWeight(update.totals)
 			if err != nil {
 				return preparedUpdate{}, err
@@ -589,7 +589,7 @@ func (s *collectorState) prepareUpdate(window *windowState, data spanData, updat
 			return preparedUpdate{}, err
 		}
 	}
-	if update.toolError {
+	if s.cfg.topK > 0 && update.toolError {
 		hashValue, ok, err := s.hashToolErrorSignature(data)
 		if err != nil {
 			return preparedUpdate{}, err
@@ -780,9 +780,12 @@ func (s *sliceState) window(windowStart int64, owner *collectorState) (*windowSt
 	if err != nil {
 		return nil, err
 	}
-	topPrompts, err := sketchfi.New(owner.cfg.frequentProfile, promptField.domain, sketchhash.HMACSHA25664)
-	if err != nil {
-		return nil, err
+	var topPrompts *sketchfi.Sketch
+	if owner.cfg.topK > 0 {
+		topPrompts, err = sketchfi.New(owner.cfg.frequentProfile, promptField.domain, sketchhash.HMACSHA25664)
+		if err != nil {
+			return nil, err
+		}
 	}
 	var dedupRequests *sketchbloom.Sketch
 	if owner.cfg.dedupEnabled {
@@ -1181,6 +1184,9 @@ func (s *collectorState) TopKSnapshot(now time.Time) (TopKSnapshot, error) {
 		GeneratedAtUnixNano: now.UnixNano(),
 		TopK:                s.cfg.topK,
 	}
+	if s.cfg.topK == 0 {
+		return snapshot, nil
+	}
 	for _, slice := range s.metricSlices() {
 		window := slice.windows[currentWindow]
 		if window == nil {
@@ -1345,7 +1351,7 @@ func checkedTokenSum(input uint64, output uint64) (uint64, error) {
 	}
 	total, ok := addUint64(input, output)
 	if !ok || total > uint64(maxInt64Value) {
-		return 0, fmt.Errorf("top-k token weight overflows int64")
+		return 0, fmt.Errorf("token sum exceeds %d", maxInt64Value)
 	}
 	return total, nil
 }

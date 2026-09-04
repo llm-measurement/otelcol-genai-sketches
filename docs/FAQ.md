@@ -86,7 +86,8 @@ collector instance receives a particular child span.
 Heavy-hitter identities are high-cardinality and change over time. Putting them in
 labels would defeat the bounded metric surface. The connector emits a bounded
 structured snapshot containing keyed signatures, weighted estimates, and lower and
-upper bounds. Operators can route that debug surface separately from Prometheus.
+upper bounds. Operators can route that debug surface separately from Prometheus, or
+set `topk: 0` to disable it and its frequent-items state.
 
 ## Are slice values encrypted or hashed?
 

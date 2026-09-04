@@ -40,6 +40,7 @@ the load test with the intended exporters, label views, profiles, and traffic mi
 | Increase `retention_windows` | Roughly proportional growth in retained sketch state, not cumulative counters |
 | Increase sketch profile | Better accuracy with more memory per active slice and window |
 | Increase `topk` | Larger structured snapshots; it does not create metric labels |
+| Set `topk: 0` | No frequent-items state or structured top-k snapshots |
 | Enable MCP or tool-error fields | Additional sketches only for slices and windows where those values appear |
 | Enable deduplication | One Bloom filter per active slice and retained window |
 

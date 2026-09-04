@@ -41,7 +41,12 @@
       "required": ["maxSlices", "slices"],
       "properties": {
         "maxSlices": {"type": "integer", "minimum": 1, "maximum": 5000},
-        "topK": {"type": "integer", "minimum": 1, "maximum": 100},
+        "topK": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Entries per structured top-k snapshot; zero disables the surface and its frequent-items state"
+        },
         "retentionWindows": {"type": "integer", "minimum": 1, "maximum": 120},
         "slices": {"type": "array", "minItems": 1, "maxItems": 32}
       }

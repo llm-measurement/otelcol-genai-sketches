@@ -196,8 +196,8 @@ func (cfg *Config) Validate() error {
 	} else if cfg.MaxSlices > maxConfiguredSlices {
 		errs = append(errs, fmt.Errorf("max_slices must be <= %d", maxConfiguredSlices))
 	}
-	if cfg.TopK <= 0 {
-		errs = append(errs, errors.New("topk must be greater than 0"))
+	if cfg.TopK < 0 {
+		errs = append(errs, errors.New("topk must be greater than or equal to 0"))
 	} else if cfg.TopK > maxConfiguredTopK {
 		errs = append(errs, fmt.Errorf("topk must be <= %d", maxConfiguredTopK))
 	}

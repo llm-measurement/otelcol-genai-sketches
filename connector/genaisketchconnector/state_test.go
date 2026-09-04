@@ -78,11 +78,59 @@ func TestTokenOverflowRejectedBeforeStateMutation(t *testing.T) {
 	}
 
 	_, _, err = state.ConsumeTraces(context.Background(), traceWithStringTokens("9223372036854775807", "1"))
-	if err == nil || !strings.Contains(err.Error(), "top-k token weight overflows int64") {
-		t.Fatalf("ConsumeTraces error = %v, want top-k overflow rejection", err)
+	if err == nil || !strings.Contains(err.Error(), "token sum exceeds") {
+		t.Fatalf("ConsumeTraces error = %v, want token-sum overflow rejection", err)
 	}
 	if len(state.slices) != 0 {
 		t.Fatalf("slices mutated on rejected token sum: %d", len(state.slices))
+	}
+}
+
+func TestTopKZeroAvoidsFrequentItemsState(t *testing.T) {
+	state := newTestState(t, testConfig(func(cfg *Config) {
+		cfg.TopK = 0
+		cfg.Slices = []SliceConfig{{Name: "by_model", Keys: []string{"gen_ai.request.model"}}}
+	}))
+
+	metrics, ok, err := state.ConsumeTraces(context.Background(), tracesFromSpans(testSpan{
+		Model:        "gpt-test",
+		Prompt:       "private prompt",
+		InputTokens:  ptr(10),
+		OutputTokens: ptr(2),
+	}))
+	if err != nil {
+		t.Fatalf("ConsumeTraces: %v", err)
+	}
+	if !ok {
+		t.Fatal("expected metrics with top-k disabled")
+	}
+	labels := map[string]string{"slice": "by_model", "slice_value": "gen_ai.request.model=gpt-test", "overflow": "false"}
+	if got := intMetricValue(t, metrics, requestsMetricName, labels); got != 1 {
+		t.Fatalf("requests = %d, want 1", got)
+	}
+	if got := intMetricValue(t, metrics, inputTokensMetricName, labels); got != 10 {
+		t.Fatalf("input tokens = %d, want 10", got)
+	}
+	if got := intMetricValue(t, metrics, outputTokensMetricName, labels); got != 2 {
+		t.Fatalf("output tokens = %d, want 2", got)
+	}
+
+	for _, slice := range state.slices {
+		for _, window := range slice.windows {
+			if window.topPrompts != nil || window.topToolErrors != nil {
+				t.Fatal("topk: 0 allocated frequent-items state")
+			}
+			if got := window.distinctPrompts.Estimate(); got < 0.9 || got > 1.1 {
+				t.Fatalf("distinct prompts = %f, want approximately 1", got)
+			}
+		}
+	}
+	snapshot, err := state.TopKSnapshot(state.clock.Now())
+	if err != nil {
+		t.Fatalf("TopKSnapshot: %v", err)
+	}
+	if snapshot.TopK != 0 || snapshot.ItemCount() != 0 || len(snapshot.Slices) != 0 {
+		t.Fatalf("disabled top-k snapshot = %#v, want empty", snapshot)
 	}
 }
 

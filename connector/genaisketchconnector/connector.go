@@ -73,13 +73,19 @@ func (c *tracesConnector) Start(context.Context, component.Host) error {
 		return err
 	}
 
+	var debugCtx context.Context
+	var debugDone chan struct{}
 	c.mu.Lock()
 	c.state = state
-	debugCtx, debugCancel := context.WithCancel(context.Background())
-	c.debugCancel = debugCancel
-	c.debugDone = make(chan struct{})
+	if c.cfg.TopK > 0 {
+		debugCtx, c.debugCancel = context.WithCancel(context.Background())
+		c.debugDone = make(chan struct{})
+		debugDone = c.debugDone
+	}
 	c.mu.Unlock()
-	go c.debugLogLoop(debugCtx, c.debugDone)
+	if debugCtx != nil {
+		go c.debugLogLoop(debugCtx, debugDone)
+	}
 
 	c.logger.Info("started genaisketch connector")
 	return nil
@@ -162,7 +168,7 @@ func (c *tracesConnector) debugLogLoop(ctx context.Context, done chan struct{}) 
 }
 
 func (c *tracesConnector) shouldLogTopKLocked(now time.Time) bool {
-	return c.lastDebugLog.IsZero() || now.Sub(c.lastDebugLog) >= debugLogInterval
+	return c.cfg.TopK > 0 && (c.lastDebugLog.IsZero() || now.Sub(c.lastDebugLog) >= debugLogInterval)
 }
 
 func (c *tracesConnector) emitTopKSnapshotLocked(now time.Time) {
