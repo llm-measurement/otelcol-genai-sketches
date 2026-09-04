@@ -7,7 +7,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 COPY examples/app/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
-COPY examples/app/app.py /app/app.py
+COPY examples/app/*.py /app/
 
 USER 65532:65532
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s CMD ["python", "-c", "import importlib.util; raise SystemExit(0 if importlib.util.find_spec('opentelemetry') else 1)"]

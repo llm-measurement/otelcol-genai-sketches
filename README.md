@@ -11,6 +11,13 @@ Use it alongside an existing trace backend to find where reported token volume i
 accumulating, measure missing usage, and keep high-cardinality identities out of
 metric labels.
 
+![Running Grafana demo with request rates, reported tokens, and missing usage](docs/images/demo-dashboard.jpg)
+
+Actual output from synthetic traffic. Start with the
+[90-second walkthrough](docs/media/README.md), or try two reproducible investigations:
+[more tool spans, the same model requests](docs/investigations/TOOL_SPANS.md) and
+[fewer reported tokens, unchanged synthetic consumption](docs/investigations/MISSING_USAGE.md).
+
 ## Start With The Question
 
 | Question | Required span data | Result | Boundary |
@@ -25,17 +32,27 @@ remain the right tools for understanding one agent run or judging its output.
 
 ## Quick Start
 
-Requirements: Docker with Compose, Go 1.26.6 or newer, and `openssl`.
+Requirements: Docker with Compose v2, Git, and a POSIX shell (macOS, Linux, or WSL).
+No host Go, Python, Make, or OpenSSL installation is needed.
 
 ```bash
 git clone https://github.com/llm-measurement/otelcol-genai-sketches.git
 cd otelcol-genai-sketches
-export GENAI_SKETCH_SECRET="$(openssl rand -hex 32)"
-make example-up
+sh examples/demo.sh up
 ```
 
 This starts a sample application, the collector, a Prometheus metrics server, and a
 provisioned Grafana dashboard.
+
+The first run downloads pinned images and compiles the checked-out collector inside
+Docker. Allow several minutes; later runs reuse the build cache. `make example-up`
+is an equivalent convenience command. This is a source-built demo, not a download
+of a prebuilt release image.
+
+The script generates a random demo secret without displaying it. Each `up` creates
+a fresh secret unless `GENAI_SKETCH_SECRET` is already set. Restarting with a new
+secret resets pseudonymous comparability. Everything is synthetic; no model account
+or API key is required. Published ports bind only to localhost.
 
 - Grafana: [http://localhost:3000](http://localhost:3000)
 - Prometheus: [http://localhost:9090](http://localhost:9090)
@@ -57,7 +74,7 @@ Let the example run for at least one minute, then use the dashboard in this orde
 Then inspect the high-cardinality surface:
 
 ```bash
-docker compose -f examples/compose.yaml logs collector \
+sh examples/demo.sh logs \
   | grep 'genaisketch topk snapshot'
 ```
 
@@ -67,8 +84,13 @@ not contain prompt text, and its hashes never become Prometheus labels.
 Stop the example with:
 
 ```bash
-make example-down
+sh examples/demo.sh down
 ```
+
+This removes the demo containers and their disposable data. If a port is occupied,
+set `GENAI_DEMO_GRAFANA_PORT`, `GENAI_DEMO_PROMETHEUS_PORT`,
+`GENAI_DEMO_METRICS_PORT`, or `GENAI_DEMO_OTLP_PORT` before starting; the defaults are
+3000, 9090, 8889, and 4317 respectively.
 
 The [token-consumption playbook](docs/TOKEN_USAGE.md) contains the PromQL queries and
 an interpretation table for the same workflow.

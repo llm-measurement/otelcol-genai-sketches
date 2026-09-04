@@ -1,0 +1,39 @@
+{
+  "synthetic_only": true,
+  "seed": 20260904,
+  "results": [
+    {
+      "scenario": "baseline",
+      "emitted_spans": 400,
+      "emitted_model_requests": 100,
+      "synthetic_token_truth": 20000,
+      "collector": {
+        "requests": 100,
+        "tokens": 20000,
+        "missing": 0
+      }
+    },
+    {
+      "scenario": "more-tools",
+      "emitted_spans": 1100,
+      "emitted_model_requests": 100,
+      "synthetic_token_truth": 20000,
+      "collector": {
+        "requests": 100,
+        "tokens": 20000,
+        "missing": 0
+      }
+    },
+    {
+      "scenario": "missing-usage",
+      "emitted_spans": 400,
+      "emitted_model_requests": 100,
+      "synthetic_token_truth": 20000,
+      "collector": {
+        "requests": 100,
+        "tokens": 10000,
+        "missing": 50
+      }
+    }
+  ]
+}

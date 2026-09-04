@@ -81,8 +81,8 @@ run-local: dist
 	GENAI_SKETCH_SECRET=$${GENAI_SKETCH_SECRET:?set GENAI_SKETCH_SECRET to a strong local secret} ./$(DIST_BINARY) --config=configs/local.yaml
 
 .PHONY: example-up
-example-up: dist-docker
-	docker compose -f examples/compose.yaml up -d --build
+example-up:
+	sh examples/demo.sh up
 
 .PHONY: load
 load:
@@ -98,7 +98,11 @@ soak-fleet: $(DIST_BINARY)
 
 .PHONY: example-down
 example-down:
-	docker compose -f examples/compose.yaml down -v
+	sh examples/demo.sh down
+
+.PHONY: example-investigate
+example-investigate:
+	sh examples/demo.sh investigate
 
 .PHONY: production-image
 production-image:
