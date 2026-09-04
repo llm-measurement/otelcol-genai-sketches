@@ -18,7 +18,7 @@ func NewFactory() connector.Factory {
 		func() component.Config {
 			return defaultConfig()
 		},
-		connector.WithTracesToMetrics(createTracesToMetrics, component.StabilityLevelDevelopment),
+		connector.WithTracesToMetrics(createTracesToMetrics, component.StabilityLevelAlpha),
 	)
 }
 

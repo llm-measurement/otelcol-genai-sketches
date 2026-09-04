@@ -19,6 +19,12 @@ type captureMetrics struct {
 	metrics []pmetric.Metrics
 }
 
+func TestFactoryDeclaresAlphaStability(t *testing.T) {
+	if got := NewFactory().TracesToMetricsStability(); got != component.StabilityLevelAlpha {
+		t.Fatalf("TracesToMetricsStability() = %s, want Alpha", got)
+	}
+}
+
 func (c *captureMetrics) Capabilities() consumer.Capabilities {
 	return consumer.Capabilities{}
 }

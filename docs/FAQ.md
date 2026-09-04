@@ -131,6 +131,8 @@ verified exact request and missing-token accounting. See
 
 ## Is this production-stable?
 
-No. The repository is alpha software and the connector stability level is
-development. Pin an exact release, review metric semantics, validate memory against
-your own slice distribution, and rehearse secret rotation before production use.
+No. The connector is Alpha: ready for evaluation and limited, non-critical
+workloads, but its configuration and metric semantics may still change before 1.0.
+Pin an exact release and image digest, review metric semantics, validate memory
+against your own slice distribution, and rehearse secret rotation before broader
+use.
