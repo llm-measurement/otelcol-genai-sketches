@@ -37,7 +37,7 @@ deduplication filter. Replayed spans can therefore be counted again. Restart
 stability means replaying the same corpus into fresh state gives the same results,
 not that aggregate state survives a restart.
 
-With [summary file export](SUMMARY_EXCHANGE.md) configured in a source build,
+With [summary file export](SUMMARY_EXCHANGE.md) configured from `0.1.0`,
 previously written files can survive on a persistent private volume. Each restart
 uses a new producer epoch. Those files are inputs for external combination, not
 checkpoints loaded into the restarted connector. Retention still expires old files,

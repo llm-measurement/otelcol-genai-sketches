@@ -277,3 +277,23 @@ jobs:
             "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/chart-digest.txt"
           cmp release/image-digest.txt /tmp/public-image-digest.txt
           cmp release/chart-digest.txt /tmp/public-chart-digest.txt
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.26.6"
+          cache: true
+          cache-dependency-path: |
+            go.sum
+            connector/genaisketchconnector/go.sum
+
+      - name: Combine summaries from published containers
+        env:
+          GOWORK: "off"
+          GENAI_TEST_IMAGE: ${{ env.IMAGE_NAME }}@${{ steps.push.outputs.digest }}
+        run: |
+          for platform in linux/amd64 linux/arm64; do
+            docker pull --platform "${platform}" "${GENAI_TEST_IMAGE}"
+            GENAI_TEST_PLATFORM="${platform}" go test -tags integration ./integration \
+              -run '^TestIndependentCollectorsExportMergeablePrivateSummaries$' \
+              -count=1 -timeout=5m -v
+          done

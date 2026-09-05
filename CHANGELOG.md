@@ -2,10 +2,23 @@
 
 Notable user-visible changes are recorded here.
 
-## Unreleased
+## v0.1.0 - 2026-09-05
 
-- Aligned the connector's OpenTelemetry stability metadata and public status
-  documentation at Alpha.
+- Added opt-in, bounded summary-file export for combining measurements across
+  independently operated collectors. Files contain full sketch state and window
+  counters, with producer epochs, compatibility metadata, and private permissions.
+- Added two-collector reconciliation and privacy tests, including replay handling,
+  missing producers, shared identities, and scans of decoded sketch payloads.
+- Run the same summary-exchange test against published amd64 and arm64 containers.
+- Updated the connector dependency to `llm-sketchkit v0.2.0` and aligned standalone
+  connector, image, Helm, and deployment references at `0.1.0`.
+- Updated OpenTelemetry Collector dependencies to `v0.160.0` with patched gRPC
+  and crypto dependencies, and simplified connector lifecycle and slice handling.
+
+The `genai-accounting/v1` contract and existing sketch encodings are unchanged.
+Summary export is disabled by default and is not a recovery checkpoint or event
+deduplication service. OpenTelemetry component stability remains Alpha; the version
+number does not change the documented evaluation scope or promise 1.0 stability.
 
 ## v0.1.0-alpha.2 - 2026-09-03
 

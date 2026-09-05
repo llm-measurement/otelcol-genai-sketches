@@ -5,9 +5,9 @@ exchange bounded summary files for a shared measurement scope. The files contain
 actual HLL++ and frequent-items state plus window counters. Prometheus metrics
 and top-k log entries are not a substitute for this state.
 
-This opt-in feature is available in the source checkout. Previously published
-collector images do not acquire it when their configuration changes. Build this
-revision with `make dist` before following this guide.
+This opt-in feature is available from collector `0.1.0`, using `llm-sketchkit
+0.2.0`. Use the [published image](DEPLOYMENT.md) or build the tagged source with
+`make dist`. Older images do not acquire this feature when their configuration changes.
 
 ## Configure Each Producer
 
@@ -53,9 +53,9 @@ Transfer the files using an authenticated, access-controlled mechanism of your
 choice. Keep permissions private at the destination. No hashing secret needs to
 leave the producing systems for combination to work.
 
-The llm-sketchkit source checkout includes a
+The llm-sketchkit repository includes a
 [Go/Python API and local file example](https://github.com/llm-measurement/llm-sketchkit/tree/main/examples/summary-exchange).
-For example, from that checkout after `python -m pip install -e .`:
+For example, from that checkout after `python -m pip install llm-sketchkit==0.2.0`:
 
 ```sh
 python examples/summary-exchange/combine.py \
@@ -116,3 +116,5 @@ runs two collector processes, sends OTLP traffic, combines exported files, verif
 counters and shared identity estimates, and scans metrics, logs, JSON, and decoded
 sketch state for sentinels. Unit tests cover restart, replay, retention, label
 overflow, malformed files, incompatible metadata, and non-trivial weighted bounds.
+The release workflow runs the same integration test against two published
+containers on each supported architecture after verifying anonymous image access.
