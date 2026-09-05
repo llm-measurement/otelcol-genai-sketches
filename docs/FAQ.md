@@ -11,6 +11,26 @@ It is the measurement layer between OTLP traces and an observability backend. It
 complements trace explorers, evaluation systems, behavior or anomaly detectors, and
 control planes; it does not replace them or diagnose individual agent decisions.
 
+## Can I Use This With Self-Hosted Models Or A Mix Of Providers?
+
+Yes, when your instrumentation emits the supported GenAI span attributes. Hosted
+model APIs, self-hosted models, and mixed deployments use the same
+[request and token accounting rules](ACCOUNTING.md). Point the instrumented
+application at the collector's OTLP endpoint. The collector processes spans, not
+model API responses; an OpenAI-compatible API does not by itself supply compatible
+telemetry. Check the operation names and usage fields your instrumentation emits.
+
+You can run the collector and your chosen telemetry backend on your own
+infrastructure. Separate teams can also exchange
+[compatible window summaries](SUMMARY_EXCHANGE.md) without pooling their raw traces.
+Combination requires agreed scopes, keys, accounting rules, windows, and disjoint
+request streams. Summary files remain pseudonymous and require access controls.
+
+Keep model and usage definitions explicit when comparing deployments. Tokens are
+not a common unit of cost or compute across models. Equivalent supported spans
+receive the same accounting; individual SDKs and serving engines can differ in what
+they report, so validate their output rather than assuming complete coverage.
+
 ## When Is This Not For You?
 
 If telemetry volume is moderate, source values are safe to retain, and exact queries
@@ -55,6 +75,12 @@ It can detect and localize unexpected reported token consumption. Compare reques
 rate with token rate and tokens per request, use bounded slices to identify an
 affected team, model, provider, or route, and inspect token-weighted top-k prompt
 signatures for high-cardinality concentration.
+
+Token accounting matters whether you pay a provider per token or run the models
+yourself. Self-hosting may remove the token invoice, but long responses and repeated
+calls can still occupy shared capacity. Pair token measurements with queueing,
+latency, and utilization metrics from your serving system. The connector does not
+derive GPU usage or infrastructure cost from token counts.
 
 It cannot decide whether tokens were useful, infer unreported usage, recover prompt
 text, enforce a budget, stop an agent loop, or prevent a context-window error. Those
