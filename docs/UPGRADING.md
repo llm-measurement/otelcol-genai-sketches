@@ -31,7 +31,13 @@ but alerts should tolerate the restart interval. Use upstream buffering or a dur
 OTLP tier when uninterrupted receipt is required.
 
 The chart does not persist sketch state. A rollback starts empty state under the old
-binary. Roll back with the previously recorded image digest and values:
+binary. The same secret and hashing configuration preserve pseudonymous identities
+across a restart; they do not restore counters, sketch windows, or the optional
+deduplication filter. Replayed spans can therefore be counted again. Restart
+stability means replaying the same corpus into fresh state gives the same results,
+not that aggregate state survives a restart.
+
+Roll back with the previously recorded image digest and values:
 
 ```bash
 helm rollback genai-sketches REVISION --namespace observability

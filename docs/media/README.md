@@ -1,6 +1,8 @@
 # Collector Walkthrough
 
-[Watch or download the 90-second video](walkthrough.mp4).
+[Download the 90-second MP4](https://raw.githubusercontent.com/llm-measurement/otelcol-genai-sketches/main/docs/media/walkthrough.mp4).
+No account is needed. Open the downloaded file in a video player; GitHub does not
+provide an embedded player for this file.
 
 This silent, captioned video uses a real Grafana screenshot and plots of live
 reconciliation results captured on 2026-09-04. It is an edited walkthrough of
