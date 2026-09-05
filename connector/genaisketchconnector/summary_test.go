@@ -243,3 +243,29 @@ func TestSummaryWeightedBoundsAndContractFingerprint(t *testing.T) {
 		t.Fatal("missing accounting fingerprint")
 	}
 }
+
+func TestSummaryDiskBudgetAndBackwardClock(t *testing.T) {
+	s, e, _ := exportFixture(t, "a", time.Unix(120, 0))
+	docs, err := s.summaryDocuments(e, time.Unix(121, 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.lastExport = time.Unix(122, 0)
+	if _, err := s.summaryDocuments(e, time.Unix(121, 0)); err == nil {
+		t.Fatal("backward clock accepted")
+	}
+	file, err := e.root.OpenFile("00000000000000000000-00000000000000000000000000000000.json", os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := file.Truncate(maxSummaryDiskBytes); err != nil {
+		_ = file.Close()
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.write(docs, 0); err == nil {
+		t.Fatal("disk budget exceeded silently")
+	}
+}

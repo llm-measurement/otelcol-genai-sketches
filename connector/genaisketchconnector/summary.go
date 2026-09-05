@@ -113,7 +113,7 @@ func (s *collectorState) summaryDocuments(e *summaryExporter, now time.Time) ([]
 	if s.summary == nil {
 		return nil, errors.New("summary state is disabled")
 	}
-	if now.Before(e.started) || now.Before(e.lastExport) {
+	if now.UnixNano() < e.started.UnixNano() || (!e.lastExport.IsZero() && now.UnixNano() < e.lastExport.UnixNano()) {
 		return nil, errors.New("summary clock moved backwards")
 	}
 	current := s.windowStart(now)
@@ -248,6 +248,9 @@ func (e *summaryExporter) write(documents []summary.Envelope, cutoff int64) erro
 				return err
 			}
 			continue
+		}
+		if info.Size() > maxSummaryDiskBytes-total {
+			return errors.New("summary disk budget exceeded; export incomplete")
 		}
 		sizes[entry.Name()] = info.Size()
 		total += info.Size()
