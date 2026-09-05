@@ -26,9 +26,13 @@ Actual output from synthetic traffic. Start with the
 | Could an identity create unsafe Prometheus cardinality? | A supported user, prompt, document, or MCP field configured as a hashed field | Distinct estimates remain metrics; keyed identities remain outside labels | The connector does not scan every arbitrary attribute for cardinality |
 | Are agent or tool spans inflating model-request accounting? | `gen_ai.operation.name`, or the documented model fallback | Only configured model operations count as requests; root agent runs have a separate counter | The connector does not provide a count for every possible span kind |
 | How much reported token usage is incomplete? | `gen_ai.usage.input_tokens` and `gen_ai.usage.output_tokens` when available | A request with either aggregate field unavailable is counted separately from real zero-token values | The collector never infers unreported tokens |
+| Can separately operated agent systems combine measurements without pooling raw telemetry? | Compatible [window summary files](docs/SUMMARY_EXCHANGE.md) from collectors observing disjoint request streams | Combined counters, distinct estimates, and heavy items, with missing producers and partial windows reported | Opt-in source-build feature; overlapping requests are not deduplicated |
 
-These are fleet-level measurement signals. Trace explorers and evaluation systems
-remain the right tools for understanding one agent run or judging its output.
+Prometheus metrics describe each collector's observations. The optional summary
+exchange combines compatible sketch state across independently operated systems;
+adding distinct-count metrics or top-k log entries cannot do this. Trace explorers
+and evaluation systems remain the right tools for understanding one agent run or
+judging its output.
 
 ## Quick Start
 
@@ -119,6 +123,20 @@ See [Keep Your Existing Telemetry Backend](docs/SHADOW_MODE.md) for tested gener
 OTLP configurations and coexistence paths for an ordinary Collector, Datadog,
 Langfuse, and Grafana Alloy.
 
+## Across Independent Systems
+
+Separate teams can keep their trace backends and exchange bounded window summaries
+for a shared view of an agent fleet. Export includes full sketch state and counters,
+not raw prompts or identities. A [local Go/Python API](https://github.com/llm-measurement/llm-sketchkit/tree/main/examples/summary-exchange)
+combines the files without needing the hashing secret. Replayed snapshots are not
+counted again, and missing producers and partial observation windows are reported.
+
+This requires agreed scopes, hashing keys, accounting rules, and disjoint request
+streams. It does not authenticate producers, discover fleets, or enforce policy.
+See [Combine Measurements Across Independently Operated Systems](docs/SUMMARY_EXCHANGE.md)
+for configuration, a working example, and restart and privacy limits. This feature
+is available in the source checkout, not previously published collector images.
+
 ## When This Fits
 
 Use this collector when you need to:
@@ -180,7 +198,7 @@ own a custom streaming, batch, or warehouse pipeline and do not need OTLP-to-met
 conversion, use [llm-sketchkit](https://github.com/llm-measurement/llm-sketchkit)
 directly.
 
-The connector uses `llm-sketchkit v0.1.0` for canonicalization, keyed hashing,
+The connector uses `llm-sketchkit` for canonicalization, keyed hashing,
 distinct counting, frequent-item estimates, and deduplication. Raw prompt text,
 user IDs, document IDs, and request IDs do not enter connector aggregate state or
 its derived metrics and snapshots.
