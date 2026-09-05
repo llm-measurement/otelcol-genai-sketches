@@ -14,7 +14,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -554,34 +553,16 @@ func waitForSoakMetrics(t *testing.T, promPort int, wantRequests int64) (string,
 			return err
 		}
 		body = string(data)
-		requests = sumPrometheusMetric(body, "gen_ai_sketch_requests_total")
-		missing = sumPrometheusMetric(body, "gen_ai_sketch_missing_token_usage_total")
-		overflow = regexp.MustCompile(`(?m)^gen_ai_sketch_requests_total\{[^}]*overflow="true"[^}]*slice_value="__overflow__"[^}]*\}\s+[1-9]`).MatchString(body)
+		requests = sumPrometheusMetric(t, body, "gen_ai_sketch_requests_total")
+		missing = sumPrometheusMetric(t, body, "gen_ai_sketch_missing_token_usage_total")
+		value, ok := metricValue(t, body, "gen_ai_sketch_requests_total", map[string]string{"overflow": "true", "slice_value": "__overflow__"})
+		overflow = ok && value > 0
 		if requests < wantRequests {
 			return fmt.Errorf("collector has exported %d requests, want %d", requests, wantRequests)
 		}
 		return nil
 	})
 	return body, requests, missing, overflow
-}
-
-func sumPrometheusMetric(body string, name string) int64 {
-	var total int64
-	for _, line := range strings.Split(body, "\n") {
-		if !strings.HasPrefix(line, name+"{") && !strings.HasPrefix(line, name+" ") {
-			continue
-		}
-		fields := strings.Fields(line)
-		if len(fields) < 2 {
-			continue
-		}
-		value, err := strconv.ParseFloat(fields[len(fields)-1], 64)
-		if err != nil {
-			continue
-		}
-		total += int64(math.Round(value))
-	}
-	return total
 }
 
 func assertSoakResults(t *testing.T, settings soakSettings, stats soakStats, metrics string, logs string) {
@@ -634,7 +615,7 @@ func assertFleetSoakResults(t *testing.T, settings soakSettings, stats soakStats
 	if stats.MissingTokenSpans != stats.Fleet.MissingLLMSpans {
 		t.Fatalf("missing-token metric = %d, planted missing LLM spans = %d\n%s", stats.MissingTokenSpans, stats.Fleet.MissingLLMSpans, metrics)
 	}
-	if got := sumPrometheusMetric(metrics, "gen_ai_sketch_agent_runs_total"); got != stats.Fleet.AgentRoots {
+	if got := sumPrometheusMetric(t, metrics, "gen_ai_sketch_agent_runs_total"); got != stats.Fleet.AgentRoots {
 		t.Fatalf("agent runs = %d, emitted root agents = %d\n%s", got, stats.Fleet.AgentRoots, metrics)
 	}
 	assertFleetTenantAttribution(t, metrics, stats.Fleet)
@@ -667,7 +648,7 @@ func assertFleetTenantAttribution(t *testing.T, metrics string, expected fleetBa
 	var active int64
 	var overflow int64
 	activeTenants := make(map[string]struct{})
-	for _, sample := range prometheusMetricSamples(metrics, "gen_ai_sketch_requests_total") {
+	for _, sample := range prometheusMetricSamples(t, metrics, "gen_ai_sketch_requests_total") {
 		if sample.labels["slice"] != "by_tenant" {
 			t.Fatalf("request metric routed to unexpected slice %q", sample.labels["slice"])
 		}
@@ -675,7 +656,7 @@ func assertFleetTenantAttribution(t *testing.T, metrics string, expected fleetBa
 			if sample.labels["slice_value"] != "__overflow__" {
 				t.Fatalf("overflow request metric has slice_value=%q", sample.labels["slice_value"])
 			}
-			overflow += sample.value
+			overflow += int64(math.Round(sample.value))
 			continue
 		}
 		value := sample.labels["slice_value"]
@@ -687,7 +668,7 @@ func assertFleetTenantAttribution(t *testing.T, metrics string, expected fleetBa
 			t.Fatalf("undeclared non-overflow tenant slice %q", value)
 		}
 		activeTenants[value] = struct{}{}
-		active += sample.value
+		active += int64(math.Round(sample.value))
 	}
 	if active != expected.ActiveLLMSpans {
 		t.Fatalf("active tenant requests = %d, planted active LLM spans = %d", active, expected.ActiveLLMSpans)
@@ -698,39 +679,6 @@ func assertFleetTenantAttribution(t *testing.T, metrics string, expected fleetBa
 	if len(activeTenants) != fleetActiveTenants {
 		t.Fatalf("active tenant slices = %d, want %d", len(activeTenants), fleetActiveTenants)
 	}
-}
-
-type prometheusMetricSample struct {
-	labels map[string]string
-	value  int64
-}
-
-var prometheusLabelPattern = regexp.MustCompile(`([a-zA-Z_][a-zA-Z0-9_]*)="([^"\\]*(?:\\.[^"\\]*)*)"`)
-
-func prometheusMetricSamples(body string, name string) []prometheusMetricSample {
-	var samples []prometheusMetricSample
-	for _, line := range strings.Split(body, "\n") {
-		if !strings.HasPrefix(line, name+"{") {
-			continue
-		}
-		fields := strings.Fields(line)
-		if len(fields) < 2 {
-			continue
-		}
-		parsed, err := strconv.ParseFloat(fields[len(fields)-1], 64)
-		if err != nil {
-			continue
-		}
-		labels := make(map[string]string)
-		for _, match := range prometheusLabelPattern.FindAllStringSubmatch(line, -1) {
-			value, err := strconv.Unquote(`"` + match[2] + `"`)
-			if err == nil {
-				labels[match[1]] = value
-			}
-		}
-		samples = append(samples, prometheusMetricSample{labels: labels, value: int64(math.Round(parsed))})
-	}
-	return samples
 }
 
 func logSoakReport(t *testing.T, settings soakSettings, stats soakStats) {

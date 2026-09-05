@@ -23,6 +23,3 @@ updates:
   - package-ecosystem: docker
     directory: /packaging/docker
     schedule: {interval: weekly}
-  - package-ecosystem: docker
-    directory: /examples/collector
-    schedule: {interval: weekly}

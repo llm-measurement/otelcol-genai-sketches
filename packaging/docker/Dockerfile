@@ -11,7 +11,7 @@ ARG TARGETARCH
 ARG VERSION=0.1.0-dev
 WORKDIR /src
 
-COPY go.mod go.sum builder.yaml LICENSE ./
+COPY go.mod go.sum builder.yaml otel.version LICENSE ./
 COPY connector/genaisketchconnector/go.mod connector/genaisketchconnector/go.sum ./connector/genaisketchconnector/
 COPY connector/genaisketchconnector/*.go ./connector/genaisketchconnector/
 COPY connector/genaisketchconnector/LICENSE ./connector/genaisketchconnector/LICENSE
@@ -22,7 +22,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
       github.com/haproxytech/go-licenses/v2 && \
     env "dist.version=$VERSION" "dist.output_path=/out" \
       GOWORK=off CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
-    go run go.opentelemetry.io/collector/cmd/builder@v0.160.0 \
+    go run go.opentelemetry.io/collector/cmd/builder@$(cat otel.version) \
       --config=builder.yaml && \
     cp /src/LICENSE /out/LICENSE && \
     cd /out && \

@@ -16,7 +16,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -675,45 +674,11 @@ func assertMetricWithin(t *testing.T, body string, name string, labels map[strin
 func mustMetricValue(t *testing.T, body string, name string, labels map[string]string) float64 {
 	t.Helper()
 
-	if got, ok := metricValue(body, name, labels); ok {
+	if got, ok := metricValue(t, body, name, labels); ok {
 		return got
 	}
 	t.Fatalf("metric %s with labels %#v not found in:\n%s", name, labels, body)
 	return 0
-}
-
-func metricValue(body string, name string, labels map[string]string) (float64, bool) {
-	for _, line := range strings.Split(body, "\n") {
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		if !strings.HasPrefix(line, name) {
-			continue
-		}
-		if !lineHasLabels(line, labels) {
-			continue
-		}
-		fields := strings.Fields(line)
-		if len(fields) < 2 {
-			continue
-		}
-		value, err := strconv.ParseFloat(fields[len(fields)-1], 64)
-		if err != nil {
-			continue
-		}
-		return value, true
-	}
-	return 0, false
-}
-
-func lineHasLabels(line string, labels map[string]string) bool {
-	for key, value := range labels {
-		needle := key + `="` + value + `"`
-		if !strings.Contains(line, needle) {
-			return false
-		}
-	}
-	return true
 }
 
 func intPtr(value int64) *int64 {

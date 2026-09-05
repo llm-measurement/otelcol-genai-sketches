@@ -27,7 +27,7 @@ control.
 | Field | Default | Limit | Meaning |
 | --- | ---: | ---: | --- |
 | `window_duration` | `1m` | `24h` | Fixed sketch window |
-| `retention_windows` | `10` | `120` | Retained completed windows |
+| `retention_windows` | `10` | `120` | Retained windows, including the current one |
 | `max_slices` | `2000` | `5000` | Total retained slice states |
 | `topk` | `20` | `0`-`100` | Entries per structured top-k summary; `0` disables the surface |
 
@@ -40,6 +40,10 @@ slice. No observation is silently dropped and no unconfigured label value is cre
 Set `topk: 0` when structured top-k logs are not permitted. The connector then
 does not allocate or update frequent-items state and emits no top-k snapshots.
 Counters and distinct estimates remain enabled.
+
+Metrics and top-k snapshots read only the current window. Retaining more windows
+uses additional memory but does not provide a historical query or export API.
+Retention defaults are unchanged for configuration compatibility.
 
 ## Slices
 
@@ -78,7 +82,8 @@ signature, retrieval document, and MCP identity.
 Each hashed field searches all configured span candidates before all configured
 resource candidates. Parent and child spans are evaluated independently.
 
-Raw attribute values larger than 8 KiB are ignored. Values are canonicalized and
+Configured hashed-field values larger than 8 KiB reject the batch before state
+is updated. Values are canonicalized and
 keyed before entering sketch state; raw values are not retained by the connector.
 
 ## Sketch Profiles

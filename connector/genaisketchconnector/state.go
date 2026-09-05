@@ -65,7 +65,6 @@ type runtimeConfig struct {
 }
 
 type compiledField struct {
-	name                   string
 	fromAttributes         []string
 	fromResourceAttributes []string
 	canonicalization       sketchcanon.Profile
@@ -86,7 +85,6 @@ type sliceState struct {
 	label       sliceLabel
 	windows     map[int64]*windowState
 	startTime   pcommon.Timestamp
-	lastSeen    time.Time
 	lastWindow  int64
 	lruSequence int64
 
@@ -111,11 +109,6 @@ type sliceLabel struct {
 }
 
 type windowState struct {
-	requests             uint64
-	agentRuns            uint64
-	inputTokens          uint64
-	outputTokens         uint64
-	missingTokens        uint64
 	distinctUsers        *hllpp.Sketch
 	distinctPrompts      *hllpp.Sketch
 	distinctDocs         *hllpp.Sketch
@@ -271,7 +264,6 @@ func compileRuntimeConfig(cfg *Config) (runtimeConfig, error) {
 	fields := make(map[string]compiledField, len(cfg.Fields))
 	for name, field := range cfg.Fields {
 		fields[name] = compiledField{
-			name:                   name,
 			fromAttributes:         append([]string(nil), field.FromAttributes...),
 			fromResourceAttributes: append([]string(nil), field.FromResourceAttributes...),
 			canonicalization:       sketchcanon.Profile(field.Canonicalization),
@@ -429,7 +421,7 @@ func (s *collectorState) classifySpan(span ptrace.Span, data spanData) (spanUpda
 func (s *collectorState) sliceFor(sliceCfg SliceConfig, data spanData, now time.Time, windowStart int64) (*sliceState, error) {
 	label := sliceLabelFor(sliceCfg, data)
 	if existing, ok := s.slices[label.sortKey]; ok {
-		s.touch(existing, now, windowStart)
+		s.touch(existing, windowStart)
 		return existing, nil
 	}
 
@@ -450,14 +442,14 @@ func (s *collectorState) createSlice(label sliceLabel, now time.Time, windowStar
 		windows:   make(map[int64]*windowState),
 		startTime: pcommon.NewTimestampFromTime(now),
 	}
-	s.touch(state, now, windowStart)
+	s.touch(state, windowStart)
 	s.slices[label.sortKey] = state
 	return state, nil
 }
 
 func (s *collectorState) overflowSlice(sliceName string, now time.Time, windowStart int64) *sliceState {
 	if existing, ok := s.overflows[sliceName]; ok {
-		s.touch(existing, now, windowStart)
+		s.touch(existing, windowStart)
 		return existing
 	}
 
@@ -472,14 +464,13 @@ func (s *collectorState) overflowSlice(sliceName string, now time.Time, windowSt
 		windows:   make(map[int64]*windowState),
 		startTime: pcommon.NewTimestampFromTime(now),
 	}
-	s.touch(state, now, windowStart)
+	s.touch(state, windowStart)
 	s.overflows[sliceName] = state
 	return state
 }
 
-func (s *collectorState) touch(state *sliceState, now time.Time, windowStart int64) {
+func (s *collectorState) touch(state *sliceState, windowStart int64) {
 	s.nextLRUSeq++
-	state.lastSeen = now
 	state.lastWindow = windowStart
 	state.lruSequence = s.nextLRUSeq
 }
@@ -538,14 +529,14 @@ func (s *sliceState) update(windowStart int64, owner *collectorState, data spanD
 		s.dedupSuppressed++
 		return nil
 	}
-	if err := s.checkCounters(window, update, prepared); err != nil {
+	if err := s.checkCounters(update, prepared); err != nil {
 		return err
 	}
 	if err := owner.applyErrorCheckedSketches(window, prepared); err != nil {
 		return err
 	}
 	owner.applyNoErrorSketches(window, prepared)
-	s.addCounters(window, update, prepared)
+	s.addCounters(update, prepared)
 	return nil
 }
 
@@ -614,7 +605,7 @@ func (s *collectorState) prepareDedup(window *windowState, data spanData) (optio
 	return optionalHash{value: hashValue, ok: true}, window.dedupRequests.MayContainHash(hashValue), false, nil
 }
 
-func (s *sliceState) checkCounters(window *windowState, update spanUpdate, prepared preparedUpdate) error {
+func (s *sliceState) checkCounters(update spanUpdate, prepared preparedUpdate) error {
 	for _, item := range []struct {
 		name    string
 		current uint64
@@ -627,10 +618,6 @@ func (s *sliceState) checkCounters(window *windowState, update spanUpdate, prepa
 		{name: "slice.cache_write_input_tokens", current: s.cacheWriteInputTokens, delta: update.totals.cacheWriteInputTokens},
 		{name: "slice.reasoning_output_tokens", current: s.reasoningOutputTokens, delta: update.totals.reasoningOutputTokens},
 		{name: "slice.missing_tokens", current: s.missingTokens, delta: update.totals.missingTokens},
-		{name: "window.requests", current: window.requests, delta: update.totals.requests},
-		{name: "window.input_tokens", current: window.inputTokens, delta: update.totals.inputTokens},
-		{name: "window.output_tokens", current: window.outputTokens, delta: update.totals.outputTokens},
-		{name: "window.missing_tokens", current: window.missingTokens, delta: update.totals.missingTokens},
 	} {
 		if _, err := checkedAddUint64(item.name, item.current, item.delta); err != nil {
 			return err
@@ -638,9 +625,6 @@ func (s *sliceState) checkCounters(window *windowState, update spanUpdate, prepa
 	}
 	if update.agentRun {
 		if _, err := checkedAddUint64("slice.agent_runs", s.agentRuns, 1); err != nil {
-			return err
-		}
-		if _, err := checkedAddUint64("window.agent_runs", window.agentRuns, 1); err != nil {
 			return err
 		}
 	}
@@ -719,7 +703,7 @@ func (s *collectorState) applyNoErrorSketches(window *windowState, prepared prep
 	addHash(window.distinctMCPResources, prepared.mcpResourceHash)
 }
 
-func (s *sliceState) addCounters(window *windowState, update spanUpdate, prepared preparedUpdate) {
+func (s *sliceState) addCounters(update spanUpdate, prepared preparedUpdate) {
 	s.requests += update.totals.requests
 	s.inputTokens += update.totals.inputTokens
 	s.outputTokens += update.totals.outputTokens
@@ -727,10 +711,6 @@ func (s *sliceState) addCounters(window *windowState, update spanUpdate, prepare
 	s.cacheWriteInputTokens += update.totals.cacheWriteInputTokens
 	s.reasoningOutputTokens += update.totals.reasoningOutputTokens
 	s.missingTokens += update.totals.missingTokens
-	window.requests += update.totals.requests
-	window.inputTokens += update.totals.inputTokens
-	window.outputTokens += update.totals.outputTokens
-	window.missingTokens += update.totals.missingTokens
 	for field := tokenField(0); field < tokenFieldCount; field++ {
 		for state := tokenObservationState(0); state < tokenStateCount; state++ {
 			delta := update.totals.tokenObservations[field][state]
@@ -742,7 +722,6 @@ func (s *sliceState) addCounters(window *windowState, update spanUpdate, prepare
 	}
 	if update.agentRun {
 		s.agentRuns++
-		window.agentRuns++
 	}
 }
 

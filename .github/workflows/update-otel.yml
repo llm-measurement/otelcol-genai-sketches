@@ -42,8 +42,10 @@ jobs:
         run: |
           set -euo pipefail
           tracked=(
-            Makefile
+            otel.version
             builder.yaml
+            go.mod
+            go.sum
             connector/genaisketchconnector/go.mod
             connector/genaisketchconnector/go.sum
           )
@@ -52,7 +54,7 @@ jobs:
             exit 0
           fi
 
-          version="$(awk '$1 == "OTEL_VERSION" { print $3 }' Makefile)"
+          version="$(cat otel.version)"
           branch="automation/otel-collector-${version}"
           existing="$(gh pr list --state open --head "${branch}" --json url --jq '.[0].url // empty')"
           if [[ -n "${existing}" ]]; then

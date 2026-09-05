@@ -5,6 +5,7 @@ package genaisketchconnector
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"sync"
 	"time"
 
@@ -120,15 +121,7 @@ func (c *tracesConnector) ConsumeTraces(ctx context.Context, traces ptrace.Trace
 	defer c.mu.Unlock()
 
 	if c.state == nil {
-		secret, err := sketchhash.SecretFromEnv(c.cfg.Hashing.SecretEnv)
-		if err != nil {
-			return err
-		}
-		state, err := newCollectorState(c.cfg, secret, c.clock)
-		if err != nil {
-			return err
-		}
-		c.state = state
+		return errors.New("genaisketch connector has not been started")
 	}
 
 	metrics, ok, err := c.state.ConsumeTraces(ctx, traces)
