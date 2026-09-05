@@ -79,15 +79,19 @@ type collectorState struct {
 	slices     map[string]*sliceState
 	overflows  map[string]*sliceState
 	nextLRUSeq int64
+	summary    *sliceState
 }
 
 type sliceState struct {
+	accountingCounters
 	label       sliceLabel
 	windows     map[int64]*windowState
 	startTime   pcommon.Timestamp
 	lastWindow  int64
 	lruSequence int64
+}
 
+type accountingCounters struct {
 	requests              uint64
 	agentRuns             uint64
 	inputTokens           uint64
@@ -109,6 +113,7 @@ type sliceLabel struct {
 }
 
 type windowState struct {
+	counters             *accountingCounters
 	distinctUsers        *hllpp.Sketch
 	distinctPrompts      *hllpp.Sketch
 	distinctDocs         *hllpp.Sketch
@@ -251,13 +256,17 @@ func newCollectorState(cfg *Config, secret sketchhash.Secret, clk clock) (*colle
 		clk = systemClock{}
 	}
 
-	return &collectorState{
+	state := &collectorState{
 		cfg:       runtimeCfg,
 		secret:    secret,
 		clock:     clk,
 		slices:    make(map[string]*sliceState),
 		overflows: make(map[string]*sliceState),
-	}, nil
+	}
+	if cfg.SummaryExport.Directory != "" {
+		state.summary = &sliceState{windows: make(map[int64]*windowState)}
+	}
+	return state, nil
 }
 
 func compileRuntimeConfig(cfg *Config) (runtimeConfig, error) {
@@ -322,6 +331,9 @@ func (s *collectorState) ConsumeTraces(_ context.Context, traces ptrace.Traces) 
 			if err := slice.update(windowStart, s, data, update); err != nil {
 				return err
 			}
+		}
+		if s.summary != nil {
+			return s.summary.update(windowStart, s, data, update)
 		}
 		return nil
 	})
@@ -526,17 +538,31 @@ func (s *sliceState) update(windowStart int64, owner *collectorState, data spanD
 		if _, err := checkedAddUint64("slice.dedup_suppressed", s.dedupSuppressed, 1); err != nil {
 			return err
 		}
+		if window.counters != nil {
+			if _, err := checkedAddUint64("summary.dedup_suppressed", window.counters.dedupSuppressed, 1); err != nil {
+				return err
+			}
+			window.counters.dedupSuppressed++
+		}
 		s.dedupSuppressed++
 		return nil
 	}
 	if err := s.checkCounters(update, prepared); err != nil {
 		return err
 	}
+	if window.counters != nil {
+		if err := window.counters.checkCounters(update, prepared); err != nil {
+			return err
+		}
+	}
 	if err := owner.applyErrorCheckedSketches(window, prepared); err != nil {
 		return err
 	}
 	owner.applyNoErrorSketches(window, prepared)
 	s.addCounters(update, prepared)
+	if window.counters != nil {
+		window.counters.addCounters(update, prepared)
+	}
 	return nil
 }
 
@@ -605,7 +631,7 @@ func (s *collectorState) prepareDedup(window *windowState, data spanData) (optio
 	return optionalHash{value: hashValue, ok: true}, window.dedupRequests.MayContainHash(hashValue), false, nil
 }
 
-func (s *sliceState) checkCounters(update spanUpdate, prepared preparedUpdate) error {
+func (s *accountingCounters) checkCounters(update spanUpdate, prepared preparedUpdate) error {
 	for _, item := range []struct {
 		name    string
 		current uint64
@@ -703,7 +729,7 @@ func (s *collectorState) applyNoErrorSketches(window *windowState, prepared prep
 	addHash(window.distinctMCPResources, prepared.mcpResourceHash)
 }
 
-func (s *sliceState) addCounters(update spanUpdate, prepared preparedUpdate) {
+func (s *accountingCounters) addCounters(update spanUpdate, prepared preparedUpdate) {
 	s.requests += update.totals.requests
 	s.inputTokens += update.totals.inputTokens
 	s.outputTokens += update.totals.outputTokens
@@ -780,6 +806,9 @@ func (s *sliceState) window(windowStart int64, owner *collectorState) (*windowSt
 		distinctDocs:    docs,
 		topPrompts:      topPrompts,
 		dedupRequests:   dedupRequests,
+	}
+	if s == owner.summary {
+		window.counters = &accountingCounters{}
 	}
 	s.windows[windowStart] = window
 	return window, nil

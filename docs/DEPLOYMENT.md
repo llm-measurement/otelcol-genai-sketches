@@ -116,6 +116,11 @@ but HLL estimates and top-k state cannot be merged by Prometheus. For scale-out,
 route each stable tenant or workload shard to one chart release and keep the shard
 identity in the release name and Prometheus external labels.
 
+Source builds also support [opt-in summary file export](SUMMARY_EXCHANGE.md).
+It exports complete state for local combination across independent collectors;
+it does not make Prometheus able to merge sketches. The chart does not enable
+this export or provision its private writable volume.
+
 ## Keep An Existing Trace Backend
 
 Enable trace fan-out without changing the original trace payload:
