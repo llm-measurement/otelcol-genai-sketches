@@ -2,6 +2,12 @@
 
 Notable user-visible changes are recorded here.
 
+## Unreleased
+
+- Verify each published image by its platform manifest digest, supporting Docker's
+  classic image store. Verification can be rerun without rebuilding or republishing
+  release artifacts. This changes release automation, not collector behavior.
+
 ## v0.1.0 - 2026-09-05
 
 - Added opt-in, bounded summary-file export for combining measurements across
