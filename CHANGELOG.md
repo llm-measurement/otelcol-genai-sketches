@@ -12,8 +12,10 @@ Notable user-visible changes are recorded here.
 - Run the same summary-exchange test against published amd64 and arm64 containers.
 - Updated the connector dependency to `llm-sketchkit v0.2.0` and aligned standalone
   connector, image, Helm, and deployment references at `0.1.0`.
-- Updated OpenTelemetry Collector dependencies to `v0.160.0` with patched gRPC
-  and crypto dependencies, and simplified connector lifecycle and slice handling.
+- Updated Go runtime and gRPC dependencies while retaining OpenTelemetry Collector
+  `v0.160.0`, and simplified connector lifecycle and slice handling.
+- Added a Docker-only demo path and worked investigations for tool-span inflation
+  and missing reported token usage.
 
 The `genai-accounting/v1` contract and existing sketch encodings are unchanged.
 Summary export is disabled by default and is not a recovery checkpoint or event
