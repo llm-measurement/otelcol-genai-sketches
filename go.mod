@@ -4,7 +4,7 @@ go 1.26.6
 
 require (
 	github.com/llm-measurement/llm-sketchkit v0.1.1-0.20260905164315-20a9d6352a97
-	github.com/prometheus/common v0.70.1
+	github.com/prometheus/common v0.71.0
 	go.opentelemetry.io/proto/otlp v1.11.0
 	go.yaml.in/yaml/v3 v3.0.5
 	google.golang.org/grpc v1.83.2
