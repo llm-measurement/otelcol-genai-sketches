@@ -37,6 +37,7 @@ type Config struct {
 	Fields           map[string]FieldConfig `mapstructure:"fields"`
 	Weights          WeightsConfig          `mapstructure:"weights"`
 	Dedup            DedupConfig            `mapstructure:"dedup"`
+	SummaryExport    SummaryExportConfig    `mapstructure:"summary_export"`
 }
 
 type ProfilesConfig struct {
@@ -175,6 +176,7 @@ func defaultConfig() *Config {
 			Enabled:       false,
 			RequestIDFrom: []string{"gen_ai.response.id", "request.id"},
 		},
+		SummaryExport: SummaryExportConfig{Interval: 5 * time.Second},
 	}
 }
 
@@ -236,6 +238,10 @@ func (cfg *Config) Validate() error {
 	errs = append(errs, validateSlices(cfg.Slices))
 	errs = append(errs, validateFields(cfg.Fields))
 	errs = append(errs, validateTokenSources(cfg.Weights))
+	errs = append(errs, cfg.SummaryExport.Validate(cfg.WindowDuration))
+	if cfg.SummaryExport.Directory != "" && cfg.RetentionWindows < 2 {
+		errs = append(errs, errors.New("summary_export requires retention_windows >= 2 to retain completed windows"))
+	}
 
 	if _, err := compileRuntimeConfig(cfg); err != nil {
 		errs = append(errs, err)

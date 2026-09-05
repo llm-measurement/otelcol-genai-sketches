@@ -52,6 +52,7 @@ type tracesConnector struct {
 	debugCancel  context.CancelFunc
 	debugDone    chan struct{}
 	lastDebugLog time.Time
+	exporter     *summaryExporter
 }
 
 func newTracesConnector(set component.TelemetrySettings, cfg *Config, next consumer.Metrics) *tracesConnector {
@@ -73,12 +74,17 @@ func (c *tracesConnector) Start(context.Context, component.Host) error {
 	if err != nil {
 		return err
 	}
+	exporter, err := newSummaryExporter(c.cfg, c.clock.Now())
+	if err != nil {
+		return err
+	}
 
 	var debugCtx context.Context
 	var debugDone chan struct{}
 	c.mu.Lock()
 	c.state = state
-	if c.cfg.TopK > 0 {
+	c.exporter = exporter
+	if c.cfg.TopK > 0 || exporter != nil {
 		debugCtx, c.debugCancel = context.WithCancel(context.Background())
 		c.debugDone = make(chan struct{})
 		debugDone = c.debugDone
@@ -92,24 +98,32 @@ func (c *tracesConnector) Start(context.Context, component.Host) error {
 	return nil
 }
 
-func (c *tracesConnector) Shutdown(context.Context) error {
+func (c *tracesConnector) Shutdown(ctx context.Context) error {
 	c.mu.Lock()
 	cancel := c.debugCancel
 	done := c.debugDone
-	c.debugCancel = nil
-	c.debugDone = nil
 	c.mu.Unlock()
 
 	if cancel != nil {
 		cancel()
 		select {
 		case <-done:
-		case <-time.After(3 * time.Second):
-			c.logger.Warn("timed out stopping genaisketch debug log loop")
+		case <-ctx.Done():
+			return ctx.Err()
 		}
 	}
+	err := c.emitSummary(true)
+	c.mu.Lock()
+	c.debugCancel = nil
+	c.debugDone = nil
+	if c.exporter != nil {
+		err = errors.Join(err, c.exporter.root.Close())
+		c.exporter = nil
+	}
+	c.state = nil
+	c.mu.Unlock()
 	c.logger.Info("stopped genaisketch connector")
-	return nil
+	return err
 }
 
 func (c *tracesConnector) Capabilities() consumer.Capabilities {
@@ -141,7 +155,11 @@ func (c *tracesConnector) ConsumeTraces(ctx context.Context, traces ptrace.Trace
 func (c *tracesConnector) debugLogLoop(ctx context.Context, done chan struct{}) {
 	defer close(done)
 
-	ticker := time.NewTicker(debugLogInterval)
+	interval := debugLogInterval
+	if c.exporter != nil {
+		interval = min(interval, c.exporter.cfg.Interval)
+	}
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
 		select {
@@ -156,8 +174,37 @@ func (c *tracesConnector) debugLogLoop(ctx context.Context, done chan struct{}) 
 				}
 			}
 			c.mu.Unlock()
+			if err := c.emitSummary(false); err != nil {
+				c.logger.Error("genaisketch summary export failed; summary files may be stale", zap.Error(err))
+			}
 		}
 	}
+}
+
+func (c *tracesConnector) emitSummary(force bool) error {
+	c.mu.Lock()
+	e := c.exporter
+	if e == nil || c.state == nil {
+		c.mu.Unlock()
+		return nil
+	}
+	now := c.clock.Now()
+	if !force && now.Sub(e.lastExport) < e.cfg.Interval {
+		c.mu.Unlock()
+		return nil
+	}
+	documents, err := c.state.summaryDocuments(e, now)
+	cutoff := c.state.cutoffWindowStart(c.state.windowStart(now))
+	c.mu.Unlock()
+	if err != nil {
+		return err
+	}
+	if err := e.write(documents, cutoff); err != nil {
+		return err
+	}
+	e.lastExport = now
+	c.logger.Debug("genaisketch summary files written", zap.Int("windows", len(documents)))
+	return nil
 }
 
 func (c *tracesConnector) shouldLogTopKLocked(now time.Time) bool {
