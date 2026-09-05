@@ -118,3 +118,5 @@ sketch state for sentinels. Unit tests cover restart, replay, retention, label
 overflow, malformed files, incompatible metadata, and non-trivial weighted bounds.
 The release workflow runs the same integration test against two published
 containers on each supported architecture after verifying anonymous image access.
+The `public-install` workflow can also verify an existing release without
+rebuilding images or moving tags.

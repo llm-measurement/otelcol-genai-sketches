@@ -1,0 +1,83 @@
+# SPDX-License-Identifier: Apache-2.0
+# Code authors: Vijay Erramilli and Codex
+name: public-install
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing collector release to verify without republishing
+        required: true
+        default: v0.1.0
+        type: string
+  workflow_call:
+    inputs:
+      release_tag:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GOWORK: "off"
+      RELEASE_TAG: ${{ inputs.release_tag }}
+      IMAGE_NAME: ghcr.io/llm-measurement/otelcol-genai-sketches
+    steps:
+      - name: Validate release tag
+        run: '[[ "${RELEASE_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]]'
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.release_tag }}
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.26.6"
+          cache: true
+          cache-dependency-path: |
+            go.sum
+            connector/genaisketchconnector/go.sum
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Verify published image index
+        run: |
+          image_ref="$(curl --retry 4 -fsSL \
+            "https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/image-digest.txt")"
+          [[ "${image_ref}" =~ ^ghcr\.io/llm-measurement/otelcol-genai-sketches@sha256:[0-9a-f]{64}$ ]]
+          cosign verify \
+            --certificate-identity "https://github.com/${GITHUB_REPOSITORY}/.github/workflows/release.yml@refs/tags/${RELEASE_TAG}" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            "${image_ref}"
+          printf 'IMAGE_REF=%s\n' "${image_ref}" >> "${GITHUB_ENV}"
+
+      - name: Combine summaries from each published platform
+        run: |
+          manifest="$(docker buildx imagetools inspect "${IMAGE_REF}" --raw)"
+          for arch in amd64 arm64; do
+            digest="$(jq -er --arg arch "${arch}" '
+              [.manifests[] | select(.platform.os == "linux" and .platform.architecture == $arch)]
+              | if length == 1 then .[0].digest else error("expected one platform manifest") end
+            ' <<< "${manifest}")"
+            [[ "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
+            export GENAI_TEST_IMAGE="${IMAGE_NAME}@${digest}"
+            docker pull --platform "linux/${arch}" "${GENAI_TEST_IMAGE}"
+            GENAI_TEST_PLATFORM="linux/${arch}" go test -tags integration ./integration \
+              -run '^TestIndependentCollectorsExportMergeablePrivateSummaries$' \
+              -count=1 -timeout=5m -v
+            printf '%s: two-collector summary and privacy checks passed (%s)\n' \
+              "${arch}" "${digest}" >> "${GITHUB_STEP_SUMMARY}"
+          done
