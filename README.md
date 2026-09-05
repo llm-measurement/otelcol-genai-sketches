@@ -7,9 +7,15 @@ An OpenTelemetry Collector distribution for continuous, bounded answers about
 high-cardinality agent traffic without exporting or indexing every underlying value.
 It turns GenAI traces into bounded Prometheus metrics and keyed top-k summaries.
 
-Use it alongside an existing trace backend to find where reported token volume is
-accumulating, measure missing usage, and keep high-cardinality identities out of
-metric labels.
+Use it alongside an existing trace backend for token accounting and "token maxing"
+investigations: find where reported token volume is accumulating, measure missing
+usage, and keep high-cardinality identities out of metric labels.
+
+It works with hosted model APIs, self-hosted models, or a mixture of both when
+instrumentation emits the supported GenAI span attributes. The same accounting
+rules apply regardless of where the model runs. See the
+[deployment FAQ](docs/FAQ.md#can-i-use-this-with-self-hosted-models-or-a-mix-of-providers)
+for input requirements.
 
 ![Running Grafana demo with request rates, reported tokens, and missing usage](docs/images/demo-dashboard.jpg)
 
@@ -125,7 +131,8 @@ Langfuse, and Grafana Alloy.
 
 ## Across Independent Systems
 
-Separate teams can keep their trace backends and exchange bounded window summaries
+An agent fleet can use hosted APIs and internal model servers at the same time.
+Each team can keep its trace backend and exchange bounded window summaries
 for a shared view of an agent fleet. Export includes full sketch state and counters,
 not raw prompts or identities. A [local Go/Python API](https://github.com/llm-measurement/llm-sketchkit/tree/main/examples/summary-exchange)
 combines the files without needing the hashing secret. Replayed snapshots are not
@@ -153,6 +160,11 @@ Use this collector when you need to:
 
 This is not a prompt logger, billing ledger, arbitrary attribute-to-label converter,
 anomaly detector, loop stopper, budget enforcer, or differential-privacy system.
+
+Token accounting remains useful without a per-token invoice. Self-hosted workloads
+can consume shared serving capacity and delay other work. Use token concentration
+alongside your serving system's queue, latency, and utilization metrics; reported
+tokens alone do not measure GPU cost or useful work.
 
 If exact traces are safe to retain and remain fast and affordable to query, use them.
 The connector is an always-on bounded evidence surface, not a replacement for raw
