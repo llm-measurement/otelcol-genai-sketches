@@ -374,7 +374,12 @@ service:
 func startCollector(t *testing.T, ctx context.Context, binary string, configPath string) (*exec.Cmd, *bytes.Buffer) {
 	t.Helper()
 
-	cmd := exec.CommandContext(ctx, binary, "--config", configPath)
+	return startCollectorCommand(t, exec.CommandContext(ctx, binary, "--config", configPath))
+}
+
+func startCollectorCommand(t *testing.T, cmd *exec.Cmd) (*exec.Cmd, *bytes.Buffer) {
+	t.Helper()
+
 	var output bytes.Buffer
 	cmd.Stdout = &output
 	cmd.Stderr = &output

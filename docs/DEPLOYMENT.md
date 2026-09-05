@@ -12,17 +12,10 @@ chart for a persistent environment.
 
 Use an immutable digest from the GitHub release, not a mutable tag:
 
-The published references for `v0.1.0-alpha.2` are:
-
-```text
-ghcr.io/llm-measurement/otelcol-genai-sketches@sha256:12c3f70894e502b5c83818b0e8d438e211525ca529d233d36cf0c00b53327d08
-ghcr.io/llm-measurement/charts/otelcol-genai-sketches@sha256:0f004fb0477db1e3be8d24ff289dd0fa1bf004b3db8ebf3172a550521e4031c2
-```
-
-Fetch the references for any release instead of copying them from this example:
+Fetch the references from that release's published metadata:
 
 ```bash
-RELEASE=v0.1.0-alpha.2
+RELEASE=v0.1.0
 IMAGE_REF="$(curl -fsSL \
   "https://github.com/llm-measurement/otelcol-genai-sketches/releases/download/${RELEASE}/image-digest.txt")"
 IMAGE="${IMAGE_REF%@*}"
