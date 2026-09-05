@@ -1,0 +1,58 @@
+{
+  "schema": "genai-accounting-reconciliation/v1",
+  "name": "Non-inference operations do not add requests or token observations",
+  "source": {
+    "provider": "synthetic",
+    "instrumentation": "synthetic-semconv-fixture",
+    "semantic_conventions": "semantic-conventions-genai@94f432d7126f5884d30a2cdde6f4e89908ebb6fd"
+  },
+  "config": {"dedup_enabled": false},
+  "resources": [{
+    "attributes": {"gen_ai.provider.name": "synthetic"},
+    "spans": [
+      {
+        "id": "0000000000000001",
+        "name": "chat model",
+        "attributes": {
+          "gen_ai.operation.name": "chat",
+          "gen_ai.request.model": "model",
+          "gen_ai.usage.input_tokens": 100,
+          "gen_ai.usage.output_tokens": 20,
+          "gen_ai.usage.cache_read.input_tokens": 30,
+          "gen_ai.usage.cache_write.input_tokens": 10,
+          "gen_ai.usage.reasoning.output_tokens": 8,
+          "gen_ai.usage.text.input_tokens": 60,
+          "gen_ai.usage.audio.input_tokens": 40,
+          "gen_ai.usage.text.cache_read.input_tokens": 30
+        }
+      },
+      {"id": "0000000000000002", "name": "fetch response", "attributes": {"gen_ai.operation.name": "fetch_response", "gen_ai.request.model": "model", "gen_ai.usage.input_tokens": 999, "gen_ai.usage.output_tokens": 999}},
+      {"id": "0000000000000003", "name": "plan", "attributes": {"gen_ai.operation.name": "plan", "gen_ai.request.model": "model"}},
+      {"id": "0000000000000004", "name": "create memory", "attributes": {"gen_ai.operation.name": "create_memory", "gen_ai.request.model": "model"}},
+      {"id": "0000000000000005", "name": "search memory", "attributes": {"gen_ai.operation.name": "search_memory", "gen_ai.request.model": "model"}},
+      {"id": "0000000000000006", "name": "update memory", "attributes": {"gen_ai.operation.name": "update_memory", "gen_ai.request.model": "model"}},
+      {"id": "0000000000000007", "name": "upsert memory", "attributes": {"gen_ai.operation.name": "upsert_memory", "gen_ai.request.model": "model"}},
+      {"id": "0000000000000008", "name": "delete memory", "attributes": {"gen_ai.operation.name": "delete_memory", "gen_ai.request.model": "model"}},
+      {"id": "0000000000000009", "name": "create memory store", "attributes": {"gen_ai.operation.name": "create_memory_store", "gen_ai.request.model": "model"}},
+      {"id": "000000000000000a", "name": "delete memory store", "attributes": {"gen_ai.operation.name": "delete_memory_store", "gen_ai.request.model": "model"}}
+    ]
+  }],
+  "expected": {
+    "metrics": {
+      "gen_ai_sketch_requests_total": 1,
+      "gen_ai_sketch_input_tokens_total": 100,
+      "gen_ai_sketch_output_tokens_total": 20,
+      "gen_ai_sketch_total_tokens_total": 120,
+      "gen_ai_sketch_cache_read_input_tokens_total": 30,
+      "gen_ai_sketch_cache_write_input_tokens_total": 10,
+      "gen_ai_sketch_reasoning_output_tokens_total": 8
+    },
+    "token_observations": {
+      "input/reported": 1,
+      "output/reported": 1,
+      "cache_read_input/reported": 1,
+      "cache_write_input/reported": 1,
+      "reasoning_output/reported": 1
+    }
+  }
+}

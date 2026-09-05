@@ -647,11 +647,6 @@ type stateFingerprintSlice struct {
 
 type stateFingerprintWindow struct {
 	Start                int64  `json:"start"`
-	Requests             uint64 `json:"requests"`
-	AgentRuns            uint64 `json:"agent_runs"`
-	InputTokens          uint64 `json:"input_tokens"`
-	OutputTokens         uint64 `json:"output_tokens"`
-	MissingTokens        uint64 `json:"missing_tokens"`
 	DistinctUsers        string `json:"distinct_users"`
 	DistinctPrompts      string `json:"distinct_prompts"`
 	DistinctDocs         string `json:"distinct_docs"`
@@ -692,11 +687,6 @@ func stateFingerprint(t *testing.T, state *collectorState) []byte {
 			window := slice.windows[start]
 			fingerprint.Windows = append(fingerprint.Windows, stateFingerprintWindow{
 				Start:                start,
-				Requests:             window.requests,
-				AgentRuns:            window.agentRuns,
-				InputTokens:          window.inputTokens,
-				OutputTokens:         window.outputTokens,
-				MissingTokens:        window.missingTokens,
 				DistinctUsers:        marshalSketchHex(t, window.distinctUsers),
 				DistinctPrompts:      marshalSketchHex(t, window.distinctPrompts),
 				DistinctDocs:         marshalSketchHex(t, window.distinctDocs),

@@ -2,16 +2,18 @@
 
 Contract version: `genai-accounting/v1`
 
-Last reviewed: 2026-09-03
+Last reviewed: 2026-09-05
 
 This document defines how `otelcol-genai-sketches` turns GenAI spans into request
 and token counters. Changes that alter a counter's meaning require a new contract
 version and new reconciliation fixtures.
 
 The contract is based on the
-[OpenTelemetry GenAI span conventions](https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-spans.md)
-reviewed on 2026-09-03. Those conventions are still developing, so this repository
+[OpenTelemetry GenAI span conventions](https://github.com/open-telemetry/semantic-conventions-genai/blob/94f432d7126f5884d30a2cdde6f4e89908ebb6fd/docs/gen-ai/gen-ai-spans.md)
+reviewed on 2026-09-05. Those conventions are still developing, so this repository
 pins its own behavior instead of inheriting changes from a moving document.
+See the [semantic-convention compatibility notes](SEMANTIC_CONVENTIONS.md) for
+the reviewed revision, supported fields, and deliberate differences.
 
 ## Event Scope
 
@@ -25,8 +27,9 @@ both client-side and server-side instrumentation emit matching spans for one cal
 both are counted. Keep one accounting source in the connector pipeline when a
 single logical-call total is required.
 
-Agent, tool, retrieval, workflow, and MCP transport spans do not enter the model
-request denominator. A root `invoke_agent` span increments the separate agent-run
+Agent, tool, retrieval, workflow, planning, memory, response-fetch, and MCP
+transport spans do not enter the model request denominator. A root `invoke_agent`
+span increments the separate agent-run
 counter. Attributes are read from the span being classified; parent attributes are
 never inherited.
 
@@ -48,7 +51,7 @@ The first valid configured source wins. A later valid source with a different va
 is reported as a conflict but is not added. This makes aliases compatible without
 double counting.
 
-Version 1 does not export modality-specific audio or image breakdowns, or
+Version 1 does not export modality-specific text, audio, or image breakdowns, or
 provider-only fields outside the configured source lists. Those attributes remain
 on the original trace and are ignored by these accounting counters.
 

@@ -3,7 +3,9 @@ module github.com/llm-measurement/otelcol-genai-sketches
 go 1.26.6
 
 require (
+	github.com/prometheus/common v0.70.1
 	go.opentelemetry.io/proto/otlp v1.11.0
+	go.yaml.in/yaml/v3 v3.0.5
 	google.golang.org/grpc v1.83.2
 	google.golang.org/protobuf v1.36.12
 )
@@ -16,8 +18,10 @@ require (
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0 // indirect
 	github.com/haproxytech/go-licenses/v2 v2.1.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/otiai10/copy v1.14.1 // indirect
 	github.com/otiai10/mint v1.6.3 // indirect
+	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/sergi/go-diff v1.4.0 // indirect
 	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect

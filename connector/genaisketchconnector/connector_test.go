@@ -39,6 +39,7 @@ func TestConsumeTracesEmitsCumulativeRequestMetric(t *testing.T) {
 
 	sink := &captureMetrics{}
 	conn := newTracesConnector(componentTelemetry(), defaultConfig(), sink)
+	startConnector(t, conn)
 
 	if err := conn.ConsumeTraces(context.Background(), tracesWithGenAISpans(2)); err != nil {
 		t.Fatalf("first ConsumeTraces returned error: %v", err)
@@ -65,6 +66,7 @@ func TestConsumeTracesIgnoresNonGenAISpans(t *testing.T) {
 
 	sink := &captureMetrics{}
 	conn := newTracesConnector(componentTelemetry(), defaultConfig(), sink)
+	startConnector(t, conn)
 
 	traces := ptrace.NewTraces()
 	span := traces.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
@@ -84,7 +86,17 @@ func TestTopKZeroDoesNotStartLogLoop(t *testing.T) {
 	cfg := defaultConfig()
 	cfg.TopK = 0
 	conn := newTracesConnector(componentTelemetry(), cfg, &captureMetrics{})
+	startConnector(t, conn)
 
+	conn.mu.Lock()
+	defer conn.mu.Unlock()
+	if conn.debugCancel != nil || conn.debugDone != nil {
+		t.Fatal("topk: 0 started the structured-log loop")
+	}
+}
+
+func startConnector(t *testing.T, conn *tracesConnector) {
+	t.Helper()
 	if err := conn.Start(context.Background(), nil); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
@@ -93,11 +105,17 @@ func TestTopKZeroDoesNotStartLogLoop(t *testing.T) {
 			t.Errorf("Shutdown: %v", err)
 		}
 	})
+}
 
-	conn.mu.Lock()
-	defer conn.mu.Unlock()
-	if conn.debugCancel != nil || conn.debugDone != nil {
-		t.Fatal("topk: 0 started the structured-log loop")
+func TestConsumeBeforeStartDoesNotInitializeState(t *testing.T) {
+	t.Setenv("GENAI_SKETCH_SECRET", "test-secret-32-bytes-for-unit-tests")
+	sink := &captureMetrics{}
+	conn := newTracesConnector(componentTelemetry(), defaultConfig(), sink)
+	if err := conn.ConsumeTraces(context.Background(), tracesWithGenAISpans(1)); err == nil {
+		t.Fatal("ConsumeTraces before Start succeeded")
+	}
+	if conn.state != nil || len(sink.metrics) != 0 || conn.debugCancel != nil {
+		t.Fatal("ConsumeTraces before Start created state or exported metrics")
 	}
 }
 

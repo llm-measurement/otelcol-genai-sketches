@@ -1,14 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 # Code authors: Vijay Erramilli and Codex
-OTEL_VERSION := v0.160.0
+OTEL_VERSION := $(shell cat otel.version)
 ALLOY_IMAGE := grafana/alloy:v1.18.0@sha256:491b0578c04983fd54fe99b587b6fab4404dc46d0dc16677bd6b00cc1140b308
 PROMETHEUS_IMAGE := prom/prometheus:v3.7.3@sha256:49214755b6153f90a597adcbff0252cc61069f8ab69ce8411285cd4a560e8038
 DIST_BINARY := dist/otelcol-genai-sketches
-DOCKER_DIST_DIR := dist/docker
-DOCKER_GOOS ?= linux
 DOCKER_GOARCH ?= $(shell go env GOARCH)
 BUILDER_BIN := $(CURDIR)/.cache/bin
-BUILDER := $(BUILDER_BIN)/builder
 GOCACHE ?= $(CURDIR)/.cache/go-build
 GOMODCACHE ?= $(CURDIR)/.cache/go-mod
 SOAK_DURATION ?= 60m
@@ -43,22 +40,12 @@ CONNECTOR_SOURCES := $(wildcard connector/genaisketchconnector/*.go) connector/g
 .PHONY: dist
 dist: $(DIST_BINARY)
 
-$(DIST_BINARY): Makefile builder.yaml $(CONNECTOR_SOURCES)
+$(DIST_BINARY): Makefile otel.version builder.yaml $(CONNECTOR_SOURCES)
 	GOCACHE=$(GOCACHE) GOMODCACHE=$(GOMODCACHE) go run go.opentelemetry.io/collector/cmd/builder@$(OTEL_VERSION) --config=builder.yaml
-
-$(BUILDER): Makefile
-	mkdir -p $(BUILDER_BIN)
-	GOBIN=$(BUILDER_BIN) GOCACHE=$(GOCACHE) GOMODCACHE=$(GOMODCACHE) go install go.opentelemetry.io/collector/cmd/builder@$(OTEL_VERSION)
 
 $(GO_LICENSES): Makefile go.mod go.sum
 	mkdir -p $(BUILDER_BIN)
 	GOWORK=off GOCACHE=$(GOCACHE) GOMODCACHE=$(GOMODCACHE) go build -o $(GO_LICENSES) github.com/haproxytech/go-licenses/v2
-
-.PHONY: dist-docker
-dist-docker: $(BUILDER)
-	mkdir -p $(dir $(DOCKER_DIST_DIR))
-	env "dist.output_path=$(DOCKER_DIST_DIR)" GOOS=$(DOCKER_GOOS) GOARCH=$(DOCKER_GOARCH) GOCACHE=$(GOCACHE) GOMODCACHE=$(GOMODCACHE) $(BUILDER) --config=builder.yaml
-	cp LICENSE $(DOCKER_DIST_DIR)/LICENSE
 
 .PHONY: validate-shadow-configs
 validate-shadow-configs: $(DIST_BINARY)

@@ -27,7 +27,7 @@ func TestExampleStackArtifactsExist(t *testing.T) {
 	for _, path := range []string{
 		filepath.Join("examples", "compose.yaml"),
 		filepath.Join("examples", "collector", "config.yaml"),
-		filepath.Join("examples", "collector", "Dockerfile"),
+		filepath.Join("packaging", "docker", "Dockerfile"),
 		filepath.Join("examples", "prometheus", "prometheus.yml"),
 		filepath.Join("examples", "grafana", "dashboards", "genai-sketches.json"),
 	} {
