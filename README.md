@@ -138,6 +138,12 @@ not raw prompts or identities. A [local Go/Python API](https://github.com/llm-me
 combines the files without needing the hashing secret. Replayed snapshots are not
 counted again, and missing producers and partial observation windows are reported.
 
+To compare two windows across operators, use [fleetdiff](https://github.com/llm-measurement/fleetdiff).
+It reads these exports locally and reports usage changes, distinct activity,
+tracked-item bounds, and missing coverage. Its [two-collector demo](https://github.com/llm-measurement/fleetdiff#run-it-through-real-collectors)
+shows one team's reported token usage falling while the fleet total rises, using
+synthetic traffic. Keep your existing trace backend; no raw-trace upload is needed.
+
 This requires agreed scopes, hashing keys, accounting rules, and disjoint request
 streams. It does not authenticate producers, discover fleets, or enforce policy.
 See [Combine Measurements Across Independently Operated Systems](docs/SUMMARY_EXCHANGE.md)

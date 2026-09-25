@@ -75,6 +75,28 @@ includes a fingerprint of extraction sources, operation filtering, MCP, weightin
 and deduplication configuration. Sketch parameters are checked inside each payload.
 Incompatible scopes, rules, keys, durations, or payload metadata are rejected.
 
+## Compare Before And After
+
+[fleetdiff](https://github.com/llm-measurement/fleetdiff) compares these exports
+locally without a hashing secret or raw traces. After installing it, put all
+expected producers' files for one completed window in `before/` and a later window
+in `after/`, then run:
+
+```sh
+fleetdiff compare --before ./before --after ./after --expected platform,data
+```
+
+Use the producer IDs agreed above. The report includes request and reported-token
+changes, token coverage, distinct estimates, and tracked-item change bounds. A
+missing producer is an error unless explicitly allowed as a partial comparison;
+it is not treated as zero usage. The same compatibility and disjoint-observation
+requirements apply. Summary files still require authorized sharing.
+
+Try the [two-collector demo](https://github.com/llm-measurement/fleetdiff/tree/main/examples/two-operators)
+or follow the [two-operator trial checklist](https://github.com/llm-measurement/fleetdiff/blob/main/docs/TWO_OPERATOR_TRIAL.md)
+with approved exports. A before-and-after difference does not establish savings,
+answer quality, or causation.
+
 ## Files, Restarts, And Coverage
 
 - Files use `<window-start>-<random-process-epoch>.json`. A newer cumulative
