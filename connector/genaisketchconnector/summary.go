@@ -186,6 +186,11 @@ func (s *collectorState) summaryPayloads(w *windowState) (map[string]summary.Pay
 
 func (c *accountingCounters) export() map[string]uint64 {
 	result := map[string]uint64{"requests": c.requests, "agent_runs": c.agentRuns, "input_tokens": c.inputTokens, "output_tokens": c.outputTokens, "cache_read_input_tokens": c.cacheReadInputTokens, "cache_write_input_tokens": c.cacheWriteInputTokens, "reasoning_output_tokens": c.reasoningOutputTokens, "missing_token_usage": c.missingTokens, "dedup_suppressed": c.dedupSuppressed, "dedup_key_missing": c.dedupKeyMissing}
+	for field, name := range usageProvenanceFields {
+		for state, source := range usageProvenanceStates {
+			result["usage_provenance.v1."+name+"."+source] = c.usageProvenance[field][state]
+		}
+	}
 	for field := tokenField(0); field < tokenFieldCount; field++ {
 		for state := tokenObservationState(0); state < tokenStateCount; state++ {
 			result["token_observations."+tokenFieldNames[field]+"."+tokenObservationStateNames[state]] = c.tokenObservations[field][state]

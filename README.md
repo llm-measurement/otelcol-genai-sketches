@@ -138,6 +138,12 @@ not raw prompts or identities. A [local Go/Python API](https://github.com/llm-me
 combines the files without needing the hashing secret. Replayed snapshots are not
 counted again, and missing producers and partial observation windows are reported.
 
+To investigate a single application's before/after change, start with the
+[LiteLLM recipe](examples/integrations/litellm/README.md). It includes synthetic,
+source-pinned fixtures, missing-usage checks, and an optional two-stack extension.
+The question-oriented `fleetdiff investigate` command requires fleetdiff's current
+source; it is not in the v0.1.1 release.
+
 To compare two windows across operators, use [fleetdiff](https://github.com/llm-measurement/fleetdiff).
 It reads these exports locally and reports usage changes, distinct activity,
 tracked-item bounds, and missing coverage. Its [two-collector demo](https://github.com/llm-measurement/fleetdiff#run-it-through-real-collectors)

@@ -7,3 +7,4 @@ go.work.sum
 coverage.out
 /private-summaries/
 __pycache__/
+.DS_Store

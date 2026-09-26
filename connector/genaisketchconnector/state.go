@@ -101,6 +101,7 @@ type accountingCounters struct {
 	reasoningOutputTokens uint64
 	missingTokens         uint64
 	tokenObservations     tokenObservationCounts
+	usageProvenance       usageProvenanceCounts
 	dedupSuppressed       uint64
 	dedupKeyMissing       uint64
 }
@@ -170,6 +171,7 @@ type spanTotals struct {
 	reasoningOutputTokens uint64
 	missingTokens         uint64
 	tokenObservations     tokenObservationCounts
+	usageProvenance       usageProvenanceCounts
 }
 
 type tokenField uint8
@@ -632,6 +634,13 @@ func (s *collectorState) prepareDedup(window *windowState, data spanData) (optio
 }
 
 func (s *accountingCounters) checkCounters(update spanUpdate, prepared preparedUpdate) error {
+	for field := range usageProvenanceFields {
+		for state := range usageProvenanceStates {
+			if _, err := checkedAddUint64("slice.usage_provenance", s.usageProvenance[field][state], update.totals.usageProvenance[field][state]); err != nil {
+				return err
+			}
+		}
+	}
 	for _, item := range []struct {
 		name    string
 		current uint64
@@ -730,6 +739,11 @@ func (s *collectorState) applyNoErrorSketches(window *windowState, prepared prep
 }
 
 func (s *accountingCounters) addCounters(update spanUpdate, prepared preparedUpdate) {
+	for field := range usageProvenanceFields {
+		for state := range usageProvenanceStates {
+			s.usageProvenance[field][state] += update.totals.usageProvenance[field][state]
+		}
+	}
 	s.requests += update.totals.requests
 	s.inputTokens += update.totals.inputTokens
 	s.outputTokens += update.totals.outputTokens
@@ -912,6 +926,14 @@ func tokenTotals(spanAttrs pcommon.Map, cfg runtimeConfig) (spanTotals, error) {
 		observations[field] = observation
 	}
 
+	provenance := observeUsageProvenance(spanAttrs, observations)
+	// An explicit absence declaration overrides a gateway's placeholder count.
+	for field := range usageProvenanceFields {
+		if provenance[field][2] == 1 {
+			observations[field].reported = false
+			observations[field].value = 0
+		}
+	}
 	input := observations[tokenFieldInput]
 	output := observations[tokenFieldOutput]
 	if input.reported && output.reported {
@@ -920,7 +942,7 @@ func tokenTotals(spanAttrs pcommon.Map, cfg runtimeConfig) (spanTotals, error) {
 		}
 	}
 
-	totals := spanTotals{requests: 1}
+	totals := spanTotals{requests: 1, usageProvenance: provenance}
 	if input.reported {
 		totals.inputTokens = input.value
 	}
@@ -1144,6 +1166,7 @@ func (s *collectorState) buildMetrics(now time.Time) pmetric.Metrics {
 		appendSum(scopeMetrics, totalTokensMetricName, "Cumulative input plus output tokens observed on operation-filter matches.", "{token}", totalTokens, labels, slice.startTime, timestamp)
 		appendSum(scopeMetrics, missingTokenUsageMetricName, "Cumulative operation-filter matches for which input or output usage is unavailable.", "{request}", slice.missingTokens, labels, slice.startTime, timestamp)
 		appendTokenObservationSums(scopeMetrics, slice.tokenObservations, labels, slice.startTime, timestamp)
+		appendUsageProvenanceSums(scopeMetrics, slice.usageProvenance, labels, slice.startTime, timestamp)
 		if s.cfg.dedupEnabled {
 			appendSum(scopeMetrics, dedupSuppressedMetricName, "Cumulative requests suppressed by the optional per-window Bloom deduplicator.", "{request}", slice.dedupSuppressed, labels, slice.startTime, timestamp)
 			appendSum(scopeMetrics, dedupKeyMissingMetricName, "Cumulative requests counted without a configured deduplication key.", "{request}", slice.dedupKeyMissing, labels, slice.startTime, timestamp)

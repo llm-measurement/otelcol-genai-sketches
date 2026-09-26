@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: Apache-2.0
+# Code authors: Vijay and Codex
+# Local-only recipe. Use authenticated TLS and private storage in deployment.
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 127.0.0.1:4318
+connectors:
+  genaisketch:
+    window_duration: 1m
+    topk: 20
+    mcp: {enabled: true}
+    hashing: {algo: hmac_sha256_64, secret_env: GENAI_SKETCH_SECRET}
+    fields:
+      prompt_key:
+        from_attributes: [app.prompt.template]
+        canonicalization: text_v1
+        domain: prompt:v1
+    slices:
+      - {name: by_model, keys: [gen_ai.request.model]}
+    summary_export:
+      directory: ${env:SUMMARY_DIRECTORY}
+      producer_id: app
+      scope_id: app-investigation
+      key_id: ${env:SUMMARY_KEY_ID}
+      interval: 5s
+exporters:
+  prometheus:
+    endpoint: 127.0.0.1:8889
+    translation_strategy: UnderscoreEscapingWithoutSuffixes
+service:
+  telemetry:
+    metrics: {level: none}
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [genaisketch]
+    metrics:
+      receivers: [genaisketch]
+      exporters: [prometheus]

@@ -1,0 +1,14 @@
+{
+  "litellm_version": "1.102.1",
+  "image_digest": "sha256:87f34979b9f8cb274fac90ca8a4fdda07d8480de22755562a26adeb95ce20d02",
+  "capture_date": "2026-09-26",
+  "scope": "Allowlisted projection of six successful local mock-provider captures; model operation attribute absent, provider and model present. No identity, request IDs, timestamps, or raw message content retained.",
+  "cases": [
+    {"name":"normal_complete","raw_usage":{"prompt_tokens":80,"completion_tokens":20},"emitted_usage":{"prompt_tokens":80,"completion_tokens":20},"inferred_fields":[],"expected":["provider_reported","provider_reported"]},
+    {"name":"normal_no_usage","raw_usage":null,"emitted_usage":{"prompt_tokens":0,"completion_tokens":0},"inferred_fields":[],"expected":["unavailable","unavailable"]},
+    {"name":"normal_missing_output","raw_usage":{"prompt_tokens":80},"emitted_usage":{"prompt_tokens":80,"completion_tokens":0},"inferred_fields":[],"expected":["provider_reported","unavailable"]},
+    {"name":"stream_complete","raw_usage":{"prompt_tokens":80,"completion_tokens":20},"emitted_usage":{"prompt_tokens":80,"completion_tokens":20},"inferred_fields":[],"expected":["provider_reported","provider_reported"]},
+    {"name":"stream_no_usage","raw_usage":null,"emitted_usage":{"prompt_tokens":18,"completion_tokens":3},"inferred_fields":["input","output"],"expected":["inferred","inferred"]},
+    {"name":"stream_missing_output","raw_usage":{"prompt_tokens":80},"emitted_usage":{"prompt_tokens":80,"completion_tokens":3},"inferred_fields":["output"],"expected":["provider_reported","inferred"]}
+  ]
+}
