@@ -4,6 +4,13 @@ Notable user-visible changes are recorded here.
 
 ## Unreleased
 
+- Add a single-application LiteLLM investigation recipe and a version-pinned
+  raw-response callback for non-streaming OpenAI-compatible chat. Streaming
+  provenance remains unknown. Include source-boundary fixtures and privacy tests.
+- Track declared input/output usage provenance with fixed labels and independently
+  versioned summary counters. Explicitly unavailable fields count as missing and
+  do not contribute tokens; genuine reported zeros remain valid. Unannotated
+  traffic and the base summary accounting fingerprint are unchanged.
 - Verify each published image by its platform manifest digest, supporting Docker's
   classic image store. Verification can be rerun without rebuilding or republishing
   release artifacts. This changes release automation, not collector behavior.

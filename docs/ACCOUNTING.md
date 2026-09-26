@@ -78,6 +78,14 @@ The bounded `gen_ai_sketch_token_field_observations_total` metric reports fixed
 `reported` only when present. `invalid`, `conflict`, and `subset_violation` are
 additional quality states and can coexist with a primary state.
 
+Additive source-provenance support (2026-09-26) records instrumenter-declared
+input/output origin separately: provider-reported, inferred, unavailable, or
+unknown. An explicit `unavailable` declaration excludes that field's count and
+marks the request missing, even if a gateway supplied a numeric placeholder.
+Without that declaration, existing accounting is unchanged: numeric `reported`
+does not mean provider-reported. See [Usage Provenance](USAGE_PROVENANCE.md) for
+the optional versioned extension and old/new summary compatibility.
+
 ## Lifecycle Cases
 
 - Success, cancellation, timeout, and error spans follow the same request rule. If
@@ -89,9 +97,10 @@ additional quality states and can coexist with a primary state.
   not reopen historical windows based on span timestamps.
 - Corrected spans are new observations unless deduplicated. There is no subtraction
   or upsert protocol in OTLP traces.
-- Provider-estimated usage is indistinguishable from provider-measured usage unless
-  instrumentation records that provenance elsewhere. The connector does not claim
-  a provenance it cannot observe.
+- Gateway-inferred usage is distinguishable only when instrumentation explicitly
+  records source provenance before normalization. Provider-reported counts may
+  themselves be provider estimates; the declaration does not certify measurement
+  accuracy or billing equivalence. Unannotated input remains unknown.
 
 ## Deduplication
 

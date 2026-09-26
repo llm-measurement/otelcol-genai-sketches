@@ -51,6 +51,8 @@ jobs:
           make tidy
           git diff --exit-code
       - run: make check
+      - name: Usage provenance source-boundary fixtures
+        run: python3 -m unittest discover -s examples/integrations/litellm -p 'test_*.py'
       - name: Race detector
         run: |
           go test -race ./...

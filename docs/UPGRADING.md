@@ -55,6 +55,15 @@ known window boundary, record the event, and allow old windows to expire.
 
 ## Compatibility
 
+Source-usage provenance adds eight optional `usage_provenance.v1` counters without
+changing the base accounting fingerprint. Current-source fleetdiff can compare
+older exports with new ones, treating absent provenance as unknown; older consumers
+may require matching counter sets. Do not rewrite old files or fingerprints.
+Unannotated traffic retains its arithmetic. Enabling explicit `unavailable`
+declarations excludes those fields from totals and marks requests missing, so a
+change across that instrumentation boundary is not proof of workload savings.
+See [Usage Provenance](USAGE_PROVENANCE.md).
+
 | Surface | Current support |
 | --- | --- |
 | Collector component APIs | OpenTelemetry Collector `v0.160.0` / pdata `v1.66.0` |
