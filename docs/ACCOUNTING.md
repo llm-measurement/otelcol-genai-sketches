@@ -27,6 +27,11 @@ both client-side and server-side instrumentation emit matching spans for one cal
 both are counted. Keep one accounting source in the connector pipeline when a
 single logical-call total is required.
 
+In user-facing reports, call these **observed model attempts**. A failed attempt
+and its successful retry can each produce a matching span, so both count. The
+metric and summary field names retain `requests` for compatibility. This does
+not establish how many attempts never emitted telemetry or reached the provider.
+
 Agent, tool, retrieval, workflow, planning, memory, response-fetch, and MCP
 transport spans do not enter the model request denominator. A root `invoke_agent`
 span increments the separate agent-run

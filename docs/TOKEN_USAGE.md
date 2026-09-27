@@ -86,8 +86,9 @@ sum by (slice, slice_value, overflow) (
 )
 ```
 
-The denominator includes all matched requests, including requests with no reported
-usage. Read this ratio alongside the missing-usage fraction below.
+The denominator is observed model attempts, including failed attempts and retries
+that emit matching spans, and attempts with no reported usage. It is not unique
+user requests. Read this ratio alongside the missing-usage fraction below.
 
 Input and output token rates can be compared independently:
 
@@ -132,10 +133,15 @@ localized to a newly observed slice value.
 | One bounded slice rises while peers remain stable | The reported increase is localized to that configured dimension | Investigate the owning service or team |
 | A few top-k signatures carry much of the window weight | Reported token volume is concentrated in recurring keyed prompt signatures | Correlate hashes in a controlled application-owned mapping |
 | Missing-usage fraction rises | Token totals cover a shrinking portion of matched requests | Repair instrumentation before drawing completeness conclusions |
+| Attempts rise, recorded tokens per attempt fall, and missing usage rises | Failures or retries may be increasing; telemetry loss can give the same pattern | Inspect errors, retry settings, and usage provenance; do not infer lower consumption or a loop |
 | Overflow traffic rises | Slice cardinality exceeded the configured retained-state capacity | Revisit slice choice or capacity; do not promote identifiers into labels |
 
 These observations narrow an investigation. They do not by themselves prove a loop,
 an inefficient prompt, abuse, or waste.
+
+When usage is missing, Fleetdiff keeps the counters visible but returns
+`cannot_determine` for its volume split. The ratio above is an investigation
+clue, not a recovered complete-usage average.
 
 ## Inspecting Token-Weighted Top-K
 

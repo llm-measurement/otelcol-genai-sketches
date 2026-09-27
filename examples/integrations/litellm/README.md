@@ -126,9 +126,15 @@ instrumentation change, not a token-saving deployment.
 ### Failures And Retries
 
 In the tested version, one failed attempt followed by a successful retry emits
-two model spans. Both count as requests; the failure with no usage counts as
-missing. This is not a count of distinct client calls. Do not deduplicate different
+two model spans. Both count as model attempts in the `requests` counter; the
+failure with no usage counts as missing. This is not a count of distinct client
+calls. Do not deduplicate different
 provider attempts merely because they belong to one user request.
+
+More attempts, lower recorded tokens per attempt, and more missing usage can be
+a reason to investigate failures or retries. This pattern does not identify a
+retry storm or agent loop: instrumentation loss can look similar. Fleetdiff
+refuses its volume split when usage is missing rather than calling it lower use.
 
 A timed-out attempt may still complete at the provider and incur cost without
 delivering usage to LiteLLM. An interrupted stream can also end with LiteLLM's
@@ -187,6 +193,11 @@ synthetic stream and verifies identical counters and sketch bytes after merging.
 It does not infer disjointness from trace IDs or authenticate producer metadata.
 
 ## Reproduce The Checks
+
+For real-provider accounting, use the [opt-in synthetic trial](provider-trial/README.md).
+It includes the relay, fault injection, request generator, and reconciliation
+command behind the GPT-5.4 table. Credentials come from your environment; raw
+results stay private. The offline checks below do not make provider calls.
 
 ```sh
 GOWORK=off go -C connector/genaisketchconnector test -run TestLiteLLMInvestigationFixtures -count=1
