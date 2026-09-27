@@ -38,8 +38,8 @@ class ProvenanceOpenTelemetry(OpenTelemetry):
         if not isinstance(body, dict) or body.get('object') != 'chat.completion':
             return
         usage = capture(body.get('usage'))
-        # Retain only two validated counts, not provider content or identifiers.
-        kwargs[_SLOT] = (usage.input, usage.output)
+        # Retain only validated counts, not provider content or identifiers.
+        kwargs[_SLOT] = (usage.input, usage.output, usage.cache_read_input, usage.reasoning_output)
 
     def set_attributes(self, span, kwargs, response_obj):
         super().set_attributes(span, kwargs, response_obj)
@@ -49,7 +49,9 @@ class ProvenanceOpenTelemetry(OpenTelemetry):
             emitted = getattr(response_obj, 'usage', None)
             if hasattr(emitted, 'model_dump'):
                 emitted = emitted.model_dump()
-            attributes = ProviderUsage(*captured).attributes(emitted)
+            source = ProviderUsage(*captured)
+            attributes = source.attributes(emitted)
+            attributes.update(source.subset_attributes(emitted))
         for key, value in attributes.items():
             span.set_attribute(key, value)
 

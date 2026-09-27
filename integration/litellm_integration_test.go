@@ -14,6 +14,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -27,7 +28,7 @@ func TestLiteLLMRecipeOTLPHTTP(t *testing.T) {
 	root := repoRoot(t)
 	binary := filepath.Join(root, "dist", "otelcol-genai-sketches")
 	requireExecutable(t, binary)
-	for i, name := range []string{"before", "after"} {
+	for i, name := range []string{"before", "after", "subsets"} {
 		t.Run(name, func(t *testing.T) {
 			dir := t.TempDir()
 			if err := os.Chmod(dir, 0700); err != nil {
@@ -71,7 +72,12 @@ func TestLiteLLMRecipeOTLPHTTP(t *testing.T) {
 				}
 				time.Sleep(50 * time.Millisecond)
 			}
-			data, err = os.ReadFile(filepath.Join(base, name+".json"))
+			if name == "subsets" {
+				// Actual Python callback output; only its LiteLLM base logger is stubbed.
+				data, err = exec.CommandContext(ctx, "python3", filepath.Join(base, "test_provenance_callback.py"), "--subset-otlp").Output()
+			} else {
+				data, err = os.ReadFile(filepath.Join(base, name+".json"))
+			}
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -118,8 +124,8 @@ func TestLiteLLMRecipeOTLPHTTP(t *testing.T) {
 			if json.Unmarshal(body, &accepted) != nil || len(accepted.Partial) > 0 && string(accepted.Partial) != "{}" {
 				t.Fatal("OTLP partial acceptance")
 			}
-			doc := waitSummary(t, dir, uint64(i+2))
-			if doc.Counters["input_tokens"] != []uint64{160, 480}[i] || doc.Counters["output_tokens"] != []uint64{40, 80}[i] || doc.Counters["missing_token_usage"] != uint64(i) {
+			doc := waitSummary(t, dir, []uint64{2, 3, 8}[i])
+			if doc.Counters["input_tokens"] != []uint64{160, 480, 3710}[i] || doc.Counters["output_tokens"] != []uint64{40, 80, 185}[i] || doc.Counters["missing_token_usage"] != []uint64{0, 1, 0}[i] {
 				t.Fatal(doc.Counters)
 			}
 			metrics := scrapeEventually(t, prom, regexp.MustCompile(`gen_ai_sketch_requests_total`))
@@ -127,7 +133,7 @@ func TestLiteLLMRecipeOTLPHTTP(t *testing.T) {
 				if doc.Counters["usage_provenance.v1.input.unknown"] != 2 || doc.Counters["usage_provenance.v1.output.unknown"] != 2 {
 					t.Fatal(doc.Counters)
 				}
-			} else {
+			} else if name == "after" {
 				if doc.Counters["usage_provenance.v1.input.provider_reported"] != 3 {
 					t.Fatal(doc.Counters)
 				}
@@ -138,6 +144,21 @@ func TestLiteLLMRecipeOTLPHTTP(t *testing.T) {
 					pattern := regexp.MustCompile(`gen_ai_sketch_usage_provenance_total\{[^}]*source="` + source + `"[^}]*token_field="output"[^}]*\} 1(?:\n|$)`)
 					if !pattern.MatchString(metrics) {
 						t.Fatalf("missing fixed provenance series: %s", source)
+					}
+				}
+			} else {
+				if doc.Counters["cache_read_input_tokens"] != 3132 || doc.Counters["reasoning_output_tokens"] != 72 {
+					t.Fatal("subsets must be exported without adding to totals", doc.Counters)
+				}
+				for _, field := range []string{"input", "output"} {
+					if doc.Counters["usage_provenance.v1."+field+".provider_reported"] != 7 || doc.Counters["usage_provenance.v1."+field+".unknown"] != 1 {
+						t.Fatal("changed totals must lose provider provenance", doc.Counters)
+					}
+				}
+				for metric, value := range map[string]int{"cache_read_input_tokens": 3132, "reasoning_output_tokens": 72} {
+					pattern := regexp.MustCompile(fmt.Sprintf(`gen_ai_sketch_%s_total\{[^}]*\} %d(?:\n|$)`, metric, value))
+					if !pattern.MatchString(metrics) {
+						t.Fatalf("missing subset metric: %s", metric)
 					}
 				}
 			}

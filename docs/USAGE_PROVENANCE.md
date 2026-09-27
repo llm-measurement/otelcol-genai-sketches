@@ -32,7 +32,8 @@ these assertions; they are not independent evidence for billing.
 ## Before Normalizing
 
 The standard-library [Python helper](../examples/integrations/litellm/usage_provenance.py)
-retains two optional integer counts, not the response, prompt, or identity. Use it
+retains four optional integer counts (input, output, cached input, reasoning
+output), not the response, prompt, or identity. Use it
 where the raw provider response is still available:
 
 ```python
@@ -41,6 +42,7 @@ from usage_provenance import capture
 source = capture(raw_response.get("usage"))  # before defaults or estimates
 # Run the application's existing normalization here.
 attributes = source.attributes(normalized_usage, inferred_fields=estimated_fields)
+attributes.update(source.subset_attributes(normalized_usage))
 for key, value in attributes.items():
     model_span.set_attribute(key, value)
 ```
@@ -55,13 +57,21 @@ unknown; do not call `capture(None)` unless absence was actually observed.
 The opt-in [LiteLLM callback](../examples/integrations/litellm/README.md#capture-source-provenance)
 connects this helper to `CustomLogger.log_post_api_call`. In the pinned 1.102.1
 OpenAI chat path, that callback receives raw response JSON before transformation.
-It retains two counts in request-local state, then annotates the existing model
+It retains four optional counts in request-local state, then annotates the existing model
 span. It does not patch LiteLLM or create a second tracing callback.
 
 Only non-streaming OpenAI-compatible chat is supported. Streaming, other providers,
 unsupported response shapes, and responses larger than 1,048,576 characters remain
 unknown. No supported estimator hook is wired yet. Stock LiteLLM remains unknown;
 passing its normalized usage into `capture()` would make a false claim.
+
+For supported non-streaming responses, cached input and reasoning output are
+emitted as `gen_ai.usage.cache_read.input_tokens` and
+`gen_ai.usage.reasoning.output_tokens`. Values must be valid integers within their
+raw parent totals, the emitted parent must match, and an emitted subset must not
+conflict with its captured value. Absent or invalid subsets are omitted, not
+replaced with zero. Valid zero is preserved. Subsets are never added to totals;
+the existing collector accounting and summary contract are unchanged.
 
 ## Output And Compatibility
 
@@ -100,3 +110,10 @@ flags are test-scenario knowledge, not attributes stock LiteLLM provided.
 Python source-helper and Go collector tests use these same six cases, with both
 stock-unknown and annotated inputs. CI runs both without LiteLLM or network access.
 Other versions and real providers require separate verification.
+
+The [subset cases](../examples/integrations/litellm/subset-cases.json) cover real-trial
+numeric examples plus invalid, absent, zero, and conflicting inputs. Python tests
+exercise the helper and callback. Receiver integration tests feed actual callback
+output into the collector and check totals, subset metrics, summaries, and privacy.
+Only LiteLLM's parent logger is stubbed in that offline fixture; the separately
+recorded live trial exercises the real proxy.
