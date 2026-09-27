@@ -4,7 +4,7 @@ import json
 import pathlib
 import unittest
 
-from usage_provenance import capture
+from usage_provenance import ProviderUsage, capture
 
 
 class ProvenanceTests(unittest.TestCase):
@@ -41,6 +41,36 @@ class ProvenanceTests(unittest.TestCase):
         self.assertEqual(capture(None).attributes({'completion_tokens': 3})['gen_ai_sketch.usage.output.provenance'], 'unavailable')
         with self.assertRaises(ValueError):
             snapshot.attributes({}, inferred_fields=['PRIVATE_SENTINEL'])
+
+    def test_subset_vectors(self):
+        fixture = json.loads(pathlib.Path(__file__).with_name('subset-cases.json').read_text())
+        for case in fixture['cases']:
+            with self.subTest(case=case['name']):
+                snapshot = capture(case['raw_usage'])
+                self.assertEqual(snapshot.subset_attributes(case['emitted_usage']), case['expected_attributes'])
+
+    def test_subset_validation_and_mutation(self):
+        for value in (True, -1, 1.5, '42', 1 << 63, None, {'private': 'PRIVATE_SENTINEL'}):
+            raw = {'prompt_tokens': 80, 'completion_tokens': 20,
+                   'prompt_tokens_details': {'cached_tokens': value},
+                   'completion_tokens_details': {'reasoning_tokens': value}}
+            self.assertEqual(capture(raw).subset_attributes(raw), {})
+            self.assertNotIn('PRIVATE_SENTINEL', repr(capture(raw)))
+        for details in (None, [], 'PRIVATE_SENTINEL', 10):
+            raw = {'prompt_tokens': 80, 'prompt_tokens_details': details}
+            self.assertEqual(capture(raw).subset_attributes(raw), {})
+        raw = {'prompt_tokens': 80, 'prompt_tokens_details': {'cached_tokens': 60}}
+        snapshot = capture(raw)
+        raw['prompt_tokens_details']['cached_tokens'] = 0
+        self.assertEqual(snapshot.cache_read_input, 60)
+        self.assertEqual(snapshot.subset_attributes(raw), {})
+        self.assertEqual(snapshot.subset_attributes({'prompt_tokens': 80}),
+                         {'gen_ai.usage.cache_read.input_tokens': 60})
+        for usage in (ProviderUsage(None, 20), ProviderUsage(80, None)):
+            self.assertEqual(usage.subset_attributes({'prompt_tokens': 80, 'completion_tokens': 20}), {})
+        for args in ((80, 20, True), (80, 20, 81), (None, 20, 1), (80, 20, 0, 21)):
+            with self.assertRaises(ValueError):
+                ProviderUsage(*args)
 
 
 if __name__ == '__main__':

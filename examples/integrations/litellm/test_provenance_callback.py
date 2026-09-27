@@ -3,6 +3,7 @@
 import importlib.util
 import json
 import pathlib
+import sys
 import types
 import unittest
 from unittest.mock import patch
@@ -87,6 +88,59 @@ class CallbackTests(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 callback_module.ProvenanceOpenTelemetry()
 
+    def test_subsets_and_retry_reset(self):
+        fixture = json.loads(pathlib.Path(__file__).with_name('subset-cases.json').read_text())
+        for case in fixture['cases']:
+            with self.subTest(case=case['name']):
+                kwargs = self.kwargs(case['raw_usage'])
+                callback_module.callback.log_post_api_call(kwargs, None, None, None)
+                span = Span()
+                response = types.SimpleNamespace(usage=case['emitted_usage'])
+                callback_module.callback.set_attributes(span, kwargs, response)
+                self.assertEqual({k: v for k, v in span.attributes.items() if k.startswith('gen_ai.usage.')},
+                                 case['expected_attributes'])
+                self.assertNotIn('PRIVATE_SENTINEL', repr(kwargs[callback_module._SLOT]))
+                self.assertEqual(len(kwargs[callback_module._SLOT]), 4)
+                callback_module.callback.log_pre_api_call(None, None, kwargs)
+                span = Span()
+                callback_module.callback.set_attributes(span, kwargs, response)
+                self.assertEqual(span.attributes, {PREFIX + 'input.provenance': 'unknown',
+                                                    PREFIX + 'output.provenance': 'unknown'})
+
+    def test_streaming_never_borrows_subsets_from_normalized_usage(self):
+        usage = {'prompt_tokens': 80, 'completion_tokens': 20,
+                 'prompt_tokens_details': {'cached_tokens': 60},
+                 'completion_tokens_details': {'reasoning_tokens': 8}}
+        kwargs = self.kwargs(usage, stream=True)
+        callback_module.callback.log_post_api_call(kwargs, None, None, None)
+        self.assertEqual(self.attributes(kwargs, usage), ['unknown', 'unknown'])
+
+
+def subset_otlp_fixture():
+    """Exercise the callback in receiver CI without installing LiteLLM or using keys.
+
+    Base numeric attributes are synthetic; subset/provenance attributes come from
+    the actual callback with only its OpenTelemetry parent stubbed above.
+    """
+    fixture = json.loads(pathlib.Path(__file__).with_name('subset-cases.json').read_text())
+    spans = []
+    for i, case in enumerate(fixture['cases']):
+        kwargs = CallbackTests().kwargs(case['raw_usage'])
+        callback_module.callback.log_post_api_call(kwargs, None, None, None)
+        span = Span()
+        callback_module.callback.set_attributes(span, kwargs, types.SimpleNamespace(usage=case['emitted_usage']))
+        attrs = {'gen_ai.request.model': 'synthetic-model',
+                 'gen_ai.usage.input_tokens': case['emitted_usage']['prompt_tokens'],
+                 'gen_ai.usage.output_tokens': case['emitted_usage']['completion_tokens'],
+                 'app.prompt.template': 'PRIVATE_LITELLM_subset_prompt', **span.attributes}
+        spans.append({'traceId': f'{i + 1:032x}', 'spanId': f'{i + 1:016x}', 'name': 'chat',
+                      'attributes': [{'key': k, 'value': {'intValue': str(v)} if type(v) is int
+                                      else {'stringValue': v}} for k, v in attrs.items()]})
+    return {'resourceSpans': [{'scopeSpans': [{'spans': spans}]}]}
+
 
 if __name__ == '__main__':
-    unittest.main()
+    if sys.argv[1:] == ['--subset-otlp']:
+        print(json.dumps(subset_otlp_fixture()))
+    else:
+        unittest.main()

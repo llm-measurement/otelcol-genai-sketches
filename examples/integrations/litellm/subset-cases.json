@@ -1,0 +1,54 @@
+{
+  "litellm_version": "1.102.1",
+  "scope": "Numeric-only regression cases. Cache-hit and reasoning counts reproduce a controlled OpenAI trial; remaining cases are synthetic validation boundaries. No captured content or identifiers.",
+  "cases": [
+    {
+      "name": "cache_hit",
+      "raw_usage": {"prompt_tokens": 3269, "completion_tokens": 1, "prompt_tokens_details": {"cached_tokens": 3072}},
+      "emitted_usage": {"prompt_tokens": 3269, "completion_tokens": 1, "prompt_tokens_details": {"cached_tokens": 3072}},
+      "expected_attributes": {"gen_ai.usage.cache_read.input_tokens": 3072}
+    },
+    {
+      "name": "reasoning",
+      "raw_usage": {"prompt_tokens": 40, "completion_tokens": 83, "completion_tokens_details": {"reasoning_tokens": 64}},
+      "emitted_usage": {"prompt_tokens": 40, "completion_tokens": 83, "completion_tokens_details": {"reasoning_tokens": 64}},
+      "expected_attributes": {"gen_ai.usage.reasoning.output_tokens": 64}
+    },
+    {
+      "name": "both_subsets",
+      "raw_usage": {"prompt_tokens": 80, "completion_tokens": 20, "prompt_tokens_details": {"cached_tokens": 60}, "completion_tokens_details": {"reasoning_tokens": 8}},
+      "emitted_usage": {"prompt_tokens": 80, "completion_tokens": 20},
+      "expected_attributes": {"gen_ai.usage.cache_read.input_tokens": 60, "gen_ai.usage.reasoning.output_tokens": 8}
+    },
+    {
+      "name": "absent_is_not_zero",
+      "raw_usage": {"prompt_tokens": 80, "completion_tokens": 20},
+      "emitted_usage": {"prompt_tokens": 80, "completion_tokens": 20, "prompt_tokens_details": {"cached_tokens": 0}},
+      "expected_attributes": {}
+    },
+    {
+      "name": "genuine_zero",
+      "raw_usage": {"prompt_tokens": 0, "completion_tokens": 0, "prompt_tokens_details": {"cached_tokens": 0}, "completion_tokens_details": {"reasoning_tokens": 0}},
+      "emitted_usage": {"prompt_tokens": 0, "completion_tokens": 0},
+      "expected_attributes": {"gen_ai.usage.cache_read.input_tokens": 0, "gen_ai.usage.reasoning.output_tokens": 0}
+    },
+    {
+      "name": "larger_than_parent",
+      "raw_usage": {"prompt_tokens": 80, "completion_tokens": 20, "prompt_tokens_details": {"cached_tokens": 81}, "completion_tokens_details": {"reasoning_tokens": 21}},
+      "emitted_usage": {"prompt_tokens": 80, "completion_tokens": 20},
+      "expected_attributes": {}
+    },
+    {
+      "name": "changed_parent",
+      "raw_usage": {"prompt_tokens": 80, "completion_tokens": 20, "prompt_tokens_details": {"cached_tokens": 60}, "completion_tokens_details": {"reasoning_tokens": 8}},
+      "emitted_usage": {"prompt_tokens": 81, "completion_tokens": 21},
+      "expected_attributes": {}
+    },
+    {
+      "name": "conflicting_normalized_subset",
+      "raw_usage": {"prompt_tokens": 80, "completion_tokens": 20, "prompt_tokens_details": {"cached_tokens": 60}, "completion_tokens_details": {"reasoning_tokens": 8}},
+      "emitted_usage": {"prompt_tokens": 80, "completion_tokens": 20, "prompt_tokens_details": {"cached_tokens": 0}, "completion_tokens_details": {"reasoning_tokens": 9}},
+      "expected_attributes": {}
+    }
+  ]
+}

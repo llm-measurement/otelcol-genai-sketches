@@ -38,9 +38,10 @@ that evidence from stock LiteLLM's normalized output.
 
 | Measurement | Required input | Limits |
 |---|---|---|
-| Model requests | Supported `gen_ai.operation.name`, or model-attribute fallback when operation is absent | Tested live chat spans used `gen_ai.request.model` fallback; wrappers did not increase the count |
+| Model requests | Supported `gen_ai.operation.name`, or model-attribute fallback when operation is absent | Counts observed model attempts, including failures and retries, not unique user requests; wrappers are excluded |
 | Input/output tokens | `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens` | Missing at the collector stays unavailable; LiteLLM may replace missing provider data with zeros or estimates before export |
-| Cache reads | `gen_ai.usage.cache_read.input_tokens` | Already part of input; never added twice |
+| Cache reads | `gen_ai.usage.cache_read.input_tokens` | The opt-in callback maps validated non-streaming provider counts; already part of input, never added twice |
+| Reasoning tokens | `gen_ai.usage.reasoning.output_tokens` | The opt-in callback maps validated non-streaming provider counts; already part of output, never added twice |
 | Prompt-template contributors | Optional `app.prompt.template` on each model span | Application annotation, not automatically provided by LiteLLM |
 | Distinct users | Optional configured user attribute on model spans | No claim that LiteLLM exports the fixture's `enduser.id` automatically |
 | Sessions or loops | Not supported by this recipe | MCP session IDs are not model-request attribution |
@@ -92,7 +93,7 @@ Keep the OTLP and content-capture environment settings above. The callback uses
 the documented [raw-response callback](https://docs.litellm.ai/docs/observability/custom_callback)
 and [custom callback registration](https://docs.litellm.ai/docs/proxy/call_hooks).
 In the pinned OpenAI path, `log_post_api_call` observes raw JSON before response
-normalization. Only two validated counts are retained in request-local state;
+normalization. Only four optional integer counts are retained in request-local state;
 the existing OpenTelemetry callback exports the declarations on the model span.
 No global response interception or extra model span is added.
 
@@ -101,11 +102,39 @@ stay unknown. The callback does not guess which streaming fields were estimated.
 It refuses to start with an unreviewed LiteLLM version. The unit tests use a stub
 for the logger base; the separate live test checks real LiteLLM integration.
 Review [the validation record](VALIDATION.md) before enabling this in staging.
+It includes real-provider checks with pinned GPT-4.1 mini, o4-mini, and GPT-5.4
+snapshots, including retries, interrupted streams, cache reads, and reasoning.
+
+The callback also maps `prompt_tokens_details.cached_tokens` and
+`completion_tokens_details.reasoning_tokens` from the raw non-streaming response
+to cache-read and reasoning subset attributes. A subset must be a non-negative
+integer no larger than its parent total. Changed parent totals, conflicting
+normalized subsets, and malformed values suppress that subset. Absent subsets
+are not filled with zero; genuine provider zeros are preserved. Neither subset
+is added to token totals. No count is inferred from a cost attribute.
+
+Stock LiteLLM 1.102.1 omitted both subset token attributes in the tested path,
+even when the client response included them. Enabling this mapping can make
+previously invisible cache/reasoning usage visible. Treat that as an instrumentation
+change, not evidence that a deployment changed model behavior.
 
 Use collector v0.2.0 or later for unavailable-as-missing accounting;
 collector v0.1.0 does not read these declarations. Enabling annotations
 can change measured coverage, not just add metadata. Treat that boundary as an
 instrumentation change, not a token-saving deployment.
+
+### Failures And Retries
+
+In the tested version, one failed attempt followed by a successful retry emits
+two model spans. Both count as requests; the failure with no usage counts as
+missing. This is not a count of distinct client calls. Do not deduplicate different
+provider attempts merely because they belong to one user request.
+
+A timed-out attempt may still complete at the provider and incur cost without
+delivering usage to LiteLLM. An interrupted stream can also end with LiteLLM's
+own estimated counts and a normal-looking completion marker. Streaming provenance
+remains unknown in this callback. Neither a completion marker nor a zero
+missing-usage counter establishes complete provider usage or invoice accuracy.
 
 Start the collector with a strong secret in `GENAI_SKETCH_SECRET`, a non-secret
 key-version ID in `SUMMARY_KEY_ID`, and an existing private (0700) directory in

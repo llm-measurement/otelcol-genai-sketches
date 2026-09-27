@@ -2,6 +2,15 @@
 
 Notable user-visible changes are recorded here.
 
+## Unreleased
+
+- Preserve validated cached-input and reasoning-output subsets in the opt-in
+  LiteLLM 1.102.1 callback for non-streaming OpenAI-compatible chat. Missing,
+  invalid, or conflicting subsets are omitted; token totals are unchanged.
+  Add callback-to-receiver regression fixtures and clarify retry accounting.
+- Record full real-provider compatibility checks with a pinned GPT-5.4 snapshot,
+  including preserved cache/reasoning subsets and interrupted-stream limitations.
+
 ## v0.2.0 - 2026-09-26
 
 - Add a single-application LiteLLM investigation recipe and a version-pinned
