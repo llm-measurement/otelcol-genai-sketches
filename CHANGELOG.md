@@ -2,7 +2,7 @@
 
 Notable user-visible changes are recorded here.
 
-## Unreleased
+## v0.2.0 - 2026-09-26
 
 - Add a single-application LiteLLM investigation recipe and a version-pinned
   raw-response callback for non-streaming OpenAI-compatible chat. Streaming
@@ -14,6 +14,13 @@ Notable user-visible changes are recorded here.
 - Verify each published image by its platform manifest digest, supporting Docker's
   classic image store. Verification can be rerun without rebuilding or republishing
   release artifacts. This changes release automation, not collector behavior.
+- Build on OpenTelemetry Collector `v0.161.0` / pdata `v1.67.0`.
+
+The base accounting fingerprint is unchanged. Use fleetdiff v0.2.0 or later to
+compare exports across the optional provenance extension. Enabling explicit
+unavailable declarations can reduce counted tokens and increase missing coverage;
+that instrumentation change is not evidence of savings. Streaming provenance
+remains unknown. The OpenTelemetry connector component remains Alpha.
 
 ## v0.1.0 - 2026-09-05
 

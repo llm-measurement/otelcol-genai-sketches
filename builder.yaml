@@ -5,7 +5,7 @@ dist:
   description: GenAI sketch metrics collector
   output_path: ./dist
   otelcol_version: 0.161.0
-  version: 0.1.0-dev
+  version: 0.2.0-dev
 receivers:
   - gomod: go.opentelemetry.io/collector/receiver/otlpreceiver v0.161.0
 processors:

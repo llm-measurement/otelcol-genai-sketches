@@ -102,8 +102,8 @@ It refuses to start with an unreviewed LiteLLM version. The unit tests use a stu
 for the logger base; the separate live test checks real LiteLLM integration.
 Review [the validation record](VALIDATION.md) before enabling this in staging.
 
-Use a collector built from current source for unavailable-as-missing accounting;
-released collector v0.1.0 does not read these declarations. Enabling annotations
+Use collector v0.2.0 or later for unavailable-as-missing accounting;
+collector v0.1.0 does not read these declarations. Enabling annotations
 can change measured coverage, not just add metadata. Treat that boundary as an
 instrumentation change, not a token-saving deployment.
 
@@ -130,7 +130,7 @@ window's unmodified summaries into each input directory. Windows follow arrival
 time, not span event time: replaying old traces now is not historical backfill.
 Do not edit timestamps or accounting IDs to make exports compatible.
 
-With fleetdiff built from its current source:
+With fleetdiff v0.2.0 or later:
 
 ```sh
 fleetdiff investigate --before ./before --after ./after --expected app

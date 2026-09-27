@@ -15,7 +15,7 @@ Use an immutable digest from the GitHub release, not a mutable tag:
 Fetch the references from that release's published metadata:
 
 ```bash
-RELEASE=v0.1.0
+RELEASE=v0.2.0
 IMAGE_REF="$(curl -fsSL \
   "https://github.com/llm-measurement/otelcol-genai-sketches/releases/download/${RELEASE}/image-digest.txt")"
 IMAGE="${IMAGE_REF%@*}"

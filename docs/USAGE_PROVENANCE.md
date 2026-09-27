@@ -73,7 +73,7 @@ slice eviction and restart follow existing reset rules.
 
 Summary files include all eight `usage_provenance.v1.<field>.<source>` counters,
 including zeros. This optional extension has its own version; it does not change
-the base accounting fingerprint. Current-source fleetdiff fills absent provenance
+the base accounting fingerprint. Fleetdiff v0.2.0 or later fills absent provenance
 with unknown observations in memory when comparing old and new summaries. It does
 not rewrite files, repair partial declarations, or relax any other compatibility
 check. Older consumers that require identical counter sets may reject mixed exports.

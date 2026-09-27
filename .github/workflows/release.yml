@@ -46,6 +46,7 @@ jobs:
           make tidy
           git diff --exit-code
           make check
+          python3 -m unittest discover -s examples/integrations/litellm -p 'test_*.py'
           go test -race ./...
           go -C connector/genaisketchconnector test -race ./...
           make test-integration
