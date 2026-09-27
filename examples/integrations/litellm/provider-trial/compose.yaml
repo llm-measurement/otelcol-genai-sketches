@@ -1,0 +1,59 @@
+x-restricted: &restricted
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  pids_limit: 256
+  mem_limit: 2g
+  cpus: 2
+  tmpfs: ['/tmp:size=256m,mode=1777']
+  networks: [test]
+services:
+  relay:
+    <<: *restricted
+    image: ghcr.io/berriai/litellm@sha256:87f34979b9f8cb274fac90ca8a4fdda07d8480de22755562a26adeb95ce20d02
+    user: '${TRIAL_UID:?use run.py}:${TRIAL_GID:?use run.py}'
+    entrypoint: [python, /config/relay.py]
+    networks: [test, egress]
+    environment:
+      TRIAL_MAX_ESTIMATED_USD: '${TRIAL_MAX_ESTIMATED_USD:?use run.py}'
+      OPENAI_API_KEY: '${OPENAI_API_KEY:?set in the environment}'
+    volumes:
+      - ./relay.py:/config/relay.py:ro
+      - ./manifest.json:/config/manifest.json:ro
+      - ./client.py:/config/client.py:ro
+      - ${TRIAL_OUTPUT:?use run.py}/evidence:/evidence
+  collector:
+    <<: *restricted
+    image: ghcr.io/llm-measurement/otelcol-genai-sketches@sha256:a990c08f29dda3b33b11771fb87788a5c4ba2a2ea3dbf991e94876c5d274800b
+    user: '${TRIAL_UID:?use run.py}:${TRIAL_GID:?use run.py}'
+    command: [--config=/config/collector.yaml]
+    environment:
+      GENAI_SKETCH_SECRET: synthetic-trial-only-not-for-customer-data-20260927
+    volumes:
+      - ./collector.yaml:/config/collector.yaml:ro
+      - ${TRIAL_OUTPUT:?use run.py}/summaries:/summaries
+  proxy:
+    <<: *restricted
+    image: ghcr.io/berriai/litellm@sha256:87f34979b9f8cb274fac90ca8a4fdda07d8480de22755562a26adeb95ce20d02
+    user: '65532:65532'
+    entrypoint: [litellm]
+    command: [--config, /config/litellm.yaml, --port, '4000', --host, 0.0.0.0]
+    volumes:
+      - ./litellm.yaml:/config/litellm.yaml:ro
+      - ../provenance_callback.py:/callbacks/provenance_callback.py:ro
+      - ../usage_provenance.py:/callbacks/usage_provenance.py:ro
+    environment:
+      HOME: /tmp
+      PYTHONPATH: /callbacks
+      LITELLM_TELEMETRY: 'False'
+      LITELLM_LOCAL_MODEL_COST_MAP: 'True'
+      OTEL_SEMCONV_STABILITY_OPT_IN: gen_ai_latest_experimental
+      OTEL_EXPORTER: otlp_http
+      OTEL_ENDPOINT: http://relay:8080
+      OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: NO_CONTENT
+      OTEL_BSP_SCHEDULE_DELAY: '500'
+    depends_on: [relay, collector]
+networks:
+  test:
+    internal: true
+  egress: {}

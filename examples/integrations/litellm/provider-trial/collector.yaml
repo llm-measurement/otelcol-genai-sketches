@@ -1,0 +1,32 @@
+receivers:
+  otlp:
+    protocols:
+      http: {endpoint: '0.0.0.0:4318'}
+connectors:
+  genaisketch:
+    window_duration: 30s
+    topk: 20
+    hashing: {algo: hmac_sha256_64, secret_env: GENAI_SKETCH_SECRET}
+    fields:
+      prompt_key:
+        from_attributes: [app.prompt.template]
+        canonicalization: text_v1
+        domain: prompt:v1
+    slices:
+      - {name: by_model, keys: [gen_ai.request.model]}
+    summary_export:
+      directory: /summaries
+      producer_id: app
+      scope_id: synthetic-provider-trial
+      key_id: synthetic-trial-only
+      interval: 1s
+exporters:
+  prometheus:
+    endpoint: '0.0.0.0:8889'
+    translation_strategy: UnderscoreEscapingWithoutSuffixes
+service:
+  telemetry:
+    metrics: {level: none}
+  pipelines:
+    traces: {receivers: [otlp], exporters: [genaisketch]}
+    metrics: {receivers: [genaisketch], exporters: [prometheus]}

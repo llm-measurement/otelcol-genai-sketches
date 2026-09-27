@@ -117,96 +117,35 @@ answers. These are compatibility checks, not production certification.
 
 ## Real OpenAI Follow-Up
 
-On 2026-09-27, a second experiment used real OpenAI Chat Completions through
-LiteLLM 1.102.1, the updated opt-in callback in this directory, and the released
-collector v0.2.0 image:
+On 2026-09-27, real OpenAI Chat Completions were tested through LiteLLM 1.102.1
+and the opt-in callback, using collector v0.2.0:
 `sha256:a990c08f29dda3b33b11771fb87788a5c4ba2a2ea3dbf991e94876c5d274800b`.
-Fleetdiff v0.2.0 read the resulting summary files without changing their contents
-or timestamps. The local machine was an M4 Mac; containers ran native Linux ARM64.
+Fleetdiff v0.2.0 read unchanged summary exports. Containers ran native Linux
+ARM64 on an M4 Mac.
 
-The model snapshots were `gpt-4.1-mini-2025-04-14` and `o4-mini-2025-04-16`.
-Prompts were synthetic; the tool example executed only an inert local function.
-A relay retained numeric provider usage, captured OTLP, and forwarded telemetry
-unchanged. Cases ran sequentially in complete 30-second arrival-time windows.
-This was a compatibility check, not a load test or invoice reconciliation.
+Earlier trials with pinned GPT-4.1 mini and o4-mini snapshots exposed missing
+cache-read and reasoning mappings. The callback was extended to preserve valid
+non-streaming subsets, then the suite was repeated. Their numeric tables and
+billing reconciliation remain in the private experiment record: the public
+runner below pins GPT-5.4, not those older experiments.
 
-The first run exposed two missing mappings: nonzero cached-input and reasoning
-counts appeared in provider and client responses but not in model spans. The
-callback was then extended to preserve validated subsets. The entire 11-case
-suite was rerun after that change, making 12 real upstream calls. Both runs are
-retained in private evidence; the following table describes the post-fix run.
+The findings were consistent across the tested models:
 
-| Case | Provider calls | Collector requests | Provider input / output | Collector input / output | Missing requests |
-|---|---:|---:|---|---|---:|
-| Baseline | 1 | 1 | 25 / 1 | 25 / 1 | 0 |
-| Injected 429, retries off | 0 | 1 | none | 0 / 0 | 1 |
-| Withheld response, retries off | 1 | 1 | 25 / 1 | 0 / 0 | 1 |
-| Complete stream | 1 | 1 | 34 / 256 | 34 / 256 | 0 |
-| Stream cut before usage | 1 | 1 | 34 / 256 | 34 / 1 | 0 |
-| Cache warm-up | 1 | 1 | 3269 / 1 | 3269 / 1 | 0 |
-| Cache hit | 1 | 1 | 3269 / 1 | 3269 / 1 | 0 |
-| Reasoning | 1 | 1 | 40 / 147 | 40 / 147 | 0 |
-| Tool call and follow-up | 2 | 2 | 141 / 2 | 141 / 2 | 0 |
-| Injected 429, one retry | 1 | 2 | 25 / 1 | 25 / 1 | 1 |
-| Withheld response, one retry | 2 | 2 | 50 / 2 | 25 / 1 | 1 |
+- A failed attempt followed by a successful retry produced separate model
+  spans. Both were counted, with the failed attempt missing usage.
+- A completion whose response was withheld could incur provider cost without
+  its usage reaching the collector. This is a controlled fault, not an
+  observation of organic provider throttling or timeouts.
+- An interrupted stream could return inferred counts and a normal-looking
+  completion marker. Its source provenance remained unknown.
+- Validated cache-read and reasoning subsets reached metrics and summaries
+  without being added to their parent totals again.
 
-The cache-hit case preserved **3072 cached tokens within 3269 input tokens**.
-The reasoning case preserved **128 reasoning tokens within 147 output tokens**.
-Both subsets matched from the provider response through the model span,
-Prometheus metrics, collector summary, and Fleetdiff report. Neither was added
-to its parent total again. Non-streaming provenance remained provider-reported.
-
-OpenAI usage and cost exports subsequently matched the combined provider ledger
-from both runs exactly: 24 requests, 13824 input tokens (including 6144 cached),
-1272 output tokens, and USD 0.0064216. This is reconciliation of provider usage
-and aggregate exported cost, not a claim that the collector recovered the
-unreported work described below or that a per-request invoice was checked.
-
-All 14 observed model spans reconciled with collector request counters. Input,
-output, missing-usage, and subset counters matched captured model spans and
-cumulative Prometheus metrics. All eight provenance counters matched emitted
-declarations. This establishes accounting of received telemetry, not recovery of
-unreported provider work.
-
-### Faults And Remaining Limits
-
-- The 429 was injected before forwarding to OpenAI. The timeout relay obtained
-  the real completion, then withheld the response for 14 seconds, beyond the
-  configured eight-second timeout. These are controlled transport faults, not
-  observations of organic provider throttling or server timeouts.
-- A failed attempt followed by a successful retry produced two model spans and
-  two counted requests, one missing usage. The timeout retry paid for two real
-  completions but delivered only one completion's usage to the collector.
-- For the interrupted stream, the relay closed its downstream connection after
-  three chunks but drained the upstream stream to record full provider usage.
-  This tests downstream loss, not provider-side cancellation. LiteLLM returned
-  a normal-looking completion marker and estimated output usage of 1 rather
-  than the provider's 256. Provenance stayed unknown; Fleetdiff returned
-  `cannot_determine` for provider coverage. Numeric presence is not completeness.
-- Fleetdiff returned `cannot_determine` for the timeout volume explanation.
-  It could compare the emitted stream counts, but did not certify their origin.
-- This callback still does not establish streaming provenance. Anthropic,
-  other model snapshots, production concurrency, and invoice totals were not
-  tested. Do not extend these results to those paths.
-
-### Regression And Privacy Checks
-
-The six-case local mock matrix above was rerun against the same updated callback
-and released collector. Every count, missing-usage result, and provenance state
-matched the opt-in results. All three mock streams completed.
-
-Fourteen Python tests passed. Eight subset fixtures cover nonzero, zero, absent,
-invalid, changed-parent, and conflicting values. Receiver integration sends the
-actual callback output into the collector, checking totals, subset metrics,
-summaries, and a populated top-k snapshot. Only the LiteLLM parent logger is
-stubbed in that offline fixture. The full collector integration suite, collector
-and Fleetdiff race tests, and their vet checks passed.
-
-The prompt sentinel and API key were absent from retained real-trial OTLP,
-metrics and labels, summaries, and stack logs. No prompt-template annotation was
-supplied in the live trial, so its top-k surface was not populated; the separate
-receiver integration test covers that case. Raw OTLP still carries provider
-request metadata and stays private. This is not general raw-trace sanitization.
+The prompt sentinel and API key were absent from retained OTLP, metrics and
+labels, summaries, and stack logs. Raw OTLP still carries provider metadata
+and stays private. The live trial did not populate prompt top-k; the separate
+receiver integration test checks that surface. This is not a claim of general
+raw-trace sanitization, invoice accuracy, or production-load certification.
 
 ## GPT-5.4 Snapshot Check
 
@@ -218,7 +157,22 @@ none`, except the reasoning case, which used `low`. Output limits remained 128
 tokens for ordinary calls, 256 for streams, and 2048 for reasoning. This checks
 Chat Completions, not the Responses API.
 
-| Case | Provider input / output | Collector input / output | Collector requests | Missing |
+The [public trial harness](provider-trial/README.md) contains the relay, faults,
+synthetic request generator, pinned images/model, and table-generation checks.
+With `OPENAI_API_KEY` set privately in the environment and Fleetdiff v0.2.0 on
+PATH, run from the repository root:
+
+```sh
+python3 examples/integrations/litellm/provider-trial/run.py \
+  --run-paid-trial --max-estimated-usd 2
+```
+
+This spends real money. The limit is caller-selected estimated USD, not a
+provider-enforced cap. See the harness README before running. `verify.py`
+produces `table.md` from the current run's observations; the table below is the
+historical result, not a promise of identical outputs or cache hits.
+
+| Case | Provider input / output | Collector input / output | Model attempts | Missing |
 |---|---|---|---:|---:|
 | Baseline | 24 / 4 | 24 / 4 | 1 | 0 |
 | Injected 429, retries off | none | 0 / 0 | 1 | 1 |
@@ -248,7 +202,7 @@ documented accounting and uncertainty, not complete recovery of provider work.
 
 The GPT-5.4 usage-price estimate was USD 0.0204815 at the recorded standard rates:
 USD 2.50 input, USD 0.25 cached input, and USD 15 output per million tokens.
-Unlike the earlier runs above, this run has not yet been reconciled with a fresh
+This run has not yet been reconciled with a fresh
 OpenAI cost export. [Model and pricing](https://developers.openai.com/api/docs/models/gpt-5.4).
 
 Reproducibility records include the exact model snapshot, container digests,
@@ -257,8 +211,9 @@ retry policy, fault settings, and unchanged collector windows. All pinned source
 hashes stayed unchanged during the run. Repetition checks accounting against
 each run's observed usage; it does not require identical generated lengths,
 reasoning counts, latency, or cache hits. A nonzero cache/reasoning subset must
-actually occur before its check can pass. The private harness is not a public CI
-job, and this small sequential trial is not enterprise load certification.
+actually occur before its check can pass. The harness source and offline tests
+are public; raw captures remain private. CI does not run the paid suite, and
+this small sequential trial is not enterprise load certification.
 
 ## Next Checks
 

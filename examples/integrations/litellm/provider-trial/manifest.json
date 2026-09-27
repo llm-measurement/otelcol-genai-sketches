@@ -1,0 +1,52 @@
+{
+  "run_id": "synthetic-provider-trial",
+  "model": "gpt-5.4-2026-03-05",
+  "endpoint": "https://api.openai.com/v1/chat/completions",
+  "service_tier": "default",
+  "reasoning_effort": {
+    "default": "none",
+    "reasoning_case": "low"
+  },
+  "max_request_bytes": 65536,
+  "max_completion_tokens": 2048,
+  "rates_usd_per_million": {
+    "input": "2.50",
+    "cached_input": "0.25",
+    "output": "15.00"
+  },
+  "rate_source": "https://developers.openai.com/api/docs/models/gpt-5.4",
+  "window_seconds": 30,
+  "suite": [
+    "baseline",
+    "retry429",
+    "timeout",
+    "stream_complete",
+    "stream_cut",
+    "cache",
+    "cache",
+    "reasoning",
+    "tools",
+    "retry429_enabled",
+    "timeout_enabled"
+  ],
+  "litellm_version": "1.102.1",
+  "litellm_image": "ghcr.io/berriai/litellm@sha256:87f34979b9f8cb274fac90ca8a4fdda07d8480de22755562a26adeb95ce20d02",
+  "collector_version": "0.2.0",
+  "collector_image": "ghcr.io/llm-measurement/otelcol-genai-sketches@sha256:a990c08f29dda3b33b11771fb87788a5c4ba2a2ea3dbf991e94876c5d274800b",
+  "fleetdiff_version": "0.2.0",
+  "faults": {
+    "first_429_before_forwarding": true,
+    "first_timeout_after_provider_completion_seconds": 14,
+    "timeout_route_seconds": 8,
+    "stream_cut_after_chunks": 3,
+    "drain_cut_stream_upstream": true
+  },
+  "limits": [
+    "Chat Completions only",
+    "not provider-side cancellation",
+    "no concurrency/load claim",
+    "streaming source provenance remains unknown",
+    "model outputs and cache hits need not repeat byte-for-byte"
+  ],
+  "max_provider_attempts": 12
+}
