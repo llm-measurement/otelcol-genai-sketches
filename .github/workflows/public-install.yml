@@ -8,7 +8,7 @@ on:
       release_tag:
         description: Existing collector release to verify without republishing
         required: true
-        default: v0.1.0
+        default: v0.2.0
         type: string
   workflow_call:
     inputs:

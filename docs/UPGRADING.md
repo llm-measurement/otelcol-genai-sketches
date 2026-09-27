@@ -56,7 +56,7 @@ known window boundary, record the event, and allow old windows to expire.
 ## Compatibility
 
 Source-usage provenance adds eight optional `usage_provenance.v1` counters without
-changing the base accounting fingerprint. Current-source fleetdiff can compare
+changing the base accounting fingerprint. Fleetdiff v0.2.0 or later can compare
 older exports with new ones, treating absent provenance as unknown; older consumers
 may require matching counter sets. Do not rewrite old files or fingerprints.
 Unannotated traffic retains its arithmetic. Enabling explicit `unavailable`
@@ -66,7 +66,7 @@ See [Usage Provenance](USAGE_PROVENANCE.md).
 
 | Surface | Current support |
 | --- | --- |
-| Collector component APIs | OpenTelemetry Collector `v0.160.0` / pdata `v1.66.0` |
+| Collector component APIs | OpenTelemetry Collector `v0.161.0` / pdata `v1.67.0` |
 | Kubernetes | Chart declares Kubernetes 1.27 or newer |
 | Images | Linux amd64 and arm64 |
 | Configuration | Unknown or invalid connector fields fail startup |

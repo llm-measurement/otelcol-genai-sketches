@@ -8,7 +8,7 @@ ARG RUNTIME_IMAGE=gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c8918
 FROM --platform=$BUILDPLATFORM ${GO_IMAGE} AS build
 ARG TARGETOS
 ARG TARGETARCH
-ARG VERSION=0.1.0-dev
+ARG VERSION=0.2.0-dev
 WORKDIR /src
 
 COPY go.mod go.sum builder.yaml otel.version LICENSE ./

@@ -141,8 +141,8 @@ counted again, and missing producers and partial observation windows are reporte
 To investigate a single application's before/after change, start with the
 [LiteLLM recipe](examples/integrations/litellm/README.md). It includes synthetic,
 source-pinned fixtures, missing-usage checks, and an optional two-stack extension.
-The question-oriented `fleetdiff investigate` command requires fleetdiff's current
-source; it is not in the v0.1.1 release.
+The question-oriented `fleetdiff investigate` command is available in fleetdiff
+v0.2.0 and later. Source-provenance accounting requires collector v0.2.0 or later.
 
 To compare two windows across operators, use [fleetdiff](https://github.com/llm-measurement/fleetdiff).
 It reads these exports locally and reports usage changes, distinct activity,
@@ -239,7 +239,7 @@ Add it to a builder manifest:
 
 ```yaml
 connectors:
-  - gomod: github.com/llm-measurement/otelcol-genai-sketches/connector/genaisketchconnector v0.1.0
+  - gomod: github.com/llm-measurement/otelcol-genai-sketches/connector/genaisketchconnector v0.2.0
 ```
 
 Configure `genaisketch` as an exporter from the traces pipeline and a receiver in the
