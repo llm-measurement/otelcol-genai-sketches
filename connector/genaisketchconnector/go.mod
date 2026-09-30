@@ -3,7 +3,7 @@ module github.com/llm-measurement/otelcol-genai-sketches/connector/genaisketchco
 go 1.26.6
 
 require (
-	github.com/llm-measurement/llm-sketchkit v0.2.0
+	github.com/llm-measurement/llm-sketchkit v0.2.1
 	go.opentelemetry.io/collector/component v1.67.0
 	go.opentelemetry.io/collector/connector v0.161.0
 	go.opentelemetry.io/collector/consumer v1.67.0
