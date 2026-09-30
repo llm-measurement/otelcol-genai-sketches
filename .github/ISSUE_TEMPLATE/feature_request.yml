@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: Apache-2.0
+# Code authors: Vijay and Codex
+name: Feature or integration request
+description: Describe a measurement question or a small workflow improvement.
+body:
+  - type: markdown
+    attributes:
+      value: "Keep examples synthetic and non-sensitive. Do not post secrets, raw content, identities, or private exports."
+  - type: textarea
+    id: question
+    attributes:
+      label: What question or workflow is blocked?
+    validations:
+      required: true
+  - type: textarea
+    id: inputs
+    attributes:
+      label: Available input and expected output
+      description: Attribute names, units, window scope, and a synthetic example. Explain what the result should not claim.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Existing approaches and constraints
+      description: Consider existing field mappings, bounded slices, top-k logs, and summary exports first.

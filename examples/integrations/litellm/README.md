@@ -52,6 +52,33 @@ it behaves the same. This fixture covers non-streaming chat-shaped spans only.
 
 ## Connect An Existing Proxy
 
+### Prerequisites
+
+Use a checkout of this repository, Go 1.26.6 or later, Make, OpenSSL, and an
+existing LiteLLM proxy matching the compatibility scope above. Run from the
+repository root. Install fleetdiff and prepare a private summary directory before
+starting the collector:
+
+```sh
+make dist
+go install github.com/llm-measurement/fleetdiff/cmd/fleetdiff@v0.2.0
+export PATH="$(go env GOPATH)/bin:$PATH"
+umask 077
+export SUMMARY_DIRECTORY="$PWD/private-summaries/litellm"
+mkdir -p "$SUMMARY_DIRECTORY"
+chmod 700 "$SUMMARY_DIRECTORY"
+export GENAI_SKETCH_SECRET="$(openssl rand -hex 32)"
+export SUMMARY_KEY_ID=local-comparison-v1
+```
+
+Keep that secret and key ID unchanged across the comparison windows. Re-running
+the secret-generation line breaks comparability. Do not put secrets, summary
+files, provider responses, or real identities in an issue or source control.
+The collector and fleetdiff do not require provider credentials; the proxy's
+model calls use its existing provider configuration.
+
+### Host Processes
+
 In the existing LiteLLM configuration, enable its OpenTelemetry callback once:
 
 ```yaml
@@ -149,6 +176,38 @@ key-version ID in `SUMMARY_KEY_ID`, and an existing private (0700) directory in
 ```sh
 ./dist/otelcol-genai-sketches --config=examples/integrations/litellm/collector.yaml
 ```
+
+### Collector In Docker
+
+The host configuration deliberately listens on `127.0.0.1`. A receiver bound to
+container loopback cannot accept Docker-published traffic. For a container, use
+the small endpoint override below and publish only host loopback ports.
+First install Docker and cosign, then [verify a release image](../../../docs/DEPLOYMENT.md#verify-an-image)
+to set `IMAGE_REF`. The default recipe works with v0.2.0; new `topk_keys` require
+a supporting source build. The Docker path does not need `make dist`, but still
+needs fleetdiff, the exports, and the private directory above.
+
+Run as your regular, non-root host user so the private directory remains owned
+and writable by that user:
+
+```sh
+docker run --rm --name genai-litellm-collector \
+  --user "$(id -u):$(id -g)" --read-only --cap-drop=ALL \
+  --security-opt=no-new-privileges --pids-limit=256 --memory=512m \
+  -p 127.0.0.1:4318:4318 -p 127.0.0.1:8889:8889 \
+  -e GENAI_SKETCH_SECRET -e SUMMARY_KEY_ID -e SUMMARY_DIRECTORY=/summaries \
+  --mount "type=bind,src=$SUMMARY_DIRECTORY,dst=/summaries" \
+  --mount "type=bind,src=$PWD/examples/integrations/litellm/collector.yaml,dst=/etc/collector.yaml,readonly" \
+  --mount "type=bind,src=$PWD/examples/integrations/litellm/collector-container.yaml,dst=/etc/container.yaml,readonly" \
+  "${IMAGE_REF:?verify the release image first}" \
+  --config=/etc/collector.yaml --config=/etc/container.yaml
+```
+
+The override binds `0.0.0.0` only inside the container; do not change the published
+addresses to `0.0.0.0`. Host LiteLLM still sends to `http://127.0.0.1:4318`.
+If LiteLLM is also containerized, use the collector's service name on a private
+Docker network instead of the proxy container's own loopback. Do not run both
+host and container collectors on the same ports or summary directory.
 
 Only bounded non-sensitive model labels are exported to Prometheus. The optional
 application prompt-template annotation is keyed-hashed and never a metric label.

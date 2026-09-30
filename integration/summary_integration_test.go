@@ -88,6 +88,9 @@ func TestIndependentCollectorsExportMergeablePrivateSummaries(t *testing.T) {
 		doc := waitSummary(t, p.dir, 2)
 		docs = append(docs, doc, doc)
 		metrics := scrapeEventually(t, p.prom, regexp.MustCompile(`gen_ai_sketch_requests_total`))
+		if !regexp.MustCompile(`gen_ai_sketch_requests_total\{[^\n]*otel_scope_version="[^\"]+"`).MatchString(metrics) {
+			t.Fatal("connector metrics have no component scope version")
+		}
 		logs := waitForOutputEventually(t, p.logs, regexp.MustCompile(`genaisketch topk snapshot`))
 		encoded, err := doc.MarshalBinary()
 		if err != nil {

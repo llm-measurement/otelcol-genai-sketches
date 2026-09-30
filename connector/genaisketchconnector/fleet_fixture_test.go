@@ -646,15 +646,15 @@ type stateFingerprintSlice struct {
 }
 
 type stateFingerprintWindow struct {
-	Start                int64  `json:"start"`
-	DistinctUsers        string `json:"distinct_users"`
-	DistinctPrompts      string `json:"distinct_prompts"`
-	DistinctDocs         string `json:"distinct_docs"`
-	DistinctMCPSessions  string `json:"distinct_mcp_sessions,omitempty"`
-	DistinctMCPMethods   string `json:"distinct_mcp_methods,omitempty"`
-	DistinctMCPResources string `json:"distinct_mcp_resources,omitempty"`
-	TopPrompts           string `json:"top_prompts"`
-	TopToolErrors        string `json:"top_tool_errors,omitempty"`
+	Start                int64             `json:"start"`
+	DistinctUsers        string            `json:"distinct_users"`
+	DistinctPrompts      string            `json:"distinct_prompts"`
+	DistinctDocs         string            `json:"distinct_docs"`
+	DistinctMCPSessions  string            `json:"distinct_mcp_sessions,omitempty"`
+	DistinctMCPMethods   string            `json:"distinct_mcp_methods,omitempty"`
+	DistinctMCPResources string            `json:"distinct_mcp_resources,omitempty"`
+	TopKeys              map[string]string `json:"top_keys"`
+	TopToolErrors        string            `json:"top_tool_errors,omitempty"`
 }
 
 func stateFingerprint(t *testing.T, state *collectorState) []byte {
@@ -685,6 +685,10 @@ func stateFingerprint(t *testing.T, state *collectorState) []byte {
 		sort.Slice(starts, func(i, j int) bool { return starts[i] < starts[j] })
 		for _, start := range starts {
 			window := slice.windows[start]
+			topKeys := make(map[string]string, len(window.topKeys))
+			for i, sketch := range window.topKeys {
+				topKeys[state.cfg.topKKeys[i].measurement()] = marshalSketchHex(t, sketch)
+			}
 			fingerprint.Windows = append(fingerprint.Windows, stateFingerprintWindow{
 				Start:                start,
 				DistinctUsers:        marshalSketchHex(t, window.distinctUsers),
@@ -693,7 +697,7 @@ func stateFingerprint(t *testing.T, state *collectorState) []byte {
 				DistinctMCPSessions:  marshalSketchHex(t, window.distinctMCPSessions),
 				DistinctMCPMethods:   marshalSketchHex(t, window.distinctMCPMethods),
 				DistinctMCPResources: marshalSketchHex(t, window.distinctMCPResources),
-				TopPrompts:           marshalSketchHex(t, window.topPrompts),
+				TopKeys:              topKeys,
 				TopToolErrors:        marshalSketchHex(t, window.topToolErrors),
 			})
 		}

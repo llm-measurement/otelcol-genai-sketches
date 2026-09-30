@@ -55,6 +55,21 @@ known window boundary, record the event, and allow old windows to expire.
 
 ## Compatibility
 
+### Session Slice Labels (Unreleased)
+
+The next release adds a default hashed `session_key` reading
+`gen_ai.conversation.id` and `session.id`. Configurations that use either attribute
+in `slices.keys` will fail validation after upgrading, even when session top-k is
+not selected or `topk` is zero. Slice keys cannot overlap hashed-field sources.
+
+Remove these session identifiers from metric slices before upgrading. Keep slice
+keys bounded and non-sensitive; use [session top-k](TOPK_KEYS.md) for hashed session
+attribution instead of a metric label per session. Validate the revised config
+with the new binary before rollout. This validation change does not change the
+base accounting fingerprint.
+
+### Usage Provenance
+
 Source-usage provenance adds eight optional `usage_provenance.v1` counters without
 changing the base accounting fingerprint. Fleetdiff v0.2.0 or later can compare
 older exports with new ones, treating absent provenance as unknown; older consumers

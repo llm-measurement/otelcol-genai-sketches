@@ -5,12 +5,20 @@ updates:
   - package-ecosystem: gomod
     directory: /
     schedule: {interval: weekly}
+    # GO-2026-6443 currently flags 1.84.0; keep the patched 1.83.2 line.
+    # Reassess at the next stable release without suppressing vulnerability scans.
+    ignore:
+      - dependency-name: google.golang.org/grpc
+        versions: ["1.84.0"]
     groups:
       go-runtime:
         patterns: ["*"]
   - package-ecosystem: gomod
     directory: /connector/genaisketchconnector
     schedule: {interval: weekly}
+    ignore:
+      - dependency-name: google.golang.org/grpc
+        versions: ["1.84.0"]
     groups:
       connector-go:
         patterns: ["*"]

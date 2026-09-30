@@ -7,6 +7,12 @@ An OpenTelemetry Collector distribution for continuous, bounded answers about
 high-cardinality agent traffic without exporting or indexing every underlying value.
 It turns GenAI traces into bounded Prometheus metrics and keyed top-k summaries.
 
+By default, top-k ranks prompt signatures by reported tokens, not users.
+The current source also supports [opt-in user and session ranking](docs/TOPK_KEYS.md);
+released v0.2.0 images retain prompt-only model-request ranking.
+Distinct users is per window; for longer periods use a longer `window_duration`
+or merge compatible summary exports, never add distinct-count gauges.
+
 Use it alongside an existing trace backend for token accounting and "token maxing"
 investigations: find where reported token volume is accumulating, measure missing
 usage, and keep high-cardinality identities out of metric labels.
@@ -64,7 +70,7 @@ a fresh secret unless `GENAI_SKETCH_SECRET` is already set. Restarting with a ne
 secret resets pseudonymous comparability. Everything is synthetic; no model account
 or API key is required. Published ports bind only to localhost.
 
-- Grafana: [http://localhost:3000](http://localhost:3000)
+- Grafana: [GenAI Sketches dashboard](http://localhost:3000/d/genai-sketches)
 - Prometheus: [http://localhost:9090](http://localhost:9090)
 - Collector metrics: [http://localhost:8889/metrics](http://localhost:8889/metrics)
 
@@ -84,12 +90,20 @@ Let the example run for at least one minute, then use the dashboard in this orde
 Then inspect the high-cardinality surface:
 
 ```bash
-sh examples/demo.sh logs \
-  | grep 'genaisketch topk snapshot'
+sh examples/demo.sh topk
 ```
 
 The snapshot contains keyed hashes, estimates, and lower and upper bounds. It does
 not contain prompt text, and its hashes never become Prometheus labels.
+
+Run the two synthetic investigations against the running stack:
+
+```bash
+sh examples/demo.sh investigate
+```
+
+This reconciles known request and token counts, then demonstrates how extra tool
+spans and missing usage affect accounting. It makes no model or provider calls.
 
 Stop the example with:
 
@@ -196,14 +210,17 @@ records needed for diagnosis, audit, or replay.
 | `gen_ai_sketch_reasoning_output_tokens_total` | Reported reasoning output tokens; a subset of output |
 | `gen_ai_sketch_missing_token_usage_total` | Matched requests missing either aggregate token field |
 | `gen_ai_sketch_token_field_observations_total` | Fixed-state token completeness and quality observations |
+| `gen_ai_sketch_usage_provenance_total` | Input/output field observations by declared source: provider-reported, inferred, unavailable, or unknown; not token counts |
 | `gen_ai_sketch_active_slices` | Currently retained slice states |
-| `gen_ai_sketch_distinct_users` | Estimated distinct keyed user values |
+| `gen_ai_sketch_distinct_users` | Estimated distinct keyed user values in the current window |
 | `gen_ai_sketch_distinct_prompt_signatures` | Estimated distinct keyed prompt values |
 | `gen_ai_sketch_distinct_retrieval_docs` | Estimated distinct keyed document values |
 
 Optional MCP metrics estimate distinct sessions, methods, and resources. Weighted
-top-k prompt signatures are emitted as structured logs with estimates and lower and
-upper bounds. They never become Prometheus labels. Set `topk: 0` to disable the
+top-k prompt signatures are emitted by default as structured logs with estimates
+and lower and upper bounds. User/session keys are opt-in in the current source;
+session ranking can use tokens or model-request counts. They never become
+Prometheus labels. Set `topk: 0` to disable the
 structured-log surface and its frequent-items state.
 
 See [Production Accounting Semantics](docs/ACCOUNTING.md) for the versioned
@@ -319,6 +336,9 @@ make test-integration
 Packaging checks are available with `make production-image` and `make helm-check`.
 See [Sizing](docs/SIZING.md) and [Upgrading](docs/UPGRADING.md) before a production
 rollout.
+
+See [Contributing](CONTRIBUTING.md) for focused checks and small, reproducible changes.
+Questions or feedback: [open an issue](https://github.com/llm-measurement/otelcol-genai-sketches/issues/new/choose).
 
 The integration suite covers OTLP-to-Prometheus behavior, gRPC and HTTP shadow-mode
 fan-out, bounded overflow, deterministic eviction, restart stability, tree locality,

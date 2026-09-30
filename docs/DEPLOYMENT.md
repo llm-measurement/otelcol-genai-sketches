@@ -10,6 +10,12 @@ chart for a persistent environment.
 
 ## Verify An Image
 
+Prerequisites: Docker with Buildx, curl, [cosign](https://docs.sigstore.dev/cosign/system_config/installation/),
+and the GitHub CLI (`gh`, for attestation verification and release downloads).
+Helm and kubectl are needed only for the Kubernetes path; OpenSSL generates the
+example hashing secret. Verification commands require network access to the
+release and signature metadata.
+
 Use an immutable digest from the GitHub release, not a mutable tag:
 
 Fetch the references from that release's published metadata:
@@ -73,6 +79,35 @@ not prove that the software is vulnerability-free, that a runtime configuration 
 safe, or that the image is suitable for a particular workload. The image includes
 the project license and collected third-party license notices under `/licenses`.
 
+## Run With Docker
+
+After image verification above, run the production configuration locally:
+
+```bash
+export GENAI_SKETCH_SECRET="$(openssl rand -hex 32)"
+docker run --rm --name genai-sketches \
+  --read-only --cap-drop=ALL --security-opt=no-new-privileges \
+  --pids-limit=256 --cpus=2 --memory=2g \
+  -e GENAI_SKETCH_SECRET \
+  -p 127.0.0.1:4317:4317 -p 127.0.0.1:4318:4318 \
+  -p 127.0.0.1:8889:8889 \
+  "${IMAGE_REF:?verify the release image first}"
+```
+
+Host applications send OTLP to localhost on 4317 (gRPC) or 4318 (HTTP);
+Prometheus can scrape `http://127.0.0.1:8889/metrics`. Receivers bind `0.0.0.0`
+inside the container so port publishing works, but only host loopback is
+published. The health port is not published. Do not expose unauthenticated OTLP
+or metrics on a public interface. A host-process collector should keep its
+receiver on `127.0.0.1` unless a reviewed TLS/authentication setup requires otherwise.
+
+Keep the hashing secret in your secret manager for a persistent deployment;
+re-generating it changes pseudonymous identities. Mount a custom configuration
+read-only and pass `--config=/path/in/container.yaml` to override the default.
+Summary exports need a private writable volume; see the
+[LiteLLM container recipe](../examples/integrations/litellm/README.md#collector-in-docker)
+for an example. Ctrl-C stops this foreground container.
+
 ## Central Collector With Helm
 
 Create the hash secret without placing it in a values file:
@@ -109,10 +144,29 @@ but HLL estimates and top-k state cannot be merged by Prometheus. For scale-out,
 route each stable tenant or workload shard to one chart release and keep the shard
 identity in the release name and Prometheus external labels.
 
-Source builds also support [opt-in summary file export](SUMMARY_EXCHANGE.md).
+Release images from v0.1.0 and source builds support
+[opt-in summary file export](SUMMARY_EXCHANGE.md).
 It exports complete state for local combination across independent collectors;
 it does not make Prometheus able to merge sketches. The chart does not enable
 this export or provision its private writable volume.
+
+For a supporting source-built image, `connector.topKKeys` passes through the
+optional key list; its default `[]` omits `topk_keys` and preserves prompt-only
+ranking. Pin that image explicitly before opting in: the chart's v0.2.0 image
+does not understand this new option. See [Top-K Keys](TOPK_KEYS.md).
+Additional keys allocate sketch state per slice and retained window. The chart's
+2 GiB limit is not a sizing recommendation for extra keys; consult the
+[measured additional-key costs](SIZING.md) and measure the intended workload.
+
+## Source Build Versions
+
+`make dist` and `make production-image` use the development version in
+`builder.yaml`. To identify a particular build, pass `VERSION=0.3.0-rc.1` to
+either command, or `--build-arg VERSION=0.3.0-rc.1` to Docker. This is a build
+label, not a published release. The generated distribution version and connector
+component inventory use the same value, while the local connector path remains
+unchanged. Build commands ignore a parent Go workspace so local replacements
+cannot silently change clean-build dependency resolution.
 
 ## Keep An Existing Trace Backend
 

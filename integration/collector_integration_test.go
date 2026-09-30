@@ -430,6 +430,7 @@ type otlpSpanSpec struct {
 	Model          string
 	Team           string
 	User           string
+	Session        string
 	Prompt         string
 	Doc            string
 	InputTokens    *int64
@@ -478,6 +479,9 @@ func traceRequest(specs ...otlpSpanSpec) *tracecollectorpb.ExportTraceServiceReq
 		}
 		if spec.User != "" {
 			attrs = append(attrs, stringKV("enduser.id", spec.User))
+		}
+		if spec.Session != "" {
+			attrs = append(attrs, stringKV("gen_ai.conversation.id", spec.Session))
 		}
 		if spec.Prompt != "" {
 			attrs = append(attrs, stringKV("gen_ai.request.prompt", spec.Prompt))

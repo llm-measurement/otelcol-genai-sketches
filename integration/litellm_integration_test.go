@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/llm-measurement/llm-sketchkit/go/sketchkit/frequentitems"
 	"go.yaml.in/yaml/v3"
 )
 
@@ -48,6 +49,7 @@ func TestLiteLLMRecipeOTLPHTTP(t *testing.T) {
 			cfg["exporters"].(map[string]any)["prometheus"].(map[string]any)["endpoint"] = fmt.Sprintf("127.0.0.1:%d", prom)
 			connector := cfg["connectors"].(map[string]any)["genaisketch"].(map[string]any)
 			connector["window_duration"] = "24h"
+			connector["topk_keys"] = []any{map[string]any{"field": "prompt_key"}, map[string]any{"field": "user_key"}}
 			connector["summary_export"] = map[string]any{"directory": dir, "producer_id": "app", "scope_id": "app-investigation", "key_id": "synthetic", "interval": "1s"}
 			data, err = yaml.Marshal(cfg)
 			if err != nil {
@@ -130,6 +132,14 @@ func TestLiteLLMRecipeOTLPHTTP(t *testing.T) {
 			}
 			metrics := scrapeEventually(t, prom, regexp.MustCompile(`gen_ai_sketch_requests_total`))
 			if name == "before" {
+				topUsers, err := frequentitems.Parse(doc.Sketches["top_users"].Data)
+				if err != nil {
+					t.Fatal(err)
+				}
+				users, err := topUsers.FrequentItems(frequentitems.NoFalseNegatives)
+				if err != nil || topUsers.TotalWeight() != 200 || len(users) != 1 || users[0].LowerBound != 200 || users[0].UpperBound != 200 {
+					t.Fatal("LiteLLM enduser.id did not produce token-weighted top_users")
+				}
 				if doc.Counters["usage_provenance.v1.input.unknown"] != 2 || doc.Counters["usage_provenance.v1.output.unknown"] != 2 {
 					t.Fatal(doc.Counters)
 				}
@@ -175,6 +185,19 @@ func TestLiteLLMRecipeOTLPHTTP(t *testing.T) {
 			for _, payload := range doc.Sketches {
 				if bytes.Contains(payload.Data, []byte("PRIVATE_LITELLM")) {
 					t.Fatal("sentinel in sketch bytes")
+				}
+			}
+			users, err := frequentitems.Parse(doc.Sketches["top_users"].Data)
+			if err != nil {
+				t.Fatal(err)
+			}
+			items, err := users.FrequentItems(frequentitems.NoFalseNegatives)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, item := range items {
+				if strings.Contains(metrics, fmt.Sprintf("%016x", item.Hash)) {
+					t.Fatal("top user hash in metric labels")
 				}
 			}
 		})

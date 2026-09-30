@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: Apache-2.0
+# Code authors: Vijay and Codex
+name: Question or feedback
+description: Ask about configuration, interpretation, or the evaluation experience.
+body:
+  - type: markdown
+    attributes:
+      value: "Please use synthetic examples and redact secrets, identities, private summaries, and raw content."
+  - type: textarea
+    id: question
+    attributes:
+      label: Question or feedback
+      description: Include the version, relevant guide, and the result you are trying to understand.
+    validations:
+      required: true

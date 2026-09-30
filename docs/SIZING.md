@@ -40,13 +40,52 @@ the load test with the intended exporters, label views, profiles, and traffic mi
 | Increase `retention_windows` | Roughly proportional growth in retained sketch state, not cumulative counters |
 | Increase sketch profile | Better accuracy with more memory per active slice and window |
 | Increase `topk` | Larger structured snapshots; it does not create metric labels |
+| Add a `topk_keys` entry | Another frequent-items sketch per slice and retained window, and per summary-export scope window |
 | Set `topk: 0` | No frequent-items state or structured top-k snapshots |
 | Enable MCP or tool-error fields | Additional sketches only for slices and windows where those values appear |
 | Enable deduplication | One Bloom filter per active slice and retained window |
 
 `max_slices` is global for ordinary values. Each configured slice can also have one
 fixed overflow state. Top-k snapshots are globally capped at 10,000 emitted items
-per snapshot even when `topk * active slices` is larger.
+per snapshot even when `topk * active slices * selected keys` is larger.
+
+## Cost Per Top-K Key
+
+Measured on September 30, 2026 with the benchmark source included in this change:
+Apple M4 Max (16 logical CPUs), 64 GiB RAM, macOS 27.0 build 26A428, Go 1.26.6,
+native ARM64, `small` frequent-items profile. Five runs per case; the table shows
+the least favorable value. The machine was not CPU-isolated; other development
+checks ran during part of the measurement. These are local microbenchmarks, not
+new throughput or production-capacity claims.
+
+```sh
+GOWORK=off GOCACHE="$PWD/.cache/go-build" GOMODCACHE="$PWD/.cache/go-mod" \
+  go -C connector/genaisketchconnector test -tags load -run '^$' \
+  -bench BenchmarkTopKKeys -benchmem -benchtime=1s -count=5
+```
+
+| Selected keys | Allocation per new slice/window | Time per 1,000-attempt batch |
+| --- | ---: | ---: |
+| None (`topk: 0`) | 528 bytes | Not measured |
+| Prompt | 59,704 bytes | 4.002 ms |
+| Prompt + user | 118,888 bytes | 4.003 ms |
+| Prompt + user + session | 178,088 bytes | 4.821 ms |
+| Prompt + user + session + document | 237,256 bytes | 4.808 ms |
+
+Each extra key allocates about **59,200 bytes (57.8 KiB) per slice per window**.
+The allocation benchmark creates an empty window, including the three unchanged
+HLL sketches. This is allocated memory, not an RSS limit. The consume benchmark
+uses one slice, 100 identities, and 10% missing usage, with token weighting for
+every key. It includes hashing, updates, and metric construction, but no transport
+or snapshot serialization. User/document hashes are already computed for distinct
+counts; session attribution adds hashing work. Neither case measures a hot,
+high-cardinality deployment's full cost.
+
+For scale: two extra keys across 1,000 slices and 10 windows add roughly 1.1 GiB of
+new-window allocation footprint before exporter, snapshot, overflow, and runtime
+headroom. The default 2 GiB chart limit is **not** a recommendation for that expanded
+configuration. Include overflow states and summary-export scope windows in the
+budget, then rerun the workload with the intended keys and profiles.
 
 ## Choosing A Starting Point
 

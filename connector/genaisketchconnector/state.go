@@ -47,6 +47,7 @@ type runtimeConfig struct {
 	retentionWindows     int
 	maxSlices            int
 	topK                 int
+	topKKeys             []TopKKeyConfig
 	hllppProfile         hllpp.Profile
 	frequentProfile      sketchfi.Profile
 	bloomProfile         sketchbloom.Profile
@@ -121,7 +122,7 @@ type windowState struct {
 	distinctMCPSessions  *hllpp.Sketch
 	distinctMCPMethods   *hllpp.Sketch
 	distinctMCPResources *hllpp.Sketch
-	topPrompts           *sketchfi.Sketch
+	topKeys              []*sketchfi.Sketch
 	topToolErrors        *sketchfi.Sketch
 	dedupRequests        *sketchbloom.Sketch
 }
@@ -139,6 +140,7 @@ type TopKSlice struct {
 	SliceValue             string     `json:"slice_value"`
 	Overflow               bool       `json:"overflow"`
 	Field                  string     `json:"field"`
+	Weight                 string     `json:"weight,omitempty"`
 	Mode                   string     `json:"mode"`
 	WindowStartUnixNano    int64      `json:"window_start_unix_nano"`
 	WindowDurationUnixNano int64      `json:"window_duration_unix_nano"`
@@ -244,8 +246,8 @@ type preparedUpdate struct {
 	mcpSessionHash  optionalHash
 	mcpMethodHash   optionalHash
 	mcpResourceHash optionalHash
-	topPromptHash   optionalHash
-	topPromptWeight int64
+	topKeyHashes    [4]optionalHash
+	topKeyWeights   [4]int64
 	toolErrorHash   optionalHash
 }
 
@@ -272,6 +274,10 @@ func newCollectorState(cfg *Config, secret sketchhash.Secret, clk clock) (*colle
 }
 
 func compileRuntimeConfig(cfg *Config) (runtimeConfig, error) {
+	keys, err := configuredTopKKeys(cfg)
+	if err != nil {
+		return runtimeConfig{}, err
+	}
 	fields := make(map[string]compiledField, len(cfg.Fields))
 	for name, field := range cfg.Fields {
 		fields[name] = compiledField{
@@ -291,6 +297,7 @@ func compileRuntimeConfig(cfg *Config) (runtimeConfig, error) {
 		retentionWindows:     cfg.RetentionWindows,
 		maxSlices:            cfg.MaxSlices,
 		topK:                 cfg.TopK,
+		topKKeys:             keys,
 		hllppProfile:         hllpp.Profile(cfg.Profiles.HLLPP),
 		frequentProfile:      sketchfi.Profile(cfg.Profiles.FrequentItems),
 		bloomProfile:         sketchbloom.Profile(cfg.Profiles.Bloom),
@@ -325,19 +332,7 @@ func (s *collectorState) ConsumeTraces(_ context.Context, traces ptrace.Traces) 
 		return pmetric.Metrics{}, false, nil
 	}
 	_, err = s.visitRelevantSpans(traces, func(data spanData, update spanUpdate) error {
-		for _, sliceCfg := range s.cfg.slices {
-			slice, err := s.sliceFor(sliceCfg, data, now, windowStart)
-			if err != nil {
-				return err
-			}
-			if err := slice.update(windowStart, s, data, update); err != nil {
-				return err
-			}
-		}
-		if s.summary != nil {
-			return s.summary.update(windowStart, s, data, update)
-		}
-		return nil
+		return s.applySpan(data, update, now, windowStart)
 	})
 	if err != nil {
 		return pmetric.Metrics{}, false, err
@@ -394,6 +389,16 @@ func (s *collectorState) validateHashedInputs(data spanData, update spanUpdate) 
 				return err
 			}
 		}
+		if s.cfg.topK > 0 {
+			for _, key := range s.cfg.topKKeys {
+				if key.Field == fieldUserKey || key.Field == fieldPromptKey || key.Field == fieldDocKey {
+					continue
+				}
+				if _, err := s.hashDataField(key.Field, data); err != nil {
+					return err
+				}
+			}
+		}
 	}
 	if update.mcp {
 		for _, field := range []string{fieldMCPSessionKey, fieldMCPMethodKey, fieldMCPResourceKey} {
@@ -432,84 +437,10 @@ func (s *collectorState) classifySpan(span ptrace.Span, data spanData) (spanUpda
 	return update, nil
 }
 
-func (s *collectorState) sliceFor(sliceCfg SliceConfig, data spanData, now time.Time, windowStart int64) (*sliceState, error) {
-	label := sliceLabelFor(sliceCfg, data)
-	if existing, ok := s.slices[label.sortKey]; ok {
-		s.touch(existing, windowStart)
-		return existing, nil
-	}
-
-	if len(s.slices) < s.cfg.maxSlices {
-		return s.createSlice(label, now, windowStart)
-	}
-
-	if evicted := s.evictInactive(windowStart); evicted {
-		return s.createSlice(label, now, windowStart)
-	}
-
-	return s.overflowSlice(sliceCfg.Name, now, windowStart), nil
-}
-
-func (s *collectorState) createSlice(label sliceLabel, now time.Time, windowStart int64) (*sliceState, error) {
-	state := &sliceState{
-		label:     label,
-		windows:   make(map[int64]*windowState),
-		startTime: pcommon.NewTimestampFromTime(now),
-	}
-	s.touch(state, windowStart)
-	s.slices[label.sortKey] = state
-	return state, nil
-}
-
-func (s *collectorState) overflowSlice(sliceName string, now time.Time, windowStart int64) *sliceState {
-	if existing, ok := s.overflows[sliceName]; ok {
-		s.touch(existing, windowStart)
-		return existing
-	}
-
-	label := sliceLabel{
-		name:     sliceName,
-		value:    overflowSliceValue,
-		overflow: true,
-		sortKey:  "overflow:" + sliceName,
-	}
-	state := &sliceState{
-		label:     label,
-		windows:   make(map[int64]*windowState),
-		startTime: pcommon.NewTimestampFromTime(now),
-	}
-	s.touch(state, windowStart)
-	s.overflows[sliceName] = state
-	return state
-}
-
 func (s *collectorState) touch(state *sliceState, windowStart int64) {
 	s.nextLRUSeq++
 	state.lastWindow = windowStart
 	state.lruSequence = s.nextLRUSeq
-}
-
-func (s *collectorState) evictInactive(currentWindowStart int64) bool {
-	protectedWindowStart := currentWindowStart - s.cfg.windowDuration.Nanoseconds()
-	var victimKey string
-	var victim *sliceState
-	for key, candidate := range s.slices {
-		if candidate.lastWindow >= protectedWindowStart {
-			continue
-		}
-		if victim == nil ||
-			candidate.lastWindow < victim.lastWindow ||
-			(candidate.lastWindow == victim.lastWindow && candidate.lruSequence < victim.lruSequence) ||
-			(candidate.lastWindow == victim.lastWindow && candidate.lruSequence == victim.lruSequence && key < victimKey) {
-			victimKey = key
-			victim = candidate
-		}
-	}
-	if victim == nil {
-		return false
-	}
-	delete(s.slices, victimKey)
-	return true
 }
 
 func (s *collectorState) activeSliceCount() int {
@@ -526,16 +457,7 @@ func (s *collectorState) cutoffWindowStart(currentWindowStart int64) int64 {
 	return currentWindowStart - retained*s.cfg.windowDuration.Nanoseconds()
 }
 
-func (s *sliceState) update(windowStart int64, owner *collectorState, data spanData, update spanUpdate) error {
-	window, err := s.window(windowStart, owner)
-	if err != nil {
-		return err
-	}
-
-	prepared, err := owner.prepareUpdate(window, data, update)
-	if err != nil {
-		return err
-	}
+func (s *sliceState) checkUpdate(window *windowState, update spanUpdate, prepared preparedUpdate) error {
 	if prepared.deduped {
 		if _, err := checkedAddUint64("slice.dedup_suppressed", s.dedupSuppressed, 1); err != nil {
 			return err
@@ -544,26 +466,30 @@ func (s *sliceState) update(windowStart int64, owner *collectorState, data spanD
 			if _, err := checkedAddUint64("summary.dedup_suppressed", window.counters.dedupSuppressed, 1); err != nil {
 				return err
 			}
-			window.counters.dedupSuppressed++
+			if window.counters.dedupSuppressed >= math.MaxInt64 {
+				return errors.New("summary dedup counter overflow")
+			}
 		}
-		s.dedupSuppressed++
 		return nil
 	}
-	if err := s.checkCounters(update, prepared); err != nil {
+	if err := s.checkCounters(update, prepared, math.MaxUint64); err != nil {
 		return err
 	}
 	if window.counters != nil {
-		if err := window.counters.checkCounters(update, prepared); err != nil {
+		if err := window.counters.checkCounters(update, prepared, math.MaxInt64); err != nil {
 			return err
 		}
 	}
-	if err := owner.applyErrorCheckedSketches(window, prepared); err != nil {
-		return err
+	for i, hash := range prepared.topKeyHashes {
+		if hash.ok && window.topKeys[i].TotalWeight() > maxInt64Value-prepared.topKeyWeights[i] {
+			return errors.New("top-k total weight overflow")
+		}
 	}
-	owner.applyNoErrorSketches(window, prepared)
-	s.addCounters(update, prepared)
-	if window.counters != nil {
-		window.counters.addCounters(update, prepared)
+	if prepared.toolErrorHash.ok && window.topToolErrors != nil && window.topToolErrors.TotalWeight() == maxInt64Value {
+		return errors.New("tool-error total weight overflow")
+	}
+	if prepared.dedupHash.ok && window.dedupRequests.InsertedCount() == math.MaxUint64 {
+		return sketchbloom.ErrCountOverflow
 	}
 	return nil
 }
@@ -587,13 +513,41 @@ func (s *collectorState) prepareUpdate(window *windowState, data spanData, updat
 		if prepared.docHash, err = s.hashDataField(fieldDocKey, data); err != nil {
 			return preparedUpdate{}, err
 		}
-		if s.cfg.topK > 0 && update.totals.missingTokens == 0 && prepared.promptHash.ok {
-			weight, ok, err := topKWeight(update.totals)
-			if err != nil {
-				return preparedUpdate{}, err
+		if s.cfg.topK > 0 {
+			for i, key := range s.cfg.topKKeys {
+				if key.Weight == "tokens" && update.totals.missingTokens != 0 {
+					continue
+				}
+				var hash optionalHash
+				switch key.Field {
+				case fieldPromptKey:
+					hash = prepared.promptHash
+				case fieldUserKey:
+					hash = prepared.userHash
+				case fieldDocKey:
+					hash = prepared.docHash
+				default:
+					hash, err = s.hashDataField(key.Field, data)
+				}
+				if err != nil {
+					return preparedUpdate{}, err
+				}
+				if !hash.ok {
+					continue
+				}
+				weight := int64(1)
+				if key.Weight == "tokens" {
+					var ok bool
+					weight, ok, err = topKWeight(update.totals)
+					if err != nil {
+						return preparedUpdate{}, err
+					}
+					if !ok {
+						continue
+					}
+				}
+				prepared.topKeyHashes[i], prepared.topKeyWeights[i] = hash, weight
 			}
-			prepared.topPromptHash = optionalHash{value: prepared.promptHash.value, ok: ok}
-			prepared.topPromptWeight = weight
 		}
 	}
 	if update.mcp {
@@ -633,10 +587,20 @@ func (s *collectorState) prepareDedup(window *windowState, data spanData) (optio
 	return optionalHash{value: hashValue, ok: true}, window.dedupRequests.MayContainHash(hashValue), false, nil
 }
 
-func (s *accountingCounters) checkCounters(update spanUpdate, prepared preparedUpdate) error {
+func (s *accountingCounters) checkCounters(update spanUpdate, prepared preparedUpdate, limit uint64) error {
+	check := func(name string, current, delta uint64) error {
+		value, err := checkedAddUint64(name, current, delta)
+		if err != nil {
+			return err
+		}
+		if value > limit {
+			return fmt.Errorf("%s exceeds counter limit", name)
+		}
+		return nil
+	}
 	for field := range usageProvenanceFields {
 		for state := range usageProvenanceStates {
-			if _, err := checkedAddUint64("slice.usage_provenance", s.usageProvenance[field][state], update.totals.usageProvenance[field][state]); err != nil {
+			if err := check("slice.usage_provenance", s.usageProvenance[field][state], update.totals.usageProvenance[field][state]); err != nil {
 				return err
 			}
 		}
@@ -654,12 +618,12 @@ func (s *accountingCounters) checkCounters(update spanUpdate, prepared preparedU
 		{name: "slice.reasoning_output_tokens", current: s.reasoningOutputTokens, delta: update.totals.reasoningOutputTokens},
 		{name: "slice.missing_tokens", current: s.missingTokens, delta: update.totals.missingTokens},
 	} {
-		if _, err := checkedAddUint64(item.name, item.current, item.delta); err != nil {
+		if err := check(item.name, item.current, item.delta); err != nil {
 			return err
 		}
 	}
 	if update.agentRun {
-		if _, err := checkedAddUint64("slice.agent_runs", s.agentRuns, 1); err != nil {
+		if err := check("slice.agent_runs", s.agentRuns, 1); err != nil {
 			return err
 		}
 	}
@@ -667,13 +631,13 @@ func (s *accountingCounters) checkCounters(update spanUpdate, prepared preparedU
 		for state := tokenObservationState(0); state < tokenStateCount; state++ {
 			delta := update.totals.tokenObservations[field][state]
 			name := tokenFieldNames[field] + "." + tokenObservationStateNames[state]
-			if _, err := checkedAddUint64("slice.token_observations."+name, s.tokenObservations[field][state], delta); err != nil {
+			if err := check("slice.token_observations."+name, s.tokenObservations[field][state], delta); err != nil {
 				return err
 			}
 		}
 	}
 	if prepared.dedupKeyMissing {
-		if _, err := checkedAddUint64("slice.dedup_key_missing", s.dedupKeyMissing, 1); err != nil {
+		if err := check("slice.dedup_key_missing", s.dedupKeyMissing, 1); err != nil {
 			return err
 		}
 	}
@@ -686,9 +650,11 @@ func (s *collectorState) applyErrorCheckedSketches(window *windowState, prepared
 			return err
 		}
 	}
-	if prepared.topPromptHash.ok {
-		if err := window.topPrompts.AddHash(prepared.topPromptHash.value, prepared.topPromptWeight); err != nil {
-			return err
+	for i, hash := range prepared.topKeyHashes {
+		if hash.ok {
+			if err := window.topKeys[i].AddHash(hash.value, prepared.topKeyWeights[i]); err != nil {
+				return err
+			}
 		}
 	}
 	if prepared.toolErrorHash.ok {
@@ -782,7 +748,14 @@ func (s *sliceState) window(windowStart int64, owner *collectorState) (*windowSt
 	if existing, ok := s.windows[windowStart]; ok {
 		return existing, nil
 	}
+	window, err := s.newWindow(owner)
+	if err == nil {
+		s.windows[windowStart] = window
+	}
+	return window, err
+}
 
+func (s *sliceState) newWindow(owner *collectorState) (*windowState, error) {
 	userField := owner.cfg.fields[fieldUserKey]
 	promptField := owner.cfg.fields[fieldPromptKey]
 	docField := owner.cfg.fields[fieldDocKey]
@@ -799,11 +772,14 @@ func (s *sliceState) window(windowStart int64, owner *collectorState) (*windowSt
 	if err != nil {
 		return nil, err
 	}
-	var topPrompts *sketchfi.Sketch
+	var topKeys []*sketchfi.Sketch
 	if owner.cfg.topK > 0 {
-		topPrompts, err = sketchfi.New(owner.cfg.frequentProfile, promptField.domain, sketchhash.HMACSHA25664)
-		if err != nil {
-			return nil, err
+		for _, key := range owner.cfg.topKKeys {
+			sketch, err := sketchfi.New(owner.cfg.frequentProfile, owner.cfg.fields[key.Field].domain, sketchhash.HMACSHA25664)
+			if err != nil {
+				return nil, err
+			}
+			topKeys = append(topKeys, sketch)
 		}
 	}
 	var dedupRequests *sketchbloom.Sketch
@@ -818,13 +794,12 @@ func (s *sliceState) window(windowStart int64, owner *collectorState) (*windowSt
 		distinctUsers:   users,
 		distinctPrompts: prompts,
 		distinctDocs:    docs,
-		topPrompts:      topPrompts,
+		topKeys:         topKeys,
 		dedupRequests:   dedupRequests,
 	}
 	if s == owner.summary {
 		window.counters = &accountingCounters{}
 	}
-	s.windows[windowStart] = window
 	return window, nil
 }
 
@@ -1145,6 +1120,7 @@ func (s *collectorState) buildMetrics(now time.Time) pmetric.Metrics {
 	resourceMetrics := metrics.ResourceMetrics().AppendEmpty()
 	scopeMetrics := resourceMetrics.ScopeMetrics().AppendEmpty()
 	scopeMetrics.Scope().SetName(scopeName)
+	scopeMetrics.Scope().SetVersion(scopeVersion)
 
 	timestamp := pcommon.NewTimestampFromTime(now)
 	appendGauge(scopeMetrics, activeSlicesMetricName, "Number of active non-overflow GenAI sketch slices.", "{slice}", float64(s.activeSliceCount()), nil, timestamp)
@@ -1223,17 +1199,19 @@ func (s *collectorState) TopKSnapshot(now time.Time) (TopKSnapshot, error) {
 		if window == nil {
 			continue
 		}
-		if err := s.appendFrequentItemsSnapshot(&snapshot, slice, currentWindow, fieldPromptKey, window.topPrompts); err != nil {
-			return TopKSnapshot{}, err
+		for i, key := range s.cfg.topKKeys {
+			if err := s.appendFrequentItemsSnapshot(&snapshot, slice, currentWindow, key.Field, key.Weight, window.topKeys[i]); err != nil {
+				return TopKSnapshot{}, err
+			}
 		}
-		if err := s.appendFrequentItemsSnapshot(&snapshot, slice, currentWindow, fieldToolErrorKey, window.topToolErrors); err != nil {
+		if err := s.appendFrequentItemsSnapshot(&snapshot, slice, currentWindow, fieldToolErrorKey, "", window.topToolErrors); err != nil {
 			return TopKSnapshot{}, err
 		}
 	}
 	return snapshot, nil
 }
 
-func (s *collectorState) appendFrequentItemsSnapshot(snapshot *TopKSnapshot, slice *sliceState, currentWindow int64, field string, sketch *sketchfi.Sketch) error {
+func (s *collectorState) appendFrequentItemsSnapshot(snapshot *TopKSnapshot, slice *sliceState, currentWindow int64, field, weight string, sketch *sketchfi.Sketch) error {
 	if sketch == nil {
 		return nil
 	}
@@ -1264,6 +1242,9 @@ func (s *collectorState) appendFrequentItemsSnapshot(snapshot *TopKSnapshot, sli
 		TotalWeight:            sketch.TotalWeight(),
 		MaxError:               sketch.MaxError(),
 		Items:                  make([]TopKItem, 0, len(items)),
+	}
+	if weight == "requests" {
+		topSlice.Weight = "requests"
 	}
 	for i, item := range items {
 		topSlice.Items = append(topSlice.Items, TopKItem{

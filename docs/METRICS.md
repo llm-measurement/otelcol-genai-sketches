@@ -75,8 +75,19 @@ not additional runs.
 ## Top-K Summaries
 
 Every five seconds, the connector can emit a structured `genaisketch topk snapshot`
-log containing keyed prompt signatures, weighted estimates, and lower and upper
-bounds. These signatures never appear as Prometheus metric labels.
+log containing keyed prompt signatures by default, weighted estimates, and lower
+and upper bounds. These signatures never appear as Prometheus metric labels.
+
+Current source builds support opt-in [user/session keys](TOPK_KEYS.md).
+The existing snapshot's `field` selects `prompt_key`, `user_key`, or `session_key`.
+An absent `weight` means tokens for these fields; `weight: requests` marks request
+units explicitly. Do not compare or add token and request estimates. Each entry
+also includes the slice, window, total weight, maximum error, and ranked items.
+
+In the demo, `sh examples/demo.sh topk` displays the latest snapshot. Use
+`sh examples/demo.sh topk user_key` or `sh examples/demo.sh topk session_key` only
+after enabling that key in the collector configuration. The default remains
+prompt ranking; user distinct estimates do not imply user top-k is enabled.
 
 Set `topk: 0` to disable this log surface. Disabled top-k also avoids constructing
 or updating the corresponding frequent-items state; it does not disable counters or

@@ -20,8 +20,23 @@ func main() {
 }
 
 func run() error {
+	if len(os.Args) == 4 && os.Args[1] == "--distribution" {
+		data, err := os.ReadFile("builder.yaml")
+		if err != nil {
+			return err
+		}
+		updated, err := distributionManifest(data, os.Args[2])
+		if err != nil {
+			return err
+		}
+		previous, err := os.ReadFile(os.Args[3])
+		if err == nil && bytes.Equal(previous, updated) {
+			return nil
+		}
+		return os.WriteFile(os.Args[3], updated, 0644)
+	}
 	if len(os.Args) != 2 {
-		return fmt.Errorf("usage: go run ./scripts/collector-version v0.MINOR.PATCH")
+		return fmt.Errorf("usage: go run ./scripts/collector-version v0.MINOR.PATCH | --distribution VERSION OUTPUT")
 	}
 	target := os.Args[1]
 	data, err := os.ReadFile("builder.yaml")
@@ -36,6 +51,45 @@ func run() error {
 		return err
 	}
 	return os.WriteFile("otel.version", []byte(target+"\n"), 0644)
+}
+
+// Generate build-only metadata without changing the checked-in source manifest.
+func distributionManifest(data []byte, version string) ([]byte, error) {
+	var manifest map[string]any
+	if err := yaml.Unmarshal(data, &manifest); err != nil {
+		return nil, err
+	}
+	dist, ok := manifest["dist"].(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("manifest must contain dist")
+	}
+	if version == "" {
+		version, _ = dist["version"].(string)
+	}
+	version = strings.TrimPrefix(version, "v")
+	if !regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$`).MatchString(version) {
+		return nil, fmt.Errorf("expected a distribution release or prerelease version, got %q", version)
+	}
+	dist["version"] = version
+	const module = "github.com/llm-measurement/otelcol-genai-sketches/connector/genaisketchconnector"
+	connectors, _ := manifest["connectors"].([]any)
+	found := false
+	for _, entry := range connectors {
+		connector, ok := entry.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("connector must be a mapping")
+		}
+		gomod, _ := connector["gomod"].(string)
+		parts := strings.Fields(gomod)
+		if len(parts) == 2 && parts[0] == module {
+			connector["gomod"] = module + " v" + version
+			found = true
+		}
+	}
+	if !found {
+		return nil, fmt.Errorf("manifest must contain the genaisketch connector")
+	}
+	return yaml.Marshal(manifest)
 }
 
 func updateManifest(data []byte, target string) ([]byte, error) {

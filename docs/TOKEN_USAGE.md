@@ -150,14 +150,18 @@ snapshot` structured log records. Set `topk: 0` to omit this surface and its
 frequent-items state. In the example stack:
 
 ```bash
-docker compose -f examples/compose.yaml logs collector \
-  | grep 'genaisketch topk snapshot'
+sh examples/demo.sh topk
 ```
 
 Each slice entry includes the window, total reported weight, maximum error, and
 ranked keyed hashes with `estimate`, `lower_bound`, and `upper_bound`. The snapshot
 uses no-false-negative mode, favoring recall when selecting candidate heavy hitters.
 The bounds, rather than the estimate alone, describe what the sketch guarantees.
+
+Prompt signatures are the default ranking. Current source builds can opt into
+user/session keys with [topk_keys](TOPK_KEYS.md), then select them
+with `sh examples/demo.sh topk user_key` or `sh examples/demo.sh topk session_key`.
+The displayed unit is tokens unless that entry explicitly uses request weights.
 
 Prompt hashes are pseudonymous and stable only while the same secret and domain are
 in use. They are not Prometheus labels and do not reveal prompt text. An application

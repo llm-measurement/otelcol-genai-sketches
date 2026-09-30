@@ -29,6 +29,7 @@ type Config struct {
 	RetentionWindows int                    `mapstructure:"retention_windows"`
 	MaxSlices        int                    `mapstructure:"max_slices"`
 	TopK             int                    `mapstructure:"topk"`
+	TopKKeys         []TopKKeyConfig        `mapstructure:"topk_keys"`
 	Profiles         ProfilesConfig         `mapstructure:"profiles"`
 	Hashing          HashingConfig          `mapstructure:"hashing"`
 	OperationFilter  OperationFilterConfig  `mapstructure:"operation_filter"`
@@ -114,6 +115,11 @@ func defaultConfig() *Config {
 			{Name: "by_team_model", Keys: []string{"team.id", "gen_ai.request.model"}, FromResourceAttributes: []string{"team.id", "gen_ai.request.model"}},
 		},
 		Fields: map[string]FieldConfig{
+			fieldSessionKey: {
+				FromAttributes:   []string{"gen_ai.conversation.id", "session.id"},
+				Canonicalization: "text_v1",
+				Domain:           string(sketchhash.SessionV1),
+			},
 			"user_key": {
 				FromAttributes:         []string{"enduser.id", "user.id"},
 				FromResourceAttributes: []string{"enduser.id", "user.id"},
