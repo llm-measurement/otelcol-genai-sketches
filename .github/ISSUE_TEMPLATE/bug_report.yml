@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: Apache-2.0
+# Code authors: Vijay and Codex
+name: Bug report
+description: Report a reproducible collector, demo, or packaging problem.
+body:
+  - type: markdown
+    attributes:
+      value: "Use synthetic data. Do not include secrets, raw prompts, identities, private summaries, or unredacted logs. Report vulnerabilities through SECURITY.md."
+  - type: input
+    id: version
+    attributes:
+      label: Version and environment
+      description: Collector tag or source revision, image digest if relevant, OS/architecture, and deployment method.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Commands, redacted configuration, and synthetic span attributes.
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Expected and observed result
+      description: Include the accounting view, window, units, and missing-usage state when relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: Checks already run
+      description: Focused test results and any known limits. Sanitize paths and log excerpts.

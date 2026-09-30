@@ -4,6 +4,19 @@ Notable user-visible changes are recorded here.
 
 ## Unreleased
 
+- Add opt-in user, session, and other hashed-key rankings with token or model-attempt
+  weights. Preserve default export bytes and base accounting compatibility; new
+  extraction-contract markers prevent incompatible rankings from combining.
+  Keep all keys out of metric labels and retain the global snapshot limit.
+- Configurations using `session.id` or `gen_ai.conversation.id` as slice keys now
+  fail validation because they overlap the new default hashed session field,
+  even when session top-k is disabled. Remove those identifiers from metric slices
+  before upgrading; see [Upgrading](docs/UPGRADING.md#session-slice-labels-unreleased).
+- Preflight cumulative counter and sketch limits across every destination before
+  applying a span, including summary wire limits and slice eviction.
+- Report the connector module version in component inventory and metric scope
+  metadata. Add demo top-k output, configurable Helm rankings, and deployment
+  and field-mapping examples.
 - Preserve validated cached-input and reasoning-output subsets in the opt-in
   LiteLLM 1.102.1 callback for non-streaming OpenAI-compatible chat. Missing,
   invalid, or conflicting subsets are omitted; token totals are unchanged.

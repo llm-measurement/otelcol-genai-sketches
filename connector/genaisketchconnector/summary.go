@@ -51,13 +51,14 @@ func (cfg SummaryExportConfig) Validate(window time.Duration) error {
 }
 
 type summaryExporter struct {
-	root         *os.Root
-	cfg          SummaryExportConfig
-	accountingID string
-	epoch        string
-	started      time.Time
-	lastExport   time.Time
-	sequence     uint64
+	root          *os.Root
+	cfg           SummaryExportConfig
+	accountingID  string
+	epoch         string
+	started       time.Time
+	lastExport    time.Time
+	sequence      uint64
+	topKContracts []string
 }
 
 func newSummaryExporter(cfg *Config, now time.Time) (*summaryExporter, error) {
@@ -91,6 +92,25 @@ func newSummaryExporter(cfg *Config, now time.Time) (*summaryExporter, error) {
 		return nil, err
 	}
 	// Fingerprint extraction rules, not locations, keys, slice budgets, or transport.
+	keys, err := configuredTopKKeys(cfg)
+	if err != nil {
+		_ = root.Close()
+		return nil, err
+	}
+	fields := make(map[string]FieldConfig, len(cfg.Fields))
+	// Optional extraction rules belong only to their per-measurement contracts,
+	// independent of which keys are selected or whether top-k is enabled.
+	for name, field := range cfg.Fields {
+		if baseMeasurementField(name) {
+			fields[name] = field
+		}
+	}
+	var contracts []string
+	for _, key := range keys {
+		if cfg.TopK > 0 && !key.legacy() {
+			contracts = append(contracts, key.contract(cfg.Fields[key.Field]))
+		}
+	}
 	rules := struct {
 		Operations []string
 		Fields     map[string]FieldConfig
@@ -98,7 +118,7 @@ func newSummaryExporter(cfg *Config, now time.Time) (*summaryExporter, error) {
 		Dedup      DedupConfig
 		MCP        MCPConfig
 		TopK       bool
-	}{append([]string(nil), cfg.OperationFilter.LLMOperations...), cfg.Fields, cfg.Weights, cfg.Dedup, cfg.MCP, cfg.TopK > 0}
+	}{append([]string(nil), cfg.OperationFilter.LLMOperations...), fields, cfg.Weights, cfg.Dedup, cfg.MCP, cfg.TopK > 0}
 	sort.Strings(rules.Operations)
 	encoded, err := json.Marshal(rules)
 	if err != nil {
@@ -106,7 +126,7 @@ func newSummaryExporter(cfg *Config, now time.Time) (*summaryExporter, error) {
 		return nil, err
 	}
 	digest := sha256.Sum256(encoded)
-	return &summaryExporter{root: root, cfg: cfg.SummaryExport, accountingID: "genai-accounting-v1:" + hex.EncodeToString(digest[:]), epoch: hex.EncodeToString(epoch), started: now}, nil
+	return &summaryExporter{root: root, cfg: cfg.SummaryExport, accountingID: "genai-accounting-v1:" + hex.EncodeToString(digest[:]), epoch: hex.EncodeToString(epoch), started: now, topKContracts: contracts}, nil
 }
 
 func (s *collectorState) summaryDocuments(e *summaryExporter, now time.Time) ([]summary.Envelope, error) {
@@ -136,6 +156,9 @@ func (s *collectorState) summaryDocuments(e *summaryExporter, now time.Time) ([]
 			return nil, err
 		}
 		doc := summary.Envelope{Version: 1, Sequence: e.sequence, ProducerID: e.cfg.ProducerID, Epoch: e.epoch, ScopeID: e.cfg.ScopeID, KeyID: e.cfg.KeyID, AccountingID: e.accountingID, WindowStart: windowStart, WindowDuration: s.cfg.windowDuration.Nanoseconds(), ObservedStart: max(windowStart, e.started.UnixNano()), ObservedEnd: min(windowStart+s.cfg.windowDuration.Nanoseconds(), now.UnixNano()), EmittedAt: now.UnixNano(), Counters: window.counters.export(), Sketches: sketches}
+		for _, contract := range e.topKContracts {
+			doc.Counters[contract] = 0
+		}
 		documents = append(documents, doc)
 	}
 	return documents, nil
@@ -147,7 +170,7 @@ func (s *collectorState) summaryPayloads(w *windowState) (map[string]summary.Pay
 			return nil, err
 		}
 	}
-	if s.cfg.toolErrors && w.topToolErrors == nil {
+	if s.cfg.topK > 0 && s.cfg.toolErrors && w.topToolErrors == nil {
 		var err error
 		w.topToolErrors, err = sketchfi.New(s.cfg.frequentProfile, sketchhash.ToolErrorV1, sketchhash.HMACSHA25664)
 		if err != nil {
@@ -164,8 +187,8 @@ func (s *collectorState) summaryPayloads(w *windowState) (map[string]summary.Pay
 		{"distinct_prompts", "hllpp", w.distinctPrompts},
 		{"distinct_docs", "hllpp", w.distinctDocs},
 	}
-	if w.topPrompts != nil {
-		items = append(items, sketchEntry{"top_prompts", "frequent_items", w.topPrompts})
+	for i, sketch := range w.topKeys {
+		items = append(items, sketchEntry{s.cfg.topKKeys[i].measurement(), "frequent_items", sketch})
 	}
 	if s.cfg.mcpEnabled {
 		items = append(items, sketchEntry{"distinct_mcp_sessions", "hllpp", w.distinctMCPSessions}, sketchEntry{"distinct_mcp_methods", "hllpp", w.distinctMCPMethods}, sketchEntry{"distinct_mcp_resources", "hllpp", w.distinctMCPResources})

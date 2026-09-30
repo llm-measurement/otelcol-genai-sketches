@@ -14,11 +14,11 @@ case "$action" in
         python -c 'import secrets; print(secrets.token_hex(32))')
     fi
     ;;
-  down|logs|ps|investigate)
+  down|logs|ps|investigate|topk)
     GENAI_SKETCH_SECRET=${GENAI_SKETCH_SECRET:-unused-for-compose-inspection-only}
     ;;
   *)
-    printf 'Usage: sh examples/demo.sh [up|investigate|logs|ps|down]\n' >&2
+    printf 'Usage: sh examples/demo.sh [up|investigate|topk [field]|logs|ps|down]\n' >&2
     exit 2
     ;;
 esac
@@ -40,6 +40,15 @@ case "$action" in
     docker compose -f examples/compose.yaml run --rm -T --build --no-deps app python /app/investigate.py
     ;;
   down) docker compose -f examples/compose.yaml down -v ;;
+  topk)
+    if [ -z "$(docker compose -f examples/compose.yaml ps --status running -q collector)" ]; then
+      printf 'Start the demo first: sh examples/demo.sh up\n' >&2
+      exit 1
+    fi
+    docker compose -f examples/compose.yaml logs --no-color --no-log-prefix --tail 1000 collector \
+      | docker compose -f examples/compose.yaml run --rm -T --build --no-deps app \
+          python /app/topk.py "${2:-}"
+    ;;
   logs) docker compose -f examples/compose.yaml logs collector ;;
   ps) docker compose -f examples/compose.yaml ps ;;
 esac

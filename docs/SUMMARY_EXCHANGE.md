@@ -122,9 +122,19 @@ answer quality, or causation.
 ## Limits And Privacy
 
 Only configured HLL++ and frequent-items measurements are exported. `topk: 0`
-disables prompt frequent-items state. MCP measurements require `mcp.enabled`.
+disables all frequent-items state. MCP measurements require `mcp.enabled`.
 The internal Bloom deduplication filter is not exported. Its suppression and
 missing-key counters are included; suppression remains approximate when enabled.
+
+In current source builds, optional `topk_keys` add `top_users` and `top_sessions`
+token-weighted measurements alongside default `top_prompts`. Request-weighted
+measurements use a separate `_requests` suffix, for example
+`top_sessions_requests`. The snapshot selector remains `field: session_key`,
+with `weight: requests`; it is not the summary measurement name.
+Use matching key selection, extraction rules, and units across producers and
+comparison windows. Changing the configured ranking is a measurement-contract
+change, not evidence that traffic changed. Released v0.2.0 images do not support
+this option. See [Top-K Keys](TOPK_KEYS.md) for extraction-contract compatibility.
 
 Prompts, user identifiers, document identifiers, and MCP resource URIs remain
 keyed hashes inside sketch state. Scope, producer, accounting, and key-version

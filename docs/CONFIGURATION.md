@@ -78,13 +78,39 @@ connector does not inherit operation or model attributes from parent spans.
 ## Field Mapping
 
 The `fields` map selects ordered attribute candidates for user identity, prompt
-signature, retrieval document, and MCP identity.
+signature, model conversation/session, retrieval document, and MCP identity.
 Each hashed field searches all configured span candidates before all configured
 resource candidates. Parent and child spans are evaluated independently.
+
+For example, under `connectors.genaisketch`:
+
+```yaml
+fields:
+  user_key:
+    from_attributes: [enduser.id, user.id]
+    from_resource_attributes: [enduser.id, user.id]
+    canonicalization: text_v1
+    domain: user:v1
+```
+
+Only add resource candidates when that resource really identifies one user.
+The distinct-user gauge estimates the current window, not all retained windows.
+Use a longer `window_duration` or merge compatible summary exports for a longer
+period; do not add the gauges. Mapping `user_key` does not enable user top-k.
 
 Configured hashed-field values larger than 8 KiB reject the batch before state
 is updated. Values are canonicalized and
 keyed before entering sketch state; raw values are not retained by the connector.
+
+## Top-K Keys
+
+`topk_keys` is available in the current source, not in released v0.2.0 images.
+Omitting it preserves the default: `prompt_key` weighted by reported input plus
+output tokens. User/session ranking is opt-in. The default `session_key` reads
+`gen_ai.conversation.id`, then `session.id`, from the model span and uses
+`text_v1` canonicalization. It is separate from MCP session identity.
+See [Top-K Keys](TOPK_KEYS.md) for configuration, token versus request weights,
+summary compatibility, and limits.
 
 ## Sketch Profiles
 
@@ -104,7 +130,7 @@ state at the cost of wider error. Profile definitions come from the pinned
 Token source lists are ordered. The first valid source wins; a different value in a
 later source is counted as a conflict rather than added. Input and output are
 independently optional on incoming spans, but both source lists must be configured.
-Weighted prompt top-k summaries require both aggregate fields. Missing or invalid
+Token-weighted top-k summaries require both aggregate fields. Missing or invalid
 fields are counted explicitly and are never replaced with guessed values.
 
 ```yaml

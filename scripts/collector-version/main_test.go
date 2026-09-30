@@ -51,7 +51,7 @@ func TestUpdateAllCollectorComponents(t *testing.T) {
 	for _, preserved := range []string{
 		"# SPDX-License-Identifier: Apache-2.0",
 		"path: ./connector/genaisketchconnector",
-		"genaisketchconnector v0.0.0",
+		"genaisketchconnector v" + before["dist"].(map[string]any)["version"].(string),
 	} {
 		if !strings.Contains(string(updated), preserved) {
 			t.Fatalf("update lost %q", preserved)
@@ -59,6 +59,55 @@ func TestUpdateAllCollectorComponents(t *testing.T) {
 	}
 	if !reflect.DeepEqual(before["replaces"], after["replaces"]) {
 		t.Fatal("update changed dependency replacements")
+	}
+}
+
+func TestDistributionManifest(t *testing.T) {
+	data, err := os.ReadFile("../../builder.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var original map[string]any
+	if err := yaml.Unmarshal(data, &original); err != nil {
+		t.Fatal(err)
+	}
+	for _, version := range []string{"", "v0.3.0", "0.3.1-rc.2"} {
+		t.Run(version, func(t *testing.T) {
+			updated, err := distributionManifest(data, version)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var manifest map[string]any
+			if err := yaml.Unmarshal(updated, &manifest); err != nil {
+				t.Fatal(err)
+			}
+			want := strings.TrimPrefix(version, "v")
+			if want == "" {
+				want = original["dist"].(map[string]any)["version"].(string)
+			}
+			if manifest["dist"].(map[string]any)["version"] != want {
+				t.Fatal("distribution version was not updated")
+			}
+			connector := manifest["connectors"].([]any)[0].(map[string]any)
+			if !strings.HasSuffix(connector["gomod"].(string), " v"+want) || connector["path"] != "./connector/genaisketchconnector" {
+				t.Fatalf("connector metadata = %v", connector)
+			}
+			for _, section := range []string{"receivers", "processors", "exporters", "extensions", "replaces"} {
+				if !reflect.DeepEqual(original[section], manifest[section]) {
+					t.Fatalf("changed unrelated %s", section)
+				}
+			}
+		})
+	}
+	for _, invalid := range []string{"latest", "0.3", "0.3.0\n", "0.3.0/evil"} {
+		if _, err := distributionManifest(data, invalid); err == nil {
+			t.Fatalf("accepted version %q", invalid)
+		}
+	}
+	for _, invalid := range []string{"[", "{}", "dist: {version: 0.3.0}", "dist: {version: 0.3.0}\nconnectors: [bad]"} {
+		if _, err := distributionManifest([]byte(invalid), ""); err == nil {
+			t.Fatalf("accepted manifest %q", invalid)
+		}
 	}
 }
 

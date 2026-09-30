@@ -117,7 +117,7 @@ func TestTopKZeroAvoidsFrequentItemsState(t *testing.T) {
 
 	for _, slice := range state.slices {
 		for _, window := range slice.windows {
-			if window.topPrompts != nil || window.topToolErrors != nil {
+			if len(window.topKeys) != 0 || window.topToolErrors != nil {
 				t.Fatal("topk: 0 allocated frequent-items state")
 			}
 			if got := window.distinctPrompts.Estimate(); got < 0.9 || got > 1.1 {

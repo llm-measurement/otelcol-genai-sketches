@@ -4,6 +4,8 @@ OTEL_VERSION := $(shell cat otel.version)
 ALLOY_IMAGE := grafana/alloy:v1.18.0@sha256:491b0578c04983fd54fe99b587b6fab4404dc46d0dc16677bd6b00cc1140b308
 PROMETHEUS_IMAGE := prom/prometheus:v3.7.3@sha256:49214755b6153f90a597adcbff0252cc61069f8ab69ce8411285cd4a560e8038
 DIST_BINARY := dist/otelcol-genai-sketches
+VERSION ?=
+DIST_MANIFEST := .cache/distribution-builder.yaml
 DOCKER_GOARCH ?= $(shell go env GOARCH)
 BUILDER_BIN := $(CURDIR)/.cache/bin
 GOCACHE ?= $(CURDIR)/.cache/go-build
@@ -40,8 +42,15 @@ CONNECTOR_SOURCES := $(wildcard connector/genaisketchconnector/*.go) connector/g
 .PHONY: dist
 dist: $(DIST_BINARY)
 
-$(DIST_BINARY): Makefile otel.version builder.yaml $(CONNECTOR_SOURCES)
-	GOCACHE=$(GOCACHE) GOMODCACHE=$(GOMODCACHE) go run go.opentelemetry.io/collector/cmd/builder@$(OTEL_VERSION) --config=builder.yaml
+.PHONY: force-dist-manifest
+force-dist-manifest:
+
+$(DIST_MANIFEST): force-dist-manifest builder.yaml $(wildcard scripts/collector-version/*.go)
+	mkdir -p .cache
+	GOWORK=off GOCACHE=$(GOCACHE) GOMODCACHE=$(GOMODCACHE) go run ./scripts/collector-version --distribution "$(VERSION)" $(DIST_MANIFEST)
+
+$(DIST_BINARY): Makefile otel.version $(DIST_MANIFEST) $(CONNECTOR_SOURCES)
+	GOWORK=off GOCACHE=$(GOCACHE) GOMODCACHE=$(GOMODCACHE) go run go.opentelemetry.io/collector/cmd/builder@$(OTEL_VERSION) --config=$(DIST_MANIFEST)
 
 $(GO_LICENSES): Makefile go.mod go.sum
 	mkdir -p $(BUILDER_BIN)
@@ -93,13 +102,15 @@ example-investigate:
 
 .PHONY: production-image
 production-image:
-	docker buildx build --load --platform=linux/$(DOCKER_GOARCH) -f packaging/docker/Dockerfile -t $(PRODUCTION_IMAGE) .
+	docker buildx build --load --platform=linux/$(DOCKER_GOARCH) --build-arg VERSION="$(VERSION)" -f packaging/docker/Dockerfile -t $(PRODUCTION_IMAGE) .
 
 .PHONY: helm-check
 helm-check:
+	HELM=$(HELM) GOWORK=off GOCACHE=$(GOCACHE) GOMODCACHE=$(GOMODCACHE) go test . -run TestHelmTopKKeys -count=1
 	$(HELM) lint deploy/helm/otelcol-genai-sketches
 	$(HELM) template genai-sketches deploy/helm/otelcol-genai-sketches --namespace observability > /dev/null
 	$(HELM) template genai-sketches deploy/helm/otelcol-genai-sketches --namespace observability --set connector.topK=0 > /dev/null
+	$(HELM) template genai-sketches deploy/helm/otelcol-genai-sketches --namespace observability --set-json 'connector.topKKeys=[{"field":"prompt_key"},{"field":"user_key"},{"field":"session_key","weight":"requests"}]' > /dev/null
 	$(HELM) template genai-sketches deploy/helm/otelcol-genai-sketches --namespace observability --set receiverTLS.enabled=true --set receiverTLS.existingSecret=receiver-tls --set shadow.enabled=true --set shadow.endpoint=collector.example.net:4317 --set serviceMonitor.enabled=true --set prometheusRule.enabled=true --set connector.dedup.enabled=true --set networkPolicy.enabled=true --set podDisruptionBudget.enabled=true > /dev/null
 
 .PHONY: prometheus-rule-check

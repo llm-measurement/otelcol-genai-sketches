@@ -14,7 +14,7 @@ processors:
 extensions:
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.161.0
 connectors:
-  - gomod: github.com/llm-measurement/otelcol-genai-sketches/connector/genaisketchconnector v0.0.0
+  - gomod: github.com/llm-measurement/otelcol-genai-sketches/connector/genaisketchconnector v0.2.0-dev
     path: ./connector/genaisketchconnector
 exporters:
   - gomod: go.opentelemetry.io/collector/exporter/otlpexporter v0.161.0

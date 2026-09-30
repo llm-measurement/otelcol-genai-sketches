@@ -202,7 +202,7 @@ func TestUsageProvenancePrivacyAndOverflow(t *testing.T) {
 	u := spanUpdate{totals: spanTotals{}}
 	u.totals.usageProvenance[0][3] = 1
 	before := c
-	if c.checkCounters(u, preparedUpdate{}) == nil || c != before {
+	if c.checkCounters(u, preparedUpdate{}, math.MaxUint64) == nil || c != before {
 		t.Fatal("overflow must fail without mutation")
 	}
 }

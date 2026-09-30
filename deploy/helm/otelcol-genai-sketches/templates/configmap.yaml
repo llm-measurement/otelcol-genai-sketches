@@ -50,6 +50,10 @@ data:
         retention_windows: {{ .Values.connector.retentionWindows }}
         max_slices: {{ .Values.connector.maxSlices }}
         topk: {{ .Values.connector.topK }}
+        {{- with .Values.connector.topKKeys }}
+        topk_keys:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
         profiles:
           hllpp: {{ .Values.connector.profiles.hllpp }}
           frequent_items: {{ .Values.connector.profiles.frequentItems }}
