@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Code authors: Vijay Erramilli and Codex
+# Code authors: Vijay and Codex
 """Compare known synthetic traffic with the running collector's measurements."""
 
 import json

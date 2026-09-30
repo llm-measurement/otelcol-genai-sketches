@@ -1,5 +1,5 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-{{/* Code authors: Vijay Erramilli and Codex */}}
+{{/* Code authors: Vijay and Codex */}}
 {{- define "otelcol-genai-sketches.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
