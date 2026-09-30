@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Code authors: Vijay Erramilli and Codex
+# Code authors: Vijay and Codex
 """Assemble the captured images and caption manifest with FFmpeg."""
 
 import argparse
