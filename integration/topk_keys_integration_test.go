@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -24,7 +25,10 @@ import (
 
 func TestSessionTopKPrivateSummaryPipeline(t *testing.T) {
 	binary := filepath.Join(repoRoot(t), "dist", "otelcol-genai-sketches")
-	requireExecutable(t, binary)
+	image := os.Getenv("GENAI_TEST_IMAGE")
+	if image == "" {
+		requireExecutable(t, binary)
+	}
 	dir := t.TempDir()
 	if err := os.Chmod(dir, 0700); err != nil {
 		t.Fatal(err)
@@ -44,6 +48,12 @@ func TestSessionTopKPrivateSummaryPipeline(t *testing.T) {
 	c["retention_windows"] = 10
 	c["topk_keys"] = []any{map[string]any{"field": "prompt_key"}, map[string]any{"field": "user_key"}, map[string]any{"field": "session_key", "weight": "requests"}}
 	c["summary_export"] = map[string]any{"directory": dir, "producer_id": "app", "scope_id": "app", "key_id": "synthetic", "interval": "1s"}
+	config["service"].(map[string]any)["telemetry"] = map[string]any{"metrics": map[string]any{"level": "none"}}
+	if image != "" {
+		grpc := config["receivers"].(map[string]any)["otlp"].(map[string]any)["protocols"].(map[string]any)["grpc"].(map[string]any)
+		grpc["endpoint"] = fmt.Sprintf("0.0.0.0:%d", otlp)
+		config["exporters"].(map[string]any)["prometheus"].(map[string]any)["endpoint"] = fmt.Sprintf("0.0.0.0:%d", prom)
+	}
 	data, err = yaml.Marshal(config)
 	if err != nil {
 		t.Fatal(err)
@@ -53,7 +63,12 @@ func TestSessionTopKPrivateSummaryPipeline(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	_, logs := startCollector(t, ctx, binary, path)
+	var logs *bytes.Buffer
+	if image == "" {
+		_, logs = startCollector(t, ctx, binary, path)
+	} else {
+		logs = startSummaryContainer(t, ctx, image, path, dir, otlp, prom)
+	}
 	waitForOutputEventually(t, logs, regexp.MustCompile(`started genaisketch connector`))
 	// Start after the initial partial window; both test windows have full observation.
 	start := time.Now().Truncate(2 * time.Second).Add(2 * time.Second)
@@ -94,6 +109,14 @@ func TestSessionTopKPrivateSummaryPipeline(t *testing.T) {
 		}
 		if f.TotalWeight() != 10 {
 			t.Fatal("missing usage suppressed request-weight sessions")
+		}
+		users, err := frequentitems.Parse(doc.Sketches["top_users"].Data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		userItems, err := users.FrequentItems(frequentitems.NoFalseNegatives)
+		if err != nil || users.TotalWeight() != 30 || len(userItems) != 1 || userItems[0].LowerBound != 30 || userItems[0].UpperBound != 30 {
+			t.Fatal("user token bounds differ from exact fixture", err)
 		}
 		for _, sentinel := range []string{"PRIVATE_SESSION", "PRIVATE_USER", "PRIVATE_PROMPT"} {
 			for _, surface := range []string{metrics, logText, string(encoded)} {

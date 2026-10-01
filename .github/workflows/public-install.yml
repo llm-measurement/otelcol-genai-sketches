@@ -64,7 +64,7 @@ jobs:
             "${image_ref}"
           printf 'IMAGE_REF=%s\n' "${image_ref}" >> "${GITHUB_ENV}"
 
-      - name: Combine summaries from each published platform
+      - name: Verify summaries and private top-k on each published platform
         run: |
           manifest="$(docker buildx imagetools inspect "${IMAGE_REF}" --raw)"
           for arch in amd64 arm64; do
@@ -75,9 +75,17 @@ jobs:
             [[ "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
             export GENAI_TEST_IMAGE="${IMAGE_NAME}@${digest}"
             docker pull --platform "linux/${arch}" "${GENAI_TEST_IMAGE}"
+            tests='^TestIndependentCollectorsExportMergeablePrivateSummaries$'
+            case "${RELEASE_TAG}" in
+              v0.1.*|v0.2.*) ;; # These releases predate optional user/session rankings.
+              *)
+                grep -q '^func TestSessionTopKPrivateSummaryPipeline(' integration/topk_keys_integration_test.go
+                tests='^Test(IndependentCollectorsExportMergeablePrivateSummaries|SessionTopKPrivateSummaryPipeline)$'
+                ;;
+            esac
             GENAI_TEST_PLATFORM="linux/${arch}" go test -tags integration ./integration \
-              -run '^TestIndependentCollectorsExportMergeablePrivateSummaries$' \
+              -run "$tests" \
               -count=1 -timeout=5m -v
-            printf '%s: two-collector summary and privacy checks passed (%s)\n' \
-              "${arch}" "${digest}" >> "${GITHUB_STEP_SUMMARY}"
+            printf '%s: %s passed (%s)\n' \
+              "${arch}" "$tests" "${digest}" >> "${GITHUB_STEP_SUMMARY}"
           done

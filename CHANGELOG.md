@@ -2,7 +2,9 @@
 
 Notable user-visible changes are recorded here.
 
-## Unreleased
+## v0.3.0 - 2026-10-01
+
+See the [release notes](docs/releases/v0.3.0.md) for configuration and compatibility.
 
 - Add opt-in user, session, and other hashed-key rankings with token or model-attempt
   weights. Preserve default export bytes and base accounting compatibility; new
@@ -11,7 +13,7 @@ Notable user-visible changes are recorded here.
 - Configurations using `session.id` or `gen_ai.conversation.id` as slice keys now
   fail validation because they overlap the new default hashed session field,
   even when session top-k is disabled. Remove those identifiers from metric slices
-  before upgrading; see [Upgrading](docs/UPGRADING.md#session-slice-labels-unreleased).
+  before upgrading; see [Upgrading](docs/UPGRADING.md#session-slice-labels-in-v030).
 - Preflight cumulative counter and sketch limits across every destination before
   applying a span, including summary wire limits and slice eviction.
 - Report the connector module version in component inventory and metric scope
