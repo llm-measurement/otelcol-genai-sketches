@@ -24,6 +24,7 @@ import (
 )
 
 func TestSessionTopKPrivateSummaryPipeline(t *testing.T) {
+	const windowDuration = 5 * time.Second
 	binary := filepath.Join(repoRoot(t), "dist", "otelcol-genai-sketches")
 	image := os.Getenv("GENAI_TEST_IMAGE")
 	if image == "" {
@@ -44,7 +45,7 @@ func TestSessionTopKPrivateSummaryPipeline(t *testing.T) {
 		t.Fatal(err)
 	}
 	c := config["connectors"].(map[string]any)["genaisketch"].(map[string]any)
-	c["window_duration"] = "2s"
+	c["window_duration"] = windowDuration.String()
 	c["retention_windows"] = 10
 	c["topk_keys"] = []any{map[string]any{"field": "prompt_key"}, map[string]any{"field": "user_key"}, map[string]any{"field": "session_key", "weight": "requests"}}
 	c["summary_export"] = map[string]any{"directory": dir, "producer_id": "app", "scope_id": "app", "key_id": "synthetic", "interval": "1s"}
@@ -61,7 +62,7 @@ func TestSessionTopKPrivateSummaryPipeline(t *testing.T) {
 	if err := os.WriteFile(path, data, 0600); err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	var logs *bytes.Buffer
 	if image == "" {
@@ -70,9 +71,6 @@ func TestSessionTopKPrivateSummaryPipeline(t *testing.T) {
 		logs = startSummaryContainer(t, ctx, image, path, dir, otlp, prom)
 	}
 	waitForOutputEventually(t, logs, regexp.MustCompile(`started genaisketch connector`))
-	// Start after the initial partial window; both test windows have full observation.
-	start := time.Now().Truncate(2 * time.Second).Add(2 * time.Second)
-	time.Sleep(time.Until(start.Add(100 * time.Millisecond)))
 	documents := make([]summary.Envelope, 0, 2)
 	for side := 0; side < 2; side++ {
 		spans := make([]otlpSpanSpec, 10)
@@ -86,8 +84,12 @@ func TestSessionTopKPrivateSummaryPipeline(t *testing.T) {
 				spans[i].InputTokens, spans[i].OutputTokens = nil, nil
 			}
 		}
+		// Export polling can consume the next window. Start each batch in a fresh,
+		// fully observed window with room for transport and batch-processor delay.
+		start := time.Now().Truncate(windowDuration).Add(windowDuration)
+		time.Sleep(time.Until(start.Add(100 * time.Millisecond)))
 		sendTraceSpecsEventually(t, otlp, spans...)
-		documents = append(documents, waitClosedTopKWindow(t, dir, start.Add(time.Duration(side)*2*time.Second).UnixNano()))
+		documents = append(documents, waitClosedTopKWindow(t, dir, start.UnixNano()))
 	}
 	metrics := scrapeEventually(t, prom, regexp.MustCompile(`gen_ai_sketch_requests_total`))
 	logText := waitForOutputEventually(t, logs, regexp.MustCompile(`session_key`))
@@ -101,7 +103,7 @@ func TestSessionTopKPrivateSummaryPipeline(t *testing.T) {
 			t.Fatal(err)
 		}
 		if doc.Counters["requests"] != 10 || doc.Counters["missing_token_usage"] != 4 {
-			t.Fatal("incorrect attempt accounting")
+			t.Fatalf("window %d: requests=%d missing_token_usage=%d; want 10 and 4", i, doc.Counters["requests"], doc.Counters["missing_token_usage"])
 		}
 		f, err := frequentitems.Parse(doc.Sketches["top_sessions_requests"].Data)
 		if err != nil {
