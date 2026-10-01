@@ -126,7 +126,7 @@ disables all frequent-items state. MCP measurements require `mcp.enabled`.
 The internal Bloom deduplication filter is not exported. Its suppression and
 missing-key counters are included; suppression remains approximate when enabled.
 
-In current source builds, optional `topk_keys` add `top_users` and `top_sessions`
+From v0.3.0, optional `topk_keys` add `top_users` and `top_sessions`
 token-weighted measurements alongside default `top_prompts`. Request-weighted
 measurements use a separate `_requests` suffix, for example
 `top_sessions_requests`. The snapshot selector remains `field: session_key`,

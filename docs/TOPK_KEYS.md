@@ -1,7 +1,7 @@
 # Rank Users And Sessions Without Identity Labels
 
-Available in current source builds. Existing releases do not gain this option
-when their configuration changes.
+Available from collector v0.3.0. Older releases do not gain this option when
+their configuration changes; upgrade the image before enabling it.
 
 By default, top-k ranks prompt signatures by observed input plus output tokens.
 Use `topk_keys` to rank users or application sessions instead, or alongside them:
@@ -75,7 +75,7 @@ sketch per slice and retained window, plus one per exported scope window. See
 
 ## Compare Windows
 
-Current fleetdiff source builds can investigate these summary files:
+Fleetdiff v0.3.0 or later can investigate these summary files:
 
 ```sh
 fleetdiff investigate --before ./before --after ./after --expected app --flag-share 0.25
@@ -102,8 +102,8 @@ not an event count. Its digest covers the field sources, canonicalization, domai
 and weight. Payload metadata separately checks sketch kind, profile, and domain.
 Do not remove these markers before combining summaries.
 
-The summary library still rejects different measurement sets or contracts. Current
-fleetdiff can compare the common measurements when optional rankings are absent
+The summary library still rejects different measurement sets or contracts.
+Fleetdiff v0.3.0 can compare the common measurements when optional rankings are absent
 from some inputs; it does not fill absent sketches with zeroes. A changed contract
 for a measurement present in both windows is rejected. Earlier fleetdiff versions
 omit unrecognized rankings when input contracts match, but may reject an old/new

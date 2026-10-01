@@ -8,8 +8,8 @@ high-cardinality agent traffic without exporting or indexing every underlying va
 It turns GenAI traces into bounded Prometheus metrics and keyed top-k summaries.
 
 By default, top-k ranks prompt signatures by reported tokens, not users.
-The current source also supports [opt-in user and session ranking](docs/TOPK_KEYS.md);
-released v0.2.0 images retain prompt-only model-request ranking.
+Release v0.3.0 also supports [opt-in user and session ranking](docs/TOPK_KEYS.md).
+The default remains prompt-only model-request ranking.
 Distinct users is per window; for longer periods use a longer `window_duration`
 or merge compatible summary exports, never add distinct-count gauges.
 
@@ -218,7 +218,7 @@ records needed for diagnosis, audit, or replay.
 
 Optional MCP metrics estimate distinct sessions, methods, and resources. Weighted
 top-k prompt signatures are emitted by default as structured logs with estimates
-and lower and upper bounds. User/session keys are opt-in in the current source;
+and lower and upper bounds. User/session keys are opt-in from v0.3.0;
 session ranking can use tokens or model-request counts. They never become
 Prometheus labels. Set `topk: 0` to disable the
 structured-log surface and its frequent-items state.
@@ -256,7 +256,7 @@ Add it to a builder manifest:
 
 ```yaml
 connectors:
-  - gomod: github.com/llm-measurement/otelcol-genai-sketches/connector/genaisketchconnector v0.2.0
+  - gomod: github.com/llm-measurement/otelcol-genai-sketches/connector/genaisketchconnector v0.3.0
 ```
 
 Configure `genaisketch` as an exporter from the traces pipeline and a receiver in the
