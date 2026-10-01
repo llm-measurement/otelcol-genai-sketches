@@ -2,7 +2,7 @@
 # Code authors: Vijay and Codex
 # Merge this list item into spec.template.spec.containers in an application Deployment.
 - name: genai-sketches
-  image: ghcr.io/llm-measurement/otelcol-genai-sketches:0.2.0
+  image: ghcr.io/llm-measurement/otelcol-genai-sketches:0.3.0
   imagePullPolicy: IfNotPresent
   args: ["--config", "/etc/otelcol-genai-sketches/config.yaml"]
   env:

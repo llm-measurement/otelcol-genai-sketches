@@ -78,7 +78,7 @@ Every five seconds, the connector can emit a structured `genaisketch topk snapsh
 log containing keyed prompt signatures by default, weighted estimates, and lower
 and upper bounds. These signatures never appear as Prometheus metric labels.
 
-Current source builds support opt-in [user/session keys](TOPK_KEYS.md).
+Release v0.3.0 supports opt-in [user/session keys](TOPK_KEYS.md).
 The existing snapshot's `field` selects `prompt_key`, `user_key`, or `session_key`.
 An absent `weight` means tokens for these fields; `weight: requests` marks request
 units explicitly. Do not compare or add token and request estimates. Each entry

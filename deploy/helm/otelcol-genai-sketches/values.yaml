@@ -77,7 +77,7 @@ connector:
   retentionWindows: 10
   maxSlices: 2000
   topK: 20
-  # Current source builds only; [] omits topk_keys and preserves prompt ranking.
+  # Requires image v0.3.0 or later; [] omits topk_keys and preserves prompt ranking.
   # Pin a supporting image before opting in. See docs/TOPK_KEYS.md.
   # Size additional per-window state first; the 2 GiB limit is not a recommendation for extra keys.
   topKKeys: []

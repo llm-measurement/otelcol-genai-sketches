@@ -104,7 +104,7 @@ keyed before entering sketch state; raw values are not retained by the connector
 
 ## Top-K Keys
 
-`topk_keys` is available in the current source, not in released v0.2.0 images.
+`topk_keys` is available from v0.3.0; v0.2.0 images do not support it.
 Omitting it preserves the default: `prompt_key` weighted by reported input plus
 output tokens. User/session ranking is opt-in. The default `session_key` reads
 `gen_ai.conversation.id`, then `session.id`, from the model span and uses

@@ -21,7 +21,7 @@ Use an immutable digest from the GitHub release, not a mutable tag:
 Fetch the references from that release's published metadata:
 
 ```bash
-RELEASE=v0.2.0
+RELEASE=v0.3.0
 IMAGE_REF="$(curl -fsSL \
   "https://github.com/llm-measurement/otelcol-genai-sketches/releases/download/${RELEASE}/image-digest.txt")"
 IMAGE="${IMAGE_REF%@*}"
@@ -150,10 +150,10 @@ It exports complete state for local combination across independent collectors;
 it does not make Prometheus able to merge sketches. The chart does not enable
 this export or provision its private writable volume.
 
-For a supporting source-built image, `connector.topKKeys` passes through the
-optional key list; its default `[]` omits `topk_keys` and preserves prompt-only
-ranking. Pin that image explicitly before opting in: the chart's v0.2.0 image
-does not understand this new option. See [Top-K Keys](TOPK_KEYS.md).
+With the v0.3.0 chart and image, `connector.topKKeys` passes through the optional
+key list; its default `[]` omits `topk_keys` and preserves prompt-only ranking.
+Pin a verified v0.3.0 or later image before opting in: older v0.2.0 images do not
+understand this option. See [Top-K Keys](TOPK_KEYS.md).
 Additional keys allocate sketch state per slice and retained window. The chart's
 2 GiB limit is not a sizing recommendation for extra keys; consult the
 [measured additional-key costs](SIZING.md) and measure the intended workload.

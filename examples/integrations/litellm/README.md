@@ -61,7 +61,7 @@ starting the collector:
 
 ```sh
 make dist
-go install github.com/llm-measurement/fleetdiff/cmd/fleetdiff@v0.2.0
+go install github.com/llm-measurement/fleetdiff/cmd/fleetdiff@v0.3.0
 export PATH="$(go env GOPATH)/bin:$PATH"
 umask 077
 export SUMMARY_DIRECTORY="$PWD/private-summaries/litellm"
@@ -183,8 +183,8 @@ The host configuration deliberately listens on `127.0.0.1`. A receiver bound to
 container loopback cannot accept Docker-published traffic. For a container, use
 the small endpoint override below and publish only host loopback ports.
 First install Docker and cosign, then [verify a release image](../../../docs/DEPLOYMENT.md#verify-an-image)
-to set `IMAGE_REF`. The default recipe works with v0.2.0; new `topk_keys` require
-a supporting source build. The Docker path does not need `make dist`, but still
+to set `IMAGE_REF`. The default recipe works with v0.2.0; optional `topk_keys`
+require v0.3.0 or later. The Docker path does not need `make dist`, but still
 needs fleetdiff, the exports, and the private directory above.
 
 Run as your regular, non-root host user so the private directory remains owned
