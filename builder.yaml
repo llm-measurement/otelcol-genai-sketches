@@ -5,7 +5,7 @@ dist:
   description: GenAI sketch metrics collector
   output_path: ./dist
   otelcol_version: 0.161.0
-  version: 0.2.0-dev
+  version: 0.3.0-dev
 receivers:
   - gomod: go.opentelemetry.io/collector/receiver/otlpreceiver v0.161.0
 processors:
@@ -14,7 +14,7 @@ processors:
 extensions:
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.161.0
 connectors:
-  - gomod: github.com/llm-measurement/otelcol-genai-sketches/connector/genaisketchconnector v0.2.0-dev
+  - gomod: github.com/llm-measurement/otelcol-genai-sketches/connector/genaisketchconnector v0.3.0-dev
     path: ./connector/genaisketchconnector
 exporters:
   - gomod: go.opentelemetry.io/collector/exporter/otlpexporter v0.161.0

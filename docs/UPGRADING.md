@@ -55,9 +55,9 @@ known window boundary, record the event, and allow old windows to expire.
 
 ## Compatibility
 
-### Session Slice Labels (Unreleased)
+### Session Slice Labels In v0.3.0
 
-The next release adds a default hashed `session_key` reading
+Version v0.3.0 adds a default hashed `session_key` reading
 `gen_ai.conversation.id` and `session.id`. Configurations that use either attribute
 in `slices.keys` will fail validation after upgrading, even when session top-k is
 not selected or `topk` is zero. Slice keys cannot overlap hashed-field sources.
@@ -67,6 +67,25 @@ keys bounded and non-sensitive; use [session top-k](TOPK_KEYS.md) for hashed ses
 attribution instead of a metric label per session. Validate the revised config
 with the new binary before rollout. This validation change does not change the
 base accounting fingerprint.
+
+### Optional Rankings In v0.3.0
+
+Upgrade summary readers to fleetdiff v0.3.0 or later before enabling user/session
+rankings. The default prompt-only export remains byte-compatible and the base
+accounting fingerprint is unchanged. New rankings carry separate extraction
+contracts; do not remove their markers to force incompatible inputs to combine.
+Fleetdiff v0.3.0 reports unavailable attribution as `cannot_determine` when an
+optional ranking is absent from either window or any producer. Older readers do
+not answer the new questions and may reject mismatched optional measurements.
+
+Each extra key allocates frequent-items state per retained window and slice. Check
+[Sizing](SIZING.md) before enabling several keys. New fields contain no historical
+data: collect complete windows with the new configuration before drawing
+conclusions. A high-share session is a review candidate, not a loop diagnosis.
+
+To roll back to v0.2.0, restore its configuration as well as its image: that version
+does not accept `topk_keys`. Keep exported files unchanged and use a compatible
+reader. Rollback still has the empty-state behavior described above.
 
 ### Usage Provenance
 
