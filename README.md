@@ -7,11 +7,10 @@ An OpenTelemetry Collector distribution for continuous, bounded answers about
 high-cardinality agent traffic without exporting or indexing every underlying value.
 It turns GenAI traces into bounded Prometheus metrics and keyed top-k summaries.
 
-By default, top-k ranks prompt signatures by reported tokens, not users.
-Release v0.3.0 also supports [opt-in user and session ranking](docs/TOPK_KEYS.md).
-The default remains prompt-only model-request ranking.
-Distinct users is per window; for longer periods use a longer `window_duration`
-or merge compatible summary exports, never add distinct-count gauges.
+Rank prompt signatures by reported tokens, or enable
+[user and session ranking](docs/TOPK_KEYS.md) in v0.3.0.
+Distinct counts cover one window; merge compatible summary exports for a longer
+period.
 
 Use it alongside an existing trace backend for token accounting and "token maxing"
 investigations: find where reported token volume is accumulating, measure missing
@@ -32,19 +31,18 @@ Actual output from synthetic traffic. Start with the
 
 ## Start With The Question
 
-| Question | Required span data | Result | Boundary |
-| --- | --- | --- | --- |
-| Where is reported token or request volume accumulating? | A matched model operation, optional token fields, and bounded attributes such as team, model, provider, or route | Request and token rates by bounded slice, plus token-weighted prompt signatures with lower and upper bounds | Volume does not establish task value, waste, or root cause |
-| Could an identity create unsafe Prometheus cardinality? | A supported user, prompt, document, or MCP field configured as a hashed field | Distinct estimates remain metrics; keyed identities remain outside labels | The connector does not scan every arbitrary attribute for cardinality |
-| Are agent or tool spans inflating model-request accounting? | `gen_ai.operation.name`, or the documented model fallback | Only configured model operations count as requests; root agent runs have a separate counter | The connector does not provide a count for every possible span kind |
-| How much reported token usage is incomplete? | `gen_ai.usage.input_tokens` and `gen_ai.usage.output_tokens` when available | A request with either aggregate field unavailable is counted separately from real zero-token values | The collector never infers unreported tokens |
-| Can separately operated agent systems combine measurements without pooling raw telemetry? | Compatible [window summary files](docs/SUMMARY_EXCHANGE.md) from collectors observing disjoint request streams | Combined counters, distinct estimates, and heavy items, with missing producers and partial windows reported | Opt-in from `0.1.0`; overlapping requests are not deduplicated |
+| Question | Required span data | Result |
+| --- | --- | --- |
+| Where is token or request volume accumulating? | Model operations, reported token fields, and configured team, model, provider, or route attributes | Request and token rates by slice, plus heavy contributors with lower and upper bounds |
+| Which users or sessions account for most of the attributed usage? | Configured user/session fields and opt-in `topk_keys` | Keyed user/session rankings by tokens or model attempts |
+| How many users, prompts, or resources are active? | Supported identity fields configured for hashing | Distinct estimates as metrics, with identities kept out of labels |
+| Are agent or tool spans inflating model-request accounting? | `gen_ai.operation.name`, or the documented model fallback | Separate model-request and root-agent-run counters |
+| How complete is token accounting? | `gen_ai.usage.input_tokens` and `gen_ai.usage.output_tokens` when available | Missing usage counted separately from real zero-token values |
+| Can separate systems combine measurements? | Compatible [window summary files](docs/SUMMARY_EXCHANGE.md) from disjoint request streams | Combined counters, distinct estimates, and heavy items, with coverage reported |
 
-Prometheus metrics describe each collector's observations. The optional summary
-exchange combines compatible sketch state across independently operated systems;
-adding distinct-count metrics or top-k log entries cannot do this. Trace explorers
-and evaluation systems remain the right tools for understanding one agent run or
-judging its output.
+Prometheus metrics describe each collector's observations. Summary exchange
+combines compatible sketch state across systems. Use these summaries to find
+where to look, then follow individual runs in your existing trace explorer.
 
 ## Quick Start
 
@@ -62,8 +60,7 @@ provisioned Grafana dashboard.
 
 The first run downloads pinned images and compiles the checked-out collector inside
 Docker. Allow several minutes; later runs reuse the build cache. `make example-up`
-is an equivalent convenience command. This is a source-built demo, not a download
-of a prebuilt release image.
+is an equivalent convenience command.
 
 The script generates a random demo secret without displaying it. Each `up` creates
 a fresh secret unless `GENAI_SKETCH_SECRET` is already set. Restarting with a new
@@ -121,8 +118,7 @@ an interpretation table for the same workflow.
 
 For a persistent environment, use the production image and Helm chart produced by a
 tagged release, as described in [Deployment](docs/DEPLOYMENT.md). Release images are
-signed for both supported architectures. The demo image and Compose stack are not
-the production package.
+signed for both supported architectures.
 
 ## Keep Your Current Backend
 
@@ -164,10 +160,10 @@ tracked-item bounds, and missing coverage. Its [two-collector demo](https://gith
 shows one team's reported token usage falling while the fleet total rises, using
 synthetic traffic. Keep your existing trace backend; no raw-trace upload is needed.
 
-This requires agreed scopes, hashing keys, accounting rules, and disjoint request
-streams. It does not authenticate producers, discover fleets, or enforce policy.
+Agree on scopes, hashing keys, accounting rules, and disjoint request streams;
+exchange exports through an authenticated channel.
 See [Combine Measurements Across Independently Operated Systems](docs/SUMMARY_EXCHANGE.md)
-for configuration, a working example, and restart and privacy limits. This feature
+for configuration, a working example, and restart and key handling. This feature
 is available in collector images and the connector module from `0.1.0`.
 
 ## When This Fits
@@ -180,21 +176,16 @@ Use this collector when you need to:
 - separate real zero-token usage from requests that omitted token attributes;
 - investigate unexpected or runaway token consumption, sometimes called
   "token maxing," by locating where reported tokens accumulate;
-- inspect token-heavy prompt signatures without turning them into labels; or
+- inspect token-heavy prompts, users, and sessions without turning them into labels; or
 - count model requests without including agent, tool, retrieval, workflow, and MCP
   spans in the same denominator.
 
-This is not a prompt logger, billing ledger, arbitrary attribute-to-label converter,
-anomaly detector, loop stopper, budget enforcer, or differential-privacy system.
-
 Token accounting remains useful without a per-token invoice. Self-hosted workloads
 can consume shared serving capacity and delay other work. Use token concentration
-alongside your serving system's queue, latency, and utilization metrics; reported
-tokens alone do not measure GPU cost or useful work.
+alongside your serving system's queue, latency, and utilization metrics.
 
-If exact traces are safe to retain and remain fast and affordable to query, use them.
-The connector is an always-on bounded evidence surface, not a replacement for raw
-records needed for diagnosis, audit, or replay.
+The connector provides always-on bounded measurements. Keep authorized raw records
+where you need per-request diagnosis, audit, or replay, and provider records for billing.
 
 ## What It Produces
 
@@ -304,8 +295,8 @@ slice keys and configured hashed fields.
 
 Token attributes are optional. Missing or invalid aggregate usage is counted
 explicitly; the connector does not invent token weights. Bloom-filter deduplication
-is bounded and may undercount because false positives are possible. It is not a
-billing or quota ledger.
+is bounded; its false-positive rate can cause undercounting. Use exact records for
+billing or quota enforcement.
 
 See [Security](SECURITY.md) to report a vulnerability privately.
 
@@ -320,8 +311,8 @@ Recorded local measurements include:
 - 528,924 spans/second in the mixed in-process benchmark; and
 - 1,386.8 MiB maximum collector RSS in the mixed fleet-shaped soak.
 
-These are measurements from one Apple M4 Max system, not universal capacity claims.
-Workload definitions, machine details, commands, and non-passing runs are in
+Measured on an Apple M4 Max. Workloads, machine details, reproduction commands,
+and all recorded runs are in
 [Benchmarks](docs/BENCHMARKS.md).
 
 ## Development
@@ -346,11 +337,10 @@ and sentinel scans across metric, label, and structured-log surfaces.
 
 ## Status
 
-**Current status: Alpha.** The connector is ready for evaluation and limited,
-non-critical workloads. Signed multi-architecture images, a Helm chart, SBOMs,
+**Current status: Alpha.** Signed multi-architecture images, a Helm chart, SBOMs,
 provenance, upgrade guidance, and production-shaped tests are provided.
-Configuration and metric semantics may still change before 1.0. Pin an exact
-release and image digest, then validate it against representative traffic. See the
+Start with an evaluation deployment, pin the release and image digest, and validate
+representative traffic. Configuration and metric semantics may change before 1.0. See the
 [changelog](CHANGELOG.md) for release notes and the
 [release and support policy](SUPPORT.md) for the supported release line.
 
