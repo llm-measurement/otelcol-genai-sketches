@@ -7,18 +7,17 @@ bounded fleet-level signals across many runs: LLM request and agent-run counts,
 reported token concentration and completeness, distinct keyed populations, and
 controlled slices for low-cardinality operational dimensions.
 
-It is the measurement layer between OTLP traces and an observability backend. It
-complements trace explorers, evaluation systems, behavior or anomaly detectors, and
-control planes; it does not replace them or diagnose individual agent decisions.
+It is the measurement layer between OTLP traces and an observability backend. Use
+its summaries to focus investigations in your trace explorer and inform alerts or
+controls.
 
 ## Can I Use This With Self-Hosted Models Or A Mix Of Providers?
 
 Yes, when your instrumentation emits the supported GenAI span attributes. Hosted
 model APIs, self-hosted models, and mixed deployments use the same
 [request and token accounting rules](ACCOUNTING.md). Point the instrumented
-application at the collector's OTLP endpoint. The collector processes spans, not
-model API responses; an OpenAI-compatible API does not by itself supply compatible
-telemetry. Check the operation names and usage fields your instrumentation emits.
+application at the collector's OTLP endpoint. Check the operation names and usage
+fields emitted by your instrumentation against the accounting guide.
 
 You can run the collector and your chosen telemetry backend on your own
 infrastructure. Separate teams can also exchange
@@ -31,26 +30,24 @@ not a common unit of cost or compute across models. Equivalent supported spans
 receive the same accounting; individual SDKs and serving engines can differ in what
 they report, so validate their output rather than assuming complete coverage.
 
-## When Is This Not For You?
+## When Should I Use Sketches Or Exact Records?
 
-If telemetry volume is moderate, source values are safe to retain, and exact queries
-remain operationally fast and affordable, use exact traces or warehouse data. This
-connector is not intended to replace raw records needed for diagnosis, audit, or
-replay.
+Use sketches for continuous aggregate answers as traffic and identity counts grow.
+Keep exact traces or warehouse data for per-request diagnosis, audit, and replay
+where retention is authorized and querying remains practical.
 
-Sketches are best understood as an **always-on bounded evidence plane**, not a cheaper
-archive. Beyond memory savings, the connector provides bounded metric cardinality,
+Sketches are best understood as an **always-on bounded evidence plane**.
+Beyond memory savings, the connector provides bounded metric cardinality,
 bounded structured output, explicit uncertainty for heavy-item estimates, mergeable
 sketch state, privacy-conscious aggregation, predictable processing cost, and query
 latency and operational responsiveness that do not depend on indexing every source
 value.
 
-The current connector can show which bounded slices and keyed prompt signatures
-account for reported token volume, estimate distinct keyed populations, expose
-concentration, and report missing token usage. Its exported metrics can support
-before-and-after comparisons, but it does not currently discover which unknown keys
-increased or decreased most across arbitrary windows. It also cannot determine by
-itself whether a policy change improved the measured outcome.
+The connector shows which slices and keyed contributors account for reported token
+volume, estimates distinct populations, and reports missing usage. Enable user or
+session `topk_keys` for those contributors. Export compatible summaries to
+[fleetdiff](https://github.com/llm-measurement/fleetdiff) for before-and-after
+investigations.
 
 ## How do I keep Prometheus cardinality bounded for high-volume LLM traces?
 
@@ -74,17 +71,15 @@ candidate values, and the same value remains linkable while the secret is unchan
 It can detect and localize unexpected reported token consumption. Compare request
 rate with token rate and tokens per request, use bounded slices to identify an
 affected team, model, provider, or route, and inspect token-weighted top-k prompt
-signatures for high-cardinality concentration.
+signatures, users, or sessions for high-cardinality concentration.
 
 Token accounting matters whether you pay a provider per token or run the models
 yourself. Self-hosting may remove the token invoice, but long responses and repeated
 calls can still occupy shared capacity. Pair token measurements with queueing,
-latency, and utilization metrics from your serving system. The connector does not
-derive GPU usage or infrastructure cost from token counts.
+latency, and utilization metrics from your serving system.
 
-It cannot decide whether tokens were useful, infer unreported usage, recover prompt
-text, enforce a budget, stop an agent loop, or prevent a context-window error. Those
-actions require an application or control component downstream of the telemetry.
+Applications can use these measurements for alerts and investigations, with budget
+enforcement and loop-stopping handled by their control components.
 The [token-consumption playbook](TOKEN_USAGE.md) gives a complete investigation
 workflow and PromQL examples.
 
@@ -157,8 +152,8 @@ verified exact request and missing-token accounting. See
 
 ## Is this production-stable?
 
-No. The connector is Alpha: ready for evaluation and limited, non-critical
-workloads, but its configuration and metric semantics may still change before 1.0.
+The connector is Alpha, with signed images, deployment guides, and production-shaped
+tests. Configuration and metric semantics may change before 1.0.
 Pin an exact release and image digest, review metric semantics, validate memory
 against your own slice distribution, and rehearse secret rotation before broader
 use.
