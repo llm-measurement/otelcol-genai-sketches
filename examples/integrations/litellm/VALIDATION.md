@@ -3,8 +3,10 @@
 Date: 2026-09-26. Local Apple Silicon test, native Linux ARM64 containers.
 Real-provider and regression follow-up: 2026-09-27.
 
-This is a small reproducible compatibility experiment with synthetic responses,
-not production certification or a statistical accuracy study.
+Across six mock-provider cases and 11 real GPT-5.4 cases, collector counters
+matched the model spans LiteLLM emitted. The opt-in callback preserved validated
+non-streaming cache and reasoning subsets. The tables show where emitted usage
+differed from the provider's counts.
 
 ## Versions And Method
 
@@ -44,9 +46,8 @@ or inferred counts, so this information loss precedes the collector.
 
 Captured model spans lacked `gen_ai.operation.name` despite the opt-in. The
 collector counted them through its documented `gen_ai.request.model` fallback.
-This test does not establish correct operation classification for embeddings,
-tools, retrieval, or all LiteLLM routes. The synthetic OTLP fixtures in this
-directory explicitly include operation names and exercise a different input case.
+The synthetic OTLP fixtures in this directory explicitly include operation names
+and exercise that input path separately.
 
 ## What This Means
 
@@ -56,9 +57,8 @@ directory explicitly include operation names and exercise a different input case
   collector, not that its original source was the provider.
 - Missing-usage counters detect missing or invalid collector inputs. They cannot
   recover fields a gateway has replaced with plausible numbers.
-- Fleetdiff can compare those emitted numbers, but cannot certify provider usage
-  completeness, invoice accuracy, or savings. Its provenance warning still applies
-  when observed windows and fields are complete.
+- Fleetdiff compares the emitted numbers and shows their declared origin alongside
+  numeric field coverage.
 - Do not reinterpret all zeros as missing: a provider may legitimately report
   zero. Reliable source accounting requires explicit provenance or preservation
   of missingness before normalization.
@@ -106,14 +106,14 @@ Current-source fleetdiff compared an old complete window with a new complete
 window without rewriting either file, with provenance `cannot_determine` because
 the old window had no source evidence. Comparing the new complete and no-usage
 windows returned `cannot_determine` for the volume explanation, with missing
-coverage visible. This is not a savings claim.
+coverage visible.
 
 Ten offline Python tests cover helper behavior, request isolation, retry reset,
 unsupported paths, version pinning, and absence of retained response content.
 Collector race tests and the receiver integration suite passed, including fixed
 provenance labels, unavailable-as-missing, genuine zero, token-weight exclusion,
 and privacy checks. Fleetdiff race tests cover old/new compatibility and unknown
-answers. These are compatibility checks, not production certification.
+answers.
 
 ## Real OpenAI Follow-Up
 
@@ -144,8 +144,7 @@ The findings were consistent across the tested models:
 The prompt sentinel and API key were absent from retained OTLP, metrics and
 labels, summaries, and stack logs. Raw OTLP still carries provider metadata
 and stays private. The live trial did not populate prompt top-k; the separate
-receiver integration test checks that surface. This is not a claim of general
-raw-trace sanitization, invoice accuracy, or production-load certification.
+receiver integration test checks that surface.
 
 ## GPT-5.4 Snapshot Check
 
@@ -197,8 +196,8 @@ There were 12 real provider calls with 7061 input and 611 output tokens. The
 collector counted 14 model attempts, 7014 input and 348 output tokens, with four
 missing-usage requests. The two injected 429s did not reach the provider. The
 input difference includes both unreported timeout work and a one-token overcount
-in LiteLLM's interrupted-stream estimate. This successful test verifies the
-documented accounting and uncertainty, not complete recovery of provider work.
+in LiteLLM's interrupted-stream estimate. The test verifies that the report
+preserves those accounting differences and marks unknown origin.
 
 The GPT-5.4 usage-price estimate was USD 0.0204815 at the recorded standard rates:
 USD 2.50 input, USD 0.25 cached input, and USD 15 output per million tokens.
@@ -212,8 +211,17 @@ hashes stayed unchanged during the run. Repetition checks accounting against
 each run's observed usage; it does not require identical generated lengths,
 reasoning counts, latency, or cache hits. A nonzero cache/reasoning subset must
 actually occur before its check can pass. The harness source and offline tests
-are public; raw captures remain private. CI does not run the paid suite, and
-this small sequential trial is not enterprise load certification.
+are public; raw captures remain private. CI runs the offline checks.
+
+## Limits
+
+These are small, sequential compatibility checks on the pinned versions, not
+production certification or a statistical accuracy study. Numeric field presence
+and completion markers do not prove complete provider usage. Usage-price estimates
+are not invoices; see [accounting and reconciliation](../../../docs/ACCOUNTING.md#attribution-and-reconciliation).
+The injected faults cover relay-controlled failures, not organic rate limiting or
+provider-side cancellation. Streaming provenance remains unknown. Raw traces
+still need independent metadata review, and the paid suite runs only by opt-in.
 
 ## Next Checks
 

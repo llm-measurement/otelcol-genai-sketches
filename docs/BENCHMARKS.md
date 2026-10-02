@@ -1,8 +1,9 @@
 # Benchmarks
 
-These results describe specific local runs. They are reproducibility records, not
-capacity guarantees for other hardware, collector configurations, exporters, or
-traffic distributions.
+The fleet-shaped run accepted and exported 36 million spans in 60 minutes at
+10,000 spans/second, with zero refused spans and exact request and missing-usage
+accounting. All runs below used one Apple M4 Max. The dated records describe
+those workloads and configurations; use the commands to size your own deployment.
 
 ## In-Process Connector Load
 

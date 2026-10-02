@@ -1,22 +1,22 @@
 # Collector Walkthrough
 
-[Download the 90-second MP4](https://raw.githubusercontent.com/llm-measurement/otelcol-genai-sketches/main/docs/media/walkthrough.mp4).
-No account is needed. Open the downloaded file in a video player; GitHub does not
-provide an embedded player for this file.
+See model requests stay at 100 as tool traffic grows, then see missing usage
+explain a drop in reported tokens.
 
-This silent, captioned video uses a real Grafana screenshot and plots of live
-reconciliation results captured on 2026-09-04. It is an edited walkthrough of
-synthetic output, not a real-time screen recording or a performance benchmark.
+[Watch the 90-second MP4](https://raw.githubusercontent.com/llm-measurement/otelcol-genai-sketches/main/docs/media/walkthrough.mp4)
+in your video player, without an account. This silent, captioned walkthrough
+combines a Grafana screenshot with plots from live synthetic-traffic checks
+captured on 2026-09-04. Edited scene timing is for presentation.
 
 ## Transcript
 
 - **0:00-0:30:** The collector turns OTLP spans into bounded metrics. Compare model
   request rate, reported token rate, and missing usage. Slice labels are cleartext;
-  prompt hashes are not metric labels.
+  keyed prompt rankings appear in structured logs.
 - **0:30-1:00:** Increasing tool calls changes 400 spans into 1,100 spans while the
   model-request count stays at 100. [Run this investigation](../investigations/TOOL_SPANS.md).
-- **1:00-1:30:** Omitting usage on half the requests halves reported tokens but not
-  known synthetic consumption. Missing usage rises to 50 of 100 requests.
+- **1:00-1:30:** Omitting usage on half the requests halves reported tokens while
+  known synthetic consumption stays constant. Missing usage rises to 50 of 100 requests.
   [Run this investigation](../investigations/MISSING_USAGE.md).
 
 ## Reproduce It

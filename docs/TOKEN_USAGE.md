@@ -1,8 +1,8 @@
 # Investigating Token Consumption
 
-This guide shows how to use `otelcol-genai-sketches` to investigate unexpected or
-runaway LLM token consumption, sometimes called "token maxing." The collector detects
-and localizes reported token volume. It does not enforce budgets or stop workloads.
+Find where reported token volume is accumulating and which slice, user, session,
+or prompt carries it. Use this guide to investigate unexpected consumption,
+sometimes called "token maxing."
 
 ## What You Can Answer
 
@@ -14,9 +14,6 @@ The exported signals can help answer:
 - Is reported token volume concentrated in a small number of prompt signatures?
 - How much of the request stream has incomplete aggregate token usage?
 
-The signals cannot establish whether token use was productive, recover prompt text,
-identify an agent-loop root cause, or determine remaining model context capacity.
-
 ## Instrumentation Requirements
 
 Matched LLM request spans should carry:
@@ -26,9 +23,8 @@ Matched LLM request spans should carry:
 - `gen_ai.usage.output_tokens` when output usage is available.
 
 The attribute names are configurable in `weights`. Input and output usage are
-independently optional on spans. The collector sums only reported values and never
-invents missing token counts. Cache-read and cache-write tokens are subsets of input;
-reasoning tokens are a subset of output, so none is added again to total tokens.
+independently optional on spans. See [Token Fields](ACCOUNTING.md#token-fields)
+for missing usage and cache/reasoning subset accounting.
 
 Configure a small number of bounded, non-sensitive slices for dimensions operators
 can act on, such as team, model, provider, or route. Slice values are exported as
@@ -136,12 +132,9 @@ localized to a newly observed slice value.
 | Attempts rise, recorded tokens per attempt fall, and missing usage rises | Failures or retries may be increasing; telemetry loss can give the same pattern | Inspect errors, retry settings, and usage provenance; do not infer lower consumption or a loop |
 | Overflow traffic rises | Slice cardinality exceeded the configured retained-state capacity | Revisit slice choice or capacity; do not promote identifiers into labels |
 
-These observations narrow an investigation. They do not by themselves prove a loop,
-an inefficient prompt, abuse, or waste.
-
 When usage is missing, Fleetdiff keeps the counters visible but returns
 `cannot_determine` for its volume split. The ratio above is an investigation
-clue, not a recovered complete-usage average.
+clue; inspect coverage before interpreting the change.
 
 ## Inspecting Token-Weighted Top-K
 
@@ -163,9 +156,8 @@ user/session keys with [topk_keys](TOPK_KEYS.md), then select them
 with `sh examples/demo.sh topk user_key` or `sh examples/demo.sh topk session_key`.
 The displayed unit is tokens unless that entry explicitly uses request weights.
 
-Prompt hashes are pseudonymous and stable only while the same secret and domain are
-in use. They are not Prometheus labels and do not reveal prompt text. An application
-owner may recompute hashes for a controlled set of known prompt templates using
+An authorized application owner can look up a controlled set of known prompt
+templates by recomputing their hashes using
 `llm-sketchkit`, the same secret, and the `prompt:v1` domain. Keep that mapping and
 the secret inside the same restricted trust boundary; do not export them to a broad
 dashboard or log index.
@@ -177,6 +169,14 @@ missing-usage fraction, or overflow. Structured-log tooling can route top-k snap
 to a restricted investigation surface. Budget enforcement, loop termination, model
 routing, and context management belong in an application or control component that
 consumes these signals and has authority to act.
+
+## Limits
+
+The report narrows an investigation; a flag is not proof of a loop, waste, or a
+causal explanation for a change. Missing usage limits completeness. Prompt hashes
+support authorized lookup, not recovery of unknown text. These signals measure
+consumption and concentration, not task value or remaining model context capacity.
+For invoice reconciliation, see [Accounting](ACCOUNTING.md#attribution-and-reconciliation).
 
 For complete signal semantics, see [Metrics](METRICS.md). For field mappings and
 capacity controls, see [Configuration](CONFIGURATION.md).

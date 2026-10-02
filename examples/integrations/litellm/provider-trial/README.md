@@ -5,9 +5,8 @@ compare provider usage with exported spans, metrics, summaries, and Fleetdiff.
 The suite covers complete responses, failures and retries, interrupted streams,
 cache reads, reasoning tokens, and an inert tool call with a follow-up.
 
-This starts an isolated test stack. It does not connect to or certify your
-existing production proxy. Use the results to review the same callback and
-accounting settings in your own deployment.
+The runner starts an isolated test stack. Use its results to review the callback
+and accounting settings in your own deployment.
 
 ## Run Locally
 
@@ -25,7 +24,7 @@ python3 examples/integrations/litellm/provider-trial/run.py \
   --run-paid-trial --max-estimated-usd 2
 ```
 
-The amount is your chosen limit, not a required spend. The historical run's
+**This spends real money.** The amount is your chosen limit, not a required spend. The historical run's
 usage-price estimate was about two cents, **not a guaranteed price**. Review the
 [model rates](https://developers.openai.com/api/docs/models/gpt-5.4) and the recorded
 rates in `manifest.json` before running. The local guard uses those rates and
@@ -61,8 +60,8 @@ Each run writes to a new ignored `.cache/provider-trial-*` directory:
 **Do not upload the evidence directory.** Review even the numeric table before
 sharing. The secret and synthetic prompt sentinel are scanned across captured
 OTLP, metrics and labels, summaries, stack logs, and Fleetdiff reports. The live
-trial does not populate prompt top-k; the receiver integration tests cover that
-separate surface. No generic raw-trace sanitization is claimed.
+trial leaves prompt top-k to the separate receiver integration tests. Follow the
+[validation scope](../VALIDATION.md#privacy-scope) when reviewing raw captures.
 
 `verify.py` reconciles each observed model span with exact collector counters,
 cumulative Prometheus samples, all eight provenance counters, and Fleetdiff.
@@ -90,9 +89,8 @@ The runner stops on unexpected statuses instead of spending more automatically.
   timeout. A retry can incur additional provider work whose usage never arrives.
 - The cut stream closes downstream but drains upstream for independent usage
   evidence. It is not a provider-cancellation experiment.
-- Streaming source provenance stays unknown. This covers Chat Completions, not
-  Responses, Anthropic, arbitrary LiteLLM versions, or concurrent production load.
-- Usage-price arithmetic is not invoice reconciliation or proof of savings.
+- Streaming source provenance stays unknown. The tested interface is Chat
+  Completions on the pinned versions; see [validation limits](../VALIDATION.md#limits).
 
 ## Free Checks
 
@@ -104,6 +102,5 @@ python3 -m unittest discover \
 ```
 
 These use local loopback sockets and mocked provider transport. They need no key
-and make no paid calls. CI runs both commands. They check the relay and callback,
-not current provider availability. This is a compatibility experiment, not a
-production certification or a general-purpose gateway.
+and make no paid calls. CI runs both commands to check relay and callback behavior;
+the opt-in trial checks the live provider path.

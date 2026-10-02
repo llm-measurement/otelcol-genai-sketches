@@ -1,7 +1,8 @@
 # Did Token Consumption Fall, Or Did Usage Go Missing?
 
-A lower token total is not necessarily a saving. The collector can only count token
-fields that instrumentation reports.
+The collector shows when a drop in reported tokens comes with missing usage
+fields. In this controlled example, known synthetic consumption stays at 20,000
+tokens while reported tokens fall to 10,000.
 
 ## Run It
 
@@ -28,7 +29,7 @@ Captured on 2026-09-04 from the running collector. [Full JSON output](results.js
 Every model request has 120 input and 80 output tokens in the generator's known
 synthetic workload. The second batch omits both usage attributes on every other
 model span. The collector sees 10,000 reported tokens and 50 incomplete requests.
-It cannot recover the other 10,000 tokens from those spans.
+The missing-usage counter makes the gap visible.
 
 ## Read It Correctly
 
@@ -48,10 +49,8 @@ This query includes the continuously running demo traffic. The investigation scr
 instead isolates `investigation-model` and checks exact counter increments for its
 short batches. It does not use interpolated `increase()` values as ground truth.
 
-A present zero is different from an absent or invalid field. The connector counts
-a matched model request as incomplete when either aggregate token field is
-unavailable. Cache and reasoning details do not get added to the aggregate totals
-again. See [Accounting](../ACCOUNTING.md) for these cases and their fixtures.
+See [Accounting](../ACCOUNTING.md#token-fields) for the missing-field, genuine-zero,
+and subset rules and their reconciliation fixtures.
 
 The workload is in [investigate.py](../../examples/app/investigate.py), with generator
 tests and a live CI check. Stop the disposable demo with `sh examples/demo.sh down`.

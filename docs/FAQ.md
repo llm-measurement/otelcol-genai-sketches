@@ -85,11 +85,11 @@ workflow and PromQL examples.
 
 ## What happens when token usage is missing?
 
-The connector does not substitute zero or estimate a token count. A matched request
-with either aggregate input or output field unavailable increments
-`gen_ai_sketch_missing_token_usage_total`. Fixed-state observations distinguish
-reported, missing, invalid, conflicting, and subset-violating fields. Tool and agent
-spans without usage do not inflate that denominator.
+Each matched model attempt with either aggregate usage field unavailable increments
+`gen_ai_sketch_missing_token_usage_total`, separately from real zeros. Fixed-state
+observations show reported, missing, invalid, conflicting, and subset-violating
+fields. The denominator covers model attempts. See
+[Token Fields](ACCOUNTING.md#token-fields) for the accounting rules.
 
 ## How are requests counted in agent and tool traces?
 

@@ -5,57 +5,12 @@ more model requests, or because each request used more tokens? Send LiteLLM's
 OTLP spans to this collector, keep your existing backend, and compare its private
 summary exports with fleetdiff.
 
-## Compatibility Scope
-
-The source-reviewed recipe targets LiteLLM's OpenTelemetry callback implementation at revision
-[`96c008f420a21b6561c51494352a68e49043af48`](https://github.com/BerriAI/litellm/tree/96c008f420a21b6561c51494352a68e49043af48),
-with `OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental` and generic OTLP,
-not a vendor-specific preset. This is a source pin, not a recommended production
-release or a claim that a live LiteLLM proxy has been certified.
-
-`before.json` and `after.json` are synthetic OTLP/JSON fixtures derived from the
-reviewed attribute contract. Collector tests parse them, reconcile counters,
-check summaries across disjoint partitions, and scan metrics, top-k, and decoded
-summary state for private sentinels. The HTTP integration test exercises the
-actual receiver and this configuration. It does not start LiteLLM or a provider.
-
-A separate local smoke test on 2026-09-26 ran the signed LiteLLM v1.102.1 ARM64
-image through a mock OpenAI-compatible provider and collector v0.1.0. Complete
-15-second windows reconciled 2 requests / 200 tokens before and 3 requests / 600
-tokens after; fleetdiff read the unchanged exports successfully. Content capture
-was disabled, and the synthetic prompt sentinel was absent from metrics, logs,
-and summary JSON. A follow-up matrix exercised streaming and missing provider
-usage; see [the measured results and limitations](VALIDATION.md).
-
-**Missing provider usage is not reliably preserved by this LiteLLM path.** In
-the tested version, absent non-streaming counts became zeros; streaming supplied
-locally estimated counts. A zero collector missing-usage counter therefore does
-not establish complete provider usage. Do not use these exports alone to reconcile
-provider invoices or claim savings after an instrumentation change.
-The [source-provenance contract](../../../docs/USAGE_PROVENANCE.md) preserves this
-distinction when instrumentation observes raw provider usage. It cannot recover
-that evidence from stock LiteLLM's normalized output.
-
-| Measurement | Required input | Limits |
-|---|---|---|
-| Model requests | Supported `gen_ai.operation.name`, or model-attribute fallback when operation is absent | Counts observed model attempts, including failures and retries, not unique user requests; wrappers are excluded |
-| Input/output tokens | `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens` | Missing at the collector stays unavailable; LiteLLM may replace missing provider data with zeros or estimates before export |
-| Cache reads | `gen_ai.usage.cache_read.input_tokens` | The opt-in callback maps validated non-streaming provider counts; already part of input, never added twice |
-| Reasoning tokens | `gen_ai.usage.reasoning.output_tokens` | The opt-in callback maps validated non-streaming provider counts; already part of output, never added twice |
-| Prompt-template contributors | Optional `app.prompt.template` on each model span | Application annotation, not automatically provided by LiteLLM |
-| Distinct users | Optional configured user attribute on model spans | No claim that LiteLLM exports the fixture's `enduser.id` automatically |
-| Sessions or loops | Not supported by this recipe | MCP session IDs are not model-request attribution |
-
-No transform processor is needed for these canonical attributes. Validate a new
-LiteLLM version, tracing mode, streaming path, or vendor preset before assuming
-it behaves the same. This fixture covers non-streaming chat-shaped spans only.
-
 ## Connect An Existing Proxy
 
 ### Prerequisites
 
 Use a checkout of this repository, Go 1.26.6 or later, Make, OpenSSL, and an
-existing LiteLLM proxy matching the compatibility scope above. Run from the
+existing LiteLLM proxy matching the [tested scope](#compatibility-scope). Run from the
 repository root. Install fleetdiff and prepare a private summary directory before
 starting the collector:
 
@@ -159,15 +114,14 @@ calls. Do not deduplicate different
 provider attempts merely because they belong to one user request.
 
 More attempts, lower recorded tokens per attempt, and more missing usage can be
-a reason to investigate failures or retries. This pattern does not identify a
-retry storm or agent loop: instrumentation loss can look similar. Fleetdiff
-refuses its volume split when usage is missing rather than calling it lower use.
+a reason to investigate failures or retries. Check traces and instrumentation
+coverage together; fleetdiff splits volume only when usage is complete.
 
 A timed-out attempt may still complete at the provider and incur cost without
 delivering usage to LiteLLM. An interrupted stream can also end with LiteLLM's
 own estimated counts and a normal-looking completion marker. Streaming provenance
-remains unknown in this callback. Neither a completion marker nor a zero
-missing-usage counter establishes complete provider usage or invoice accuracy.
+remains unknown in this callback. See [validation limits](VALIDATION.md#limits)
+when interpreting completion and coverage.
 
 Start the collector with a strong secret in `GENAI_SKETCH_SECRET`, a non-secret
 key-version ID in `SUMMARY_KEY_ID`, and an existing private (0700) directory in
@@ -246,10 +200,10 @@ combining independently running collectors.
 fleetdiff investigate --before ./before --after ./after --expected gateway,direct
 ```
 
-The two producers must own disjoint model requests. Do not aggregate a gateway
-span and a client span for the same inference. The test partitions a single
-synthetic stream and verifies identical counters and sketch bytes after merging.
-It does not infer disjointness from trace IDs or authenticate producer metadata.
+The two producers must own disjoint model requests. Assign each inference to one
+observer. The test partitions a single synthetic stream and verifies identical
+counters and sketch bytes after merging. Follow the
+[summary-exchange trust requirements](../../../docs/SUMMARY_EXCHANGE.md#limits-and-privacy).
 
 ## Reproduce The Checks
 
@@ -263,3 +217,30 @@ GOWORK=off go -C connector/genaisketchconnector test -run TestLiteLLMInvestigati
 make dist
 GOWORK=off go test -tags integration ./integration -run TestLiteLLMRecipeOTLPHTTP -count=1
 ```
+
+## Compatibility Scope
+
+The recipe uses LiteLLM's OpenTelemetry callback at
+[revision 96c008f](https://github.com/BerriAI/litellm/tree/96c008f420a21b6561c51494352a68e49043af48),
+with experimental GenAI conventions and generic OTLP. Live checks used LiteLLM
+1.102.1. Test each new version, tracing mode, or vendor preset against your traffic.
+
+Stock LiteLLM in this path turns absent provider usage into zeros or estimates.
+The opt-in callback records what the provider sent for supported **non-streaming
+OpenAI-compatible responses**, so absent usage is counted as missing. Streaming
+origin remains unknown. See [source provenance](../../../docs/USAGE_PROVENANCE.md).
+
+| Measurement | Required input | Notes |
+|---|---|---|
+| Model attempts | Supported `gen_ai.operation.name`, or model-attribute fallback | Includes failures and retries; wrappers are excluded |
+| Input/output tokens | `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens` | Use source provenance to distinguish provider counts from normalized output |
+| Cache reads | `gen_ai.usage.cache_read.input_tokens` | Validated non-streaming subset of input |
+| Reasoning tokens | `gen_ai.usage.reasoning.output_tokens` | Validated non-streaming subset of output |
+| Prompt-template contributors | Optional `app.prompt.template` on model spans | Supply this application annotation |
+| Distinct users | Configured user attribute on model spans | Check that your instrumentation supplies it; the fixture uses `enduser.id` |
+| Session contributors | Collector v0.3.0 `topk_keys` and a configured session attribute on model spans | Extend the recipe with [session attribution](../../../docs/TOPK_KEYS.md); MCP session IDs alone do not link model usage |
+
+The synthetic `before.json` and `after.json` fixtures exercise the receiver,
+accounting, disjoint-partition merge, and privacy scans. Separate live mock and
+real-provider runs are recorded in [Validation](VALIDATION.md), with versions,
+results, and scope. Canonical attributes pass directly to the connector.
