@@ -73,11 +73,10 @@ gh release download "$RELEASE" \
 (cd release-assets && sha256sum --check SHA256SUMS)
 ```
 
-Successful verification proves that the referenced digest was signed by this
-repository's release workflow for the stated tag and has not changed since. It does
-not prove that the software is vulnerability-free, that a runtime configuration is
-safe, or that the image is suitable for a particular workload. The image includes
-the project license and collected third-party license notices under `/licenses`.
+Verification checks the digest's signature and provenance against this repository's
+release workflow and tag. Review runtime configuration and workload sizing separately.
+The image includes the project license and collected third-party notices under
+`/licenses`.
 
 ## Run With Docker
 
@@ -238,11 +237,9 @@ private OCI registry with `helm push` or install the verified `.tgz` directly.
 
 ## FIPS Environments
 
-The standard release is not claimed or certified as FIPS 140-3 validated. Choosing
-HMAC-SHA-256 does not make the complete binary or deployment compliant. A regulated
-deployment must build and run the collector with an approved Go cryptographic
-module, toolchain, operating environment, and validation process required by that
-organization. Verify the resulting private artifact independently; do not reuse the
+FIPS 140-3 environments require an approved cryptographic module, toolchain,
+operating environment, and validation process. Build and validate against your
+organization's requirements; the standard release is not FIPS-validated. Verify the resulting private artifact independently; do not reuse the
 standard release's signature or attestation for a rebuilt binary.
 
 ## Accounting Alerts
@@ -254,10 +251,9 @@ keys. Set `prometheusRule.sliceName` to exactly one accounting view; metrics fro
 different slice names describe duplicate views of the same observations and must not
 be summed together.
 
-Budget exhaustion, reservation leaks, quota overruns, and settlement drift require
-an external budget or exact ledger to compare against. The connector does not emit
-those alerts by itself. Use its counters as one reconciliation input, not as the
-ledger.
+For budget exhaustion, reservation leaks, quota overruns, or settlement drift,
+combine these counters with an external budget or exact ledger. See
+[Acting On Results](TOKEN_USAGE.md#acting-on-results).
 
 Read [Sizing](SIZING.md) before changing capacity and [Upgrading](UPGRADING.md)
 before replacing a running collector.

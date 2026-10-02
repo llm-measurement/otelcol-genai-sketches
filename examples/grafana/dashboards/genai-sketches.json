@@ -11,7 +11,7 @@
       "id": 1,
       "type": "timeseries",
       "title": "Requests/sec",
-      "description": "Matched model attempts per second over one minute. Retries count separately; agent and tool spans do not count as model requests.",
+      "description": "Matched model attempts per second over one minute. Each retry counts separately; agent and tool activity has separate counters.",
       "fieldConfig": {"defaults": {"unit": "reqps", "decimals": 2, "min": 0}, "overrides": []},
       "transformations": [{"id": "renameByRegex", "options": {"regex": "/(gen_ai\\.request\\.model=|team\\.id=)/g", "renamePattern": ""}}],
       "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
@@ -21,7 +21,7 @@
       "id": 2,
       "type": "timeseries",
       "title": "Reported Token Rate",
-      "description": "Reported input plus output tokens per second. Missing or unavailable usage is not inferred; cache and reasoning subsets are not added again.",
+      "description": "Reported input plus output tokens per second. Cache and reasoning tokens stay within their parent totals. Read alongside missing usage.",
       "fieldConfig": {"defaults": {"unit": "suffix:tokens/s", "decimals": 0, "min": 0}, "overrides": []},
       "transformations": [{"id": "renameByRegex", "options": {"regex": "/(gen_ai\\.request\\.model=|team\\.id=)/g", "renamePattern": ""}}],
       "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
@@ -31,7 +31,7 @@
       "id": 7,
       "type": "timeseries",
       "title": "Reported Tokens / Request",
-      "description": "Reported token rate divided by matched model-attempt rate. Incomplete usage lowers this ratio; it does not establish token savings. No traffic produces no ratio.",
+      "description": "Reported tokens divided by matched model attempts. Check missing usage alongside this ratio; a window with zero attempts leaves the ratio undefined.",
       "fieldConfig": {"defaults": {"unit": "suffix:tokens/request", "decimals": 0, "min": 0}, "overrides": []},
       "transformations": [{"id": "renameByRegex", "options": {"regex": "/(gen_ai\\.request\\.model=|team\\.id=)/g", "renamePattern": ""}}],
       "gridPos": {"x": 0, "y": 8, "w": 16, "h": 8},
@@ -41,7 +41,7 @@
       "id": 3,
       "type": "stat",
       "title": "Missing Token Usage",
-      "description": "Share of matched attempts missing either aggregate token field over five minutes, within the selected slice view. Genuine zero-token values are not missing. Zero does not establish provider-reported provenance.",
+      "description": "Share of matched attempts missing either aggregate usage field over five minutes, within the selected slice view. Genuine zeros count as present. Usage provenance separately describes the source.",
       "gridPos": {"x": 16, "y": 8, "w": 8, "h": 8},
       "fieldConfig": {"defaults": {"unit": "percentunit", "decimals": 1, "min": 0, "max": 1, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 0.01}, {"color": "red", "value": 0.05}]}}, "overrides": []},
       "targets": [{"datasource": {"type": "prometheus", "uid": "Prometheus"}, "expr": "sum(rate(gen_ai_sketch_missing_token_usage_total{slice=\"$slice\"}[5m])) / sum(rate(gen_ai_sketch_requests_total{slice=\"$slice\"}[5m]))"}]
@@ -50,7 +50,7 @@
       "id": 4,
       "type": "stat",
       "title": "Distinct Users (Current Window)",
-      "description": "Per-slice estimates in the current one-minute window. Do not add overlapping slices or successive window estimates.",
+      "description": "Distinct user estimate for each slice in the current one-minute window. Combine sketch state to estimate a union across slices or windows.",
       "gridPos": {"x": 0, "y": 16, "w": 12, "h": 6},
       "fieldConfig": {"defaults": {"unit": "short", "decimals": 0, "min": 0, "color": {"mode": "fixed", "fixedColor": "blue"}}, "overrides": []},
       "transformations": [{"id": "renameByRegex", "options": {"regex": "/(gen_ai\\.request\\.model=|team\\.id=)/g", "renamePattern": ""}}],
@@ -60,7 +60,7 @@
       "id": 5,
       "type": "stat",
       "title": "Distinct Prompts (Current Window)",
-      "description": "Per-slice estimates, not a global distinct count. A new current window starts every minute in this demo.",
+      "description": "Distinct prompt-signature estimate for each slice. This demo starts a new current window every minute; combine sketch state for a wider union.",
       "gridPos": {"x": 12, "y": 16, "w": 12, "h": 6},
       "fieldConfig": {"defaults": {"unit": "short", "decimals": 0, "min": 0, "color": {"mode": "fixed", "fixedColor": "green"}}, "overrides": []},
       "transformations": [{"id": "renameByRegex", "options": {"regex": "/(gen_ai\\.request\\.model=|team\\.id=)/g", "renamePattern": ""}}],
@@ -70,11 +70,11 @@
       "id": 6,
       "type": "text",
       "title": "Top Weighted Signatures",
-      "description": "Default ranking is by prompt tokens, not users. Optional user/session rankings remain keyed structured logs, never Prometheus labels.",
+      "description": "Prompt signatures ranked by reported input plus output tokens. Optional user/session rankings appear in keyed structured logs.",
       "gridPos": {"x": 0, "y": 22, "w": 24, "h": 5},
       "options": {
         "mode": "markdown",
-        "content": "Top-k prompt signatures are intentionally not Prometheus labels. The collector emits bounded `genaisketch topk snapshot` structured logs with hash, rank, estimate, lower_bound, and upper_bound fields."
+        "content": "The collector emits `genaisketch topk snapshot` structured logs with keyed hash, rank, estimate, lower_bound, and upper_bound fields. Read them with `sh examples/demo.sh topk`. Prometheus shows aggregate metrics; see docs/METRICS.md for the cardinality contract."
       }
     }
   ]

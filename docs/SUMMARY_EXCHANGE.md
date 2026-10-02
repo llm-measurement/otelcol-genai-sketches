@@ -1,13 +1,12 @@
 # Combine Measurements Across Independently Operated Systems
 
-Two teams can run separate collectors, keep their raw telemetry separate, and
-exchange bounded summary files for a shared measurement scope. The files contain
-actual HLL++ and frequent-items state plus window counters. Prometheus metrics
-and top-k log entries are not a substitute for this state.
+Two teams keep their own traces and still get one shared, mergeable measurement.
+Each collector exports HLL++ and frequent-items state plus window counters for an
+agreed scope. A sketch-aware reader combines those files.
 
 This opt-in feature is available from collector `0.1.0`, using `llm-sketchkit
 0.2.0`. Use the [published image](DEPLOYMENT.md) or build the tagged source with
-`make dist`. Older images do not acquire this feature when their configuration changes.
+`make dist`.
 
 ## Configure Each Producer
 
@@ -44,8 +43,8 @@ than a window.
 The scope is set by the operator, not taken from span attributes. It covers all
 relevant input seen by that connector instance. It is independent of metric
 slices: label overflow and slice eviction cannot erase exported scope totals.
-It does not provide tenant isolation inside a shared connector. Use separately
-routed connector instances and separate keys/scopes where linkage is forbidden.
+Use separately routed connector instances and separate keys/scopes for tenant
+isolation and permitted linkage.
 
 ## Read And Combine
 
@@ -69,8 +68,7 @@ distinct estimates, tracked heavy items and their bounds, selected source epochs
 missing producers, and partial observation intervals. Producer names must come
 from a trusted inventory, not from whatever files happen to arrive.
 
-Compare different windows by combining each separately. Matching key IDs are an
-operator declaration, not proof that the secrets match. The accounting identifier
+Compare different windows by combining each separately. The accounting identifier
 includes a fingerprint of extraction sources, operation filtering, MCP, weighting,
 and deduplication configuration. Sketch parameters are checked inside each payload.
 Incompatible scopes, rules, keys, durations, or payload metadata are rejected.
@@ -94,8 +92,7 @@ requirements apply. Summary files still require authorized sharing.
 
 Try the [two-collector demo](https://github.com/llm-measurement/fleetdiff/tree/main/examples/two-operators)
 or follow the [two-operator trial checklist](https://github.com/llm-measurement/fleetdiff/blob/main/docs/TWO_OPERATOR_TRIAL.md)
-with approved exports. A before-and-after difference does not establish savings,
-answer quality, or causation.
+with approved exports, then use the report to select a trace investigation.
 
 ## Files, Restarts, And Coverage
 
@@ -106,8 +103,7 @@ answer quality, or causation.
   epoch. Combine the latest snapshot of each epoch; repeated snapshots do not add
   counters or sketch update counts again. Conflicting sequences are errors.
 - Counters are per-window, not the process-cumulative values exposed to Prometheus.
-  Completed and current windows are exported. Missing usage remains missing;
-  cache and reasoning token details remain subsets, not extra volume.
+  Completed and current windows follow the [accounting rules](ACCOUNTING.md#token-fields).
 - Idle producers continue exporting empty windows. Observation intervals describe
   the collector's running time, not proof that upstream instrumentation, delivery,
   or sampling was complete. Gaps and late starts are reported as partial coverage.
@@ -140,8 +136,12 @@ Prompts, user identifiers, document identifiers, and MCP resource URIs remain
 keyed hashes inside sketch state. Scope, producer, accounting, and key-version
 identifiers are cleartext, operator-chosen metadata and must be non-sensitive.
 The files are pseudonymous, not anonymous; they are not signed or encrypted by
-this component. File-based combination provides neither cross-tenant access
-control nor automatic fleet discovery, and does not deduplicate overlapping spans.
+this component. Matching metadata declares compatibility; it does not authenticate
+senders or prove equal secrets. File-based combination provides neither cross-tenant
+access control nor automatic fleet discovery, and does not deduplicate overlapping
+spans. Only exported sketch state can be merged; Prometheus estimates and top-k
+log rows cannot replace it. For interpreting changes, see
+[Token Usage](TOKEN_USAGE.md#limits).
 
 The integration test `TestIndependentCollectorsExportMergeablePrivateSummaries`
 runs two collector processes, sends OTLP traffic, combines exported files, verifies

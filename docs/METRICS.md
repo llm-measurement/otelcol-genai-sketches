@@ -15,19 +15,18 @@ low-cardinality and non-sensitive. `gen_ai_sketch_active_slices` has only its fi
 | `gen_ai_sketch_input_tokens_total` | Sum of reported input-token attributes |
 | `gen_ai_sketch_output_tokens_total` | Sum of reported output-token attributes |
 | `gen_ai_sketch_total_tokens_total` | Sum of reported input and output tokens |
-| `gen_ai_sketch_cache_read_input_tokens_total` | Reported cache-read input tokens; never added to total tokens |
-| `gen_ai_sketch_cache_write_input_tokens_total` | Reported cache-write input tokens; never added to total tokens |
-| `gen_ai_sketch_reasoning_output_tokens_total` | Reported reasoning output tokens; never added to total tokens |
+| `gen_ai_sketch_cache_read_input_tokens_total` | Reported cache-read subset of input tokens |
+| `gen_ai_sketch_cache_write_input_tokens_total` | Reported cache-write subset of input tokens |
+| `gen_ai_sketch_reasoning_output_tokens_total` | Reported reasoning subset of output tokens |
 | `gen_ai_sketch_missing_token_usage_total` | Matched request spans missing either aggregate token attribute |
 | `gen_ai_sketch_token_field_observations_total` | Fixed-field completeness and quality states |
 | `gen_ai_sketch_usage_provenance_total` | Instrumenter-declared input/output origin |
 | `gen_ai_sketch_dedup_suppressed_total` | Probable duplicates suppressed when optional deduplication is enabled |
 | `gen_ai_sketch_dedup_key_missing_total` | Requests counted without a configured deduplication key |
 
-The connector does not infer totals; upstream instrumentation may. A present zero
-is a zero. If input or output is
-absent or invalid, the request contributes to the missing-usage counter. Cache-read
-and cache-write are subsets of input; reasoning is a subset of output.
+Counters use reported numeric fields. Missing-usage and provenance counters show
+completeness and declared origin. See [Token Fields](ACCOUNTING.md#token-fields)
+for genuine zeros, invalid values, and subset accounting.
 
 Each cumulative series begins when its retained slice is created. Collector restart,
 or eviction followed by recreation of the same label set, creates a counter reset.
@@ -76,7 +75,7 @@ not additional runs.
 
 Every five seconds, the connector can emit a structured `genaisketch topk snapshot`
 log containing keyed prompt signatures by default, weighted estimates, and lower
-and upper bounds. These signatures never appear as Prometheus metric labels.
+and upper bounds. See the [cardinality contract](#cardinality-contract) for label rules.
 
 Release v0.3.0 supports opt-in [user/session keys](TOPK_KEYS.md).
 The existing snapshot's `field` selects `prompt_key`, `user_key`, or `session_key`.

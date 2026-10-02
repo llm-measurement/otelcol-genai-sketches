@@ -1,10 +1,9 @@
 # Usage Provenance
 
-Numeric usage and source coverage are different measurements. A gateway may
-replace missing provider counts with zeros or local estimates. Provenance records
-the instrumenter's declaration of where each input/output count came from.
-Explicitly unavailable counts are excluded from totals and count as missing usage.
-Unannotated traffic keeps its existing accounting behavior.
+See whether input/output counts came from the provider, an estimator, or an
+unknown source. Provenance records that declaration before a gateway fills absent
+usage with zeros or estimates. Explicitly unavailable counts count as missing;
+unannotated traffic keeps its existing accounting behavior.
 
 ## Input Contract
 
@@ -33,8 +32,7 @@ these assertions; they are not independent evidence for billing.
 
 The standard-library [Python helper](../examples/integrations/litellm/usage_provenance.py)
 retains four optional integer counts (input, output, cached input, reasoning
-output), not the response, prompt, or identity. Use it
-where the raw provider response is still available:
+output). Use it where the raw provider response is still available:
 
 ```python
 from usage_provenance import capture
@@ -58,7 +56,7 @@ The opt-in [LiteLLM callback](../examples/integrations/litellm/README.md#capture
 connects this helper to `CustomLogger.log_post_api_call`. In the pinned 1.102.1
 OpenAI chat path, that callback receives raw response JSON before transformation.
 It retains four optional counts in request-local state, then annotates the existing model
-span. It does not patch LiteLLM or create a second tracing callback.
+span through LiteLLM's callback interface.
 
 Only non-streaming OpenAI-compatible chat is supported. Streaming, other providers,
 unsupported response shapes, and responses larger than 1,048,576 characters remain
@@ -70,8 +68,8 @@ emitted as `gen_ai.usage.cache_read.input_tokens` and
 `gen_ai.usage.reasoning.output_tokens`. Values must be valid integers within their
 raw parent totals, the emitted parent must match, and an emitted subset must not
 conflict with its captured value. Absent or invalid subsets are omitted, not
-replaced with zero. Valid zero is preserved. Subsets are never added to totals;
-the existing collector accounting and summary contract are unchanged.
+replaced with zero. Valid zero is preserved. Subsets follow the existing
+[accounting rules](ACCOUNTING.md#token-fields).
 
 ## Output And Compatibility
 
@@ -98,8 +96,8 @@ the difference is an instrumentation change, not evidence of savings.
 
 Fleetdiff adds a provider-origin question. Older summaries without these counters
 return `cannot_determine`, as do unknown-origin observations. Known inferred or
-unavailable origin means limited source coverage. Complete declarations still do not prove complete delivery,
-unsampled traffic, or invoice accuracy.
+unavailable origin means limited source coverage. For upstream delivery and
+billing interpretation, see [Accounting](ACCOUNTING.md#attribution-and-reconciliation).
 
 ## Regression Coverage
 

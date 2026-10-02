@@ -1,8 +1,8 @@
 # Sizing
 
-Sizing follows workload shape, not only spans per second. The main inputs are active
-slice values, retained windows, sketch profiles, enabled MCP fields, top-k size, and
-the number of configured slice views.
+Size the collector from active slices, retained windows, and top-k keys. Sketch
+profiles, enabled MCP fields, and the number of slice views also affect memory.
+A measured baseline follows; [Benchmarks](BENCHMARKS.md) records its machine and scope.
 
 ## Recorded Baseline
 
@@ -28,8 +28,7 @@ MiB values avoid accidentally sizing against host memory instead of a container
 limit. CPU was not isolated in the recorded soak, so the CPU values are starting
 points rather than measured requirements.
 
-Do not turn the 10,000 spans/second result into a universal capacity claim. Repeat
-the load test with the intended exporters, label views, profiles, and traffic mix.
+Repeat the load test with your exporters, label views, profiles, and traffic mix.
 
 ## Capacity Effects
 
@@ -55,8 +54,8 @@ Measured on September 30, 2026 with the benchmark source included in this change
 Apple M4 Max (16 logical CPUs), 64 GiB RAM, macOS 27.0 build 26A428, Go 1.26.6,
 native ARM64, `small` frequent-items profile. Five runs per case; the table shows
 the least favorable value. The machine was not CPU-isolated; other development
-checks ran during part of the measurement. These are local microbenchmarks, not
-new throughput or production-capacity claims.
+checks ran during part of the measurement. The cases isolate allocation and
+in-process batch costs.
 
 ```sh
 GOWORK=off GOCACHE="$PWD/.cache/go-build" GOMODCACHE="$PWD/.cache/go-mod" \
@@ -78,8 +77,8 @@ HLL sketches. This is allocated memory, not an RSS limit. The consume benchmark
 uses one slice, 100 identities, and 10% missing usage, with token weighting for
 every key. It includes hashing, updates, and metric construction, but no transport
 or snapshot serialization. User/document hashes are already computed for distinct
-counts; session attribution adds hashing work. Neither case measures a hot,
-high-cardinality deployment's full cost.
+counts; session attribution adds hashing work. Include transport and snapshot
+serialization when measuring a deployment.
 
 For scale: two extra keys across 1,000 slices and 10 windows add roughly 1.1 GiB of
 new-window allocation footprint before exporter, snapshot, overflow, and runtime

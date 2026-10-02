@@ -1,7 +1,7 @@
 # Rank Users And Sessions Without Identity Labels
 
-Available from collector v0.3.0. Older releases do not gain this option when
-their configuration changes; upgrade the image before enabling it.
+Find the users and sessions carrying the most reported tokens or model attempts,
+with identities kept as keyed hashes. Requires collector v0.3.0 or later.
 
 By default, top-k ranks prompt signatures by observed input plus output tokens.
 Use `topk_keys` to rank users or application sessions instead, or alongside them:
@@ -51,13 +51,14 @@ including tool errors. The `frequent_items` profile determines sketch capacity;
 
 Source declarations still matter: a gateway's inferred counts can appear complete.
 Read the [usage provenance guide](USAGE_PROVENANCE.md) before treating token totals
-as provider consumption. Neither ranking is a bill or a showback ledger.
+as provider consumption.
 
 ## Where Results Appear
 
 Top-k results appear in structured `genaisketch topk snapshot` logs and optional
-[summary exports](SUMMARY_EXCHANGE.md), never in metric labels. Snapshots already
-identify the configured key in `field`. Request-weighted snapshots also carry
+[summary exports](SUMMARY_EXCHANGE.md). See the
+[metric cardinality contract](METRICS.md#cardinality-contract) for label rules.
+Snapshots identify the configured key in `field`. Request-weighted snapshots also carry
 `weight: requests`; absence of `weight` means token weight for these model-key
 rankings. The separate tool-error ranking continues to count tool-error events.
 
@@ -82,9 +83,10 @@ fleetdiff investigate --before ./before --after ./after --expected app --flag-sh
 ```
 
 The users question reports tracked token contributors and their change bounds.
-The sessions question reports share intervals and marks a **runaway candidate**
-only when a session's after-window lower-bound share is strictly above the
-threshold. It is a reason to investigate, not a diagnosed loop or automatic action.
+The sessions question reports share intervals and flags a session for review
+only when its after-window lower-bound share is strictly above the threshold.
+Released fleetdiff v0.3.0 calls this a `runaway candidate`; JSON retains
+`runaway_candidate`. See [Acting On Results](TOKEN_USAGE.md#acting-on-results).
 
 Shares describe the weight attributed to that key, not all traffic. A session can
 carry most attributed weight because other attempts have no session ID. Incomplete
@@ -110,8 +112,7 @@ omit unrecognized rankings when input contracts match, but may reject an old/new
 comparison. Upgrade the reader to compare across the addition of an optional key.
 
 Session IDs, user IDs, and other key values are canonicalized and keyed-hashed
-before entering sketch state. They are pseudonymous, not anonymous, and linkable
-across windows under the same secret. Only an authorized operator with that secret
-can re-hash known identities for lookup. Keep exports private; never turn their
-hashes or original values into metric labels. Slice-label overlap validation also
-applies to the configured session and user sources.
+before entering sketch state. An authorized operator with the secret can re-hash
+known identities for lookup. Follow the [privacy guidance](../README.md#security-and-privacy)
+and [metric cardinality contract](METRICS.md#cardinality-contract). Slice-label
+overlap validation applies to the configured session and user sources.
