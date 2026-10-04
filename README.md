@@ -154,6 +154,13 @@ source-pinned fixtures, missing-usage checks, and an optional two-stack extensio
 The question-oriented `fleetdiff investigate` command is available in fleetdiff
 v0.2.0 and later. Source-provenance accounting requires collector v0.2.0 or later.
 
+For ongoing checks, the source chart adds [optional Prometheus alerts](docs/ALERTING.md)
+for changes in attempts, tokens per attempt, and usage coverage. They are disabled
+by default. The fleetdiff source checkout also adds local `scan` over archived
+summary windows for user/session attribution, plus `diagnose` for a static config
+review. These checkout additions are not yet in published chart or fleetdiff
+releases; see [scan and history retention](https://github.com/llm-measurement/fleetdiff/blob/main/docs/SCAN.md).
+
 To compare two windows across operators, use [fleetdiff](https://github.com/llm-measurement/fleetdiff).
 It reads these exports locally and reports usage changes, distinct activity,
 tracked-item bounds, and missing coverage. Its [two-collector demo](https://github.com/llm-measurement/fleetdiff#run-it-through-real-collectors)

@@ -1,0 +1,150 @@
+# SPDX-License-Identifier: Apache-2.0
+# Code authors: Vijay and Codex
+name: chart-release
+
+on:
+  push:
+    tags: ["chart-v*"]
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: chart-release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CHART_NAME: ghcr.io/llm-measurement/charts/otelcol-genai-sketches
+
+jobs:
+  chart:
+    if: github.event.repository.visibility == 'public'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      actions: read
+      artifact-metadata: write
+      attestations: write
+      contents: write
+      id-token: write
+      packages: write
+    env:
+      GOWORK: "off"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Require a stable chart tag on main
+        run: |
+          [[ "${GITHUB_REF_NAME}" =~ ^chart-v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          git merge-base --is-ancestor "${GITHUB_SHA}" origin/main
+          test -f "docs/releases/${GITHUB_REF_NAME}.md"
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.26.6"
+          cache: true
+          cache-dependency-path: go.sum
+
+      - name: Set up Helm
+        uses: Azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v4.2.4
+
+      - name: Validate chart and alert rules
+        env:
+          PROMTOOL_DOCKER: "1"
+          CHART_RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          make helm-check
+          make prometheus-rule-check
+          HELM="$(command -v helm)" go test ./deploy/helm/tests -count=1 -v
+
+      - name: Package checked-in chart metadata
+        run: |
+          helm package deploy/helm/otelcol-genai-sketches --destination release
+          test -f "release/otelcol-genai-sketches-${GITHUB_REF_NAME#chart-v}.tgz"
+
+      - name: Refuse an existing OCI chart version
+        run: |
+          version="${GITHUB_REF_NAME#chart-v}"
+          pull_token="$(curl --fail --silent --show-error \
+            'https://ghcr.io/token?service=ghcr.io&scope=repository:llm-measurement/charts/otelcol-genai-sketches:pull' \
+            | jq -er '.token')"
+          status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+            --header "Authorization: Bearer ${pull_token}" \
+            --header 'Accept: application/vnd.oci.image.manifest.v1+json' \
+            "https://ghcr.io/v2/${CHART_NAME#ghcr.io/}/manifests/${version}")"
+          case "${status}" in
+            404) ;;
+            200) echo "Chart ${version} already exists; refusing to overwrite it" >&2; exit 1 ;;
+            *) echo "Cannot establish chart availability (HTTP ${status})" >&2; exit 1 ;;
+          esac
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Log in to GHCR for signing
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish and sign Helm chart
+        id: chart
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version="${GITHUB_REF_NAME#chart-v}"
+          printf '%s' "${GH_TOKEN}" | helm registry login ghcr.io \
+            --username "${GITHUB_ACTOR}" --password-stdin
+          push_output="$(helm push "release/otelcol-genai-sketches-${version}.tgz" \
+            oci://ghcr.io/llm-measurement/charts 2>&1)"
+          printf '%s\n' "${push_output}"
+          chart_digest="$(printf '%s\n' "${push_output}" | awk '$1 == "Digest:" {print $2}' | tail -n 1)"
+          [[ "${chart_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
+          printf '%s@%s\n' "${CHART_NAME}" "${chart_digest}" > release/chart-digest.txt
+          printf 'digest=%s\n' "${chart_digest}" >> "${GITHUB_OUTPUT}"
+          cosign sign --yes "${CHART_NAME}@${chart_digest}"
+          cosign verify \
+            --certificate-identity "https://github.com/${GITHUB_REPOSITORY}/.github/workflows/chart-release.yml@${GITHUB_REF}" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            "${CHART_NAME}@${chart_digest}"
+          (cd release && sha256sum chart-digest.txt *.tgz > SHA256SUMS)
+
+      - name: Attest Helm chart provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-name: ${{ env.CHART_NAME }}
+          subject-digest: ${{ steps.chart.outputs.digest }}
+          push-to-registry: true
+
+      - name: Verify anonymous chart access
+        run: |
+          docker logout ghcr.io >/dev/null
+          helm registry logout ghcr.io >/dev/null
+          mkdir -p /tmp/public-chart
+          version="${GITHUB_REF_NAME#chart-v}"
+          attempts=12
+          until helm pull "oci://${CHART_NAME}" --version "${version}" --destination /tmp/public-chart; do
+            attempts=$((attempts - 1))
+            if ((attempts == 0)); then exit 1; fi
+            sleep 10
+          done
+          cmp "release/otelcol-genai-sketches-${version}.tgz" "/tmp/public-chart/otelcol-genai-sketches-${version}.tgz"
+
+      - name: Create chart-only GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" release/* \
+            --verify-tag --latest=false \
+            --title "Helm chart ${GITHUB_REF_NAME#chart-v}" \
+            --notes-file "docs/releases/${GITHUB_REF_NAME}.md"

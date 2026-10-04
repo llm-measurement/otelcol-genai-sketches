@@ -56,4 +56,7 @@ spec:
             summary: GenAI deduplication keys are missing
             description: Requests are being counted without the configured deduplication key above its allowed ratio.
         {{- end }}
+    {{- if .Values.prometheusRule.anomalies.enabled }}
+    {{- include "otelcol-genai-sketches.anomalyRules" . | nindent 4 }}
+    {{- end }}
 {{- end }}

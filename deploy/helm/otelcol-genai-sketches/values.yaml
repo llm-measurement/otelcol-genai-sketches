@@ -71,6 +71,19 @@ prometheusRule:
   overflowRequests: 0
   qualityObservations: 0
   dedupMissingRatio: 0.01
+  # Total-view heuristic companions; see docs/ALERTING.md before enabling.
+  anomalies:
+    enabled: false
+    window: 10m
+    baselineWindow: 1h
+    # Baseline offset is always window, so it cannot overlap the recent period.
+    for: 10m
+    minRecentAttempts: 100
+    minBaselineAttempts: 1000
+    attemptRateRatio: 3
+    tokensPerAttemptRatio: 2
+    missingUsageRatio: 0.20
+    missingUsageIncrease: 0.10
 
 connector:
   windowDuration: 60s
