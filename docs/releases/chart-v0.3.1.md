@@ -14,7 +14,7 @@ Minimum-volume, positive-denominator, persistence, and usage-coverage guards kee
 sparse or incomplete observations from becoming token-per-attempt claims.
 
 `prometheusRule.enabled` and `prometheusRule.anomalies.enabled` both remain false
-by default. Read [Alerting](../ALERTING.md) before enabling either. These are
+by default. Read [Alerting](https://github.com/llm-measurement/otelcol-genai-sketches/blob/main/docs/ALERTING.md) before enabling either. These are
 heuristic investigation signals, not calibrated anomaly probabilities or evidence
 of token savings. Missing-usage changes describe coverage separately from token
 consumption. No identity labels or runtime dependencies are added.
@@ -22,7 +22,7 @@ consumption. No identity labels or runtime dependencies are added.
 ## Upgrade
 
 Verify this chart's checksum, signature, and provenance using the chart-specific
-identity in [Chart Releases](../CHART_RELEASE.md). Continue to obtain the collector
+identity in [Chart Releases](https://github.com/llm-measurement/otelcol-genai-sketches/blob/main/docs/CHART_RELEASE.md). Continue to obtain the collector
 image digest and its signature from the existing `v0.3.0` runtime release.
 
 ```sh
@@ -34,7 +34,7 @@ helm upgrade --install genai-sketches \
 Preserve your existing secret and verified image-digest settings in that values
 file. No warning is enabled by this upgrade alone. Prometheus Operator is required
 only when opting into PrometheusRule resources. Local user/session scan flags are
-a separate, unreleased source-checkout workflow; this chart does not release scan.
+available separately in [fleetdiff v0.5.0](https://github.com/llm-measurement/fleetdiff/releases/tag/v0.5.0).
 
 ## Verification Scope
 

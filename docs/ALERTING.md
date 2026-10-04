@@ -37,8 +37,8 @@ this resource. Use `prometheusRule.labels` for any required resource-selection
 labels. `serviceMonitor.enabled` remains a separate opt-in. Setting only
 `anomalies.enabled` does nothing while `prometheusRule.enabled` is false. Keep the
 companion disabled until you have checked the selected accounting population and
-have enough history. Use the source chart until a chart release includes these
-values; older published charts do not acquire them automatically.
+have enough history. These settings are included in chart 0.3.1, which continues
+to use collector image 0.3.0. See [installation and verification](DEPLOYMENT.md).
 
 ## Signals And Guards
 
@@ -112,11 +112,10 @@ savings claims. These companions signal increases only and do not certify normal
 behavior when silent. Preserve the existing accounting alerts as separate guards.
 
 For attribution, use bounded local inspection and the collector's opt-in private
-top-k summaries. Future local `fleetdiff scan` user/session flags are a separate
-workflow, not labels or outputs of these Prometheus rules. **Scan is not released**:
-use only a supporting source checkout and its local instructions until a release
-explicitly includes it. Do not assume an installed release contains scan or its
-flags. No user/session/request IDs, prompt text, hashes, or top-k entries should be
+top-k summaries. Local `fleetdiff scan` user/session flags, available in
+**fleetdiff v0.5.0**, are a separate workflow, not labels or outputs of these
+Prometheus rules. See [scan and retained history](https://github.com/llm-measurement/fleetdiff/blob/main/docs/SCAN.md).
+No user/session/request IDs, prompt text, hashes, or top-k entries should be
 added to chart metric or alert labels.
 
 ## Validation
