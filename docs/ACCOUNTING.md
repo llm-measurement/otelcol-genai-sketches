@@ -8,6 +8,13 @@ This document defines how `otelcol-genai-sketches` turns GenAI spans into reques
 and token counters. Changes that alter a counter's meaning require a new contract
 version and new reconciliation fixtures.
 
+The offline inspection adapter also runs the
+[shared OTLP accounting corpus](../connector/genaisketchconnector/testdata/inspect-contract/v1/manifest.json).
+Its fixed default mappings, provenance rules, and deduplication-off scope are
+versioned separately from configurable collector behavior. This repository and
+fleetdiff check the same cases and checksum manifest in CI; update both copies
+when deliberately changing the shared contract.
+
 The contract is based on the
 [OpenTelemetry GenAI span conventions](https://github.com/open-telemetry/semantic-conventions-genai/blob/94f432d7126f5884d30a2cdde6f4e89908ebb6fd/docs/gen-ai/gen-ai-spans.md)
 reviewed on 2026-09-05. Those conventions are still developing, so this repository

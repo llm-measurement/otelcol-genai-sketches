@@ -51,6 +51,10 @@ jobs:
           make tidy
           git diff --exit-code
       - run: make check
+      - name: Offline inspection accounting contract
+        run: |
+          (cd connector/genaisketchconnector/testdata/inspect-contract/v1 && sha256sum -c SHA256SUMS)
+          go -C connector/genaisketchconnector test -run '^TestInspectAccountingContract$' -count=1
       - name: Usage provenance source-boundary fixtures
         run: python3 -m unittest discover -s examples/integrations/litellm -p 'test_*.py'
       - name: Provider trial offline checks (no credentials or paid calls)
