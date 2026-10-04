@@ -33,7 +33,23 @@
         "missingUsageRatio": {"type": "number", "minimum": 0, "maximum": 1},
         "overflowRequests": {"type": "number", "minimum": 0},
         "qualityObservations": {"type": "number", "minimum": 0},
-        "dedupMissingRatio": {"type": "number", "minimum": 0, "maximum": 1}
+        "dedupMissingRatio": {"type": "number", "minimum": 0, "maximum": 1},
+        "anomalies": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "window": {"type": "string", "pattern": "^[1-9][0-9]*(ms|s|m|h|d|w|y)$"},
+            "baselineWindow": {"type": "string", "pattern": "^[1-9][0-9]*(ms|s|m|h|d|w|y)$"},
+            "for": {"type": "string", "pattern": "^[1-9][0-9]*(ms|s|m|h|d|w|y)$"},
+            "minRecentAttempts": {"type": "number", "exclusiveMinimum": 0},
+            "minBaselineAttempts": {"type": "number", "exclusiveMinimum": 0},
+            "attemptRateRatio": {"type": "number", "exclusiveMinimum": 1},
+            "tokensPerAttemptRatio": {"type": "number", "exclusiveMinimum": 1},
+            "missingUsageRatio": {"type": "number", "exclusiveMinimum": 0, "maximum": 1},
+            "missingUsageIncrease": {"type": "number", "exclusiveMinimum": 0, "maximum": 1}
+          }
+        }
       }
     },
     "connector": {

@@ -2,6 +2,19 @@
 
 Notable user-visible changes are recorded here.
 
+## Helm chart 0.3.1 - 2026-10-04
+
+See the [chart release notes](docs/releases/chart-v0.3.1.md). The collector runtime
+and default image remain v0.3.0; no connector or accounting change is included.
+
+- Add three opt-in Helm alert rules for model-attempt rate, reported tokens per
+  attempt, and missing-usage share. Compare against an earlier baseline with
+  volume guards, persistence, and matched usage coverage. Defaults remain off.
+- Exercise the rendered alert rules against quiet, unusual, incomplete, reset,
+  and scrape-gap fixtures with Prometheus in CI.
+- Publish chart-only patches independently, with signed OCI artifacts and
+  provenance, without rebuilding or retagging the collector image.
+
 ## v0.3.0 - 2026-10-01
 
 See the [release notes](docs/releases/v0.3.0.md) for configuration and compatibility.

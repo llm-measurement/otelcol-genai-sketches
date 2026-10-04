@@ -136,6 +136,10 @@ jobs:
           go test -tags integration ./integration \
             -run '^Test(IndependentCollectorsExportMergeablePrivateSummaries|SessionTopKPrivateSummaryPipeline)$' \
             -count=1 -timeout=5m -v
+      - name: Exercise opt-in alerts with Prometheus
+        env:
+          PROMTOOL_DOCKER: "1"
+        run: HELM="$(command -v helm)" go test ./deploy/helm/tests -count=1 -v
       - name: Scan production image
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
