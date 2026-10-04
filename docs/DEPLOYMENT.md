@@ -37,21 +37,27 @@ gh attestation verify "oci://$IMAGE@$DIGEST" \
   --repo llm-measurement/otelcol-genai-sketches
 ```
 
-The chart is signed and attested separately. Verify its immutable reference too:
+Chart 0.3.1 adds opt-in warning rules while keeping collector image 0.3.0.
+It is signed and attested by the separate chart-only workflow. Verify its
+immutable reference too:
 
 ```bash
+CHART_RELEASE=chart-v0.3.1
+CHART_VERSION=0.3.1
 CHART_REF="$(curl -fsSL \
-  "https://github.com/llm-measurement/otelcol-genai-sketches/releases/download/${RELEASE}/chart-digest.txt")"
+  "https://github.com/llm-measurement/otelcol-genai-sketches/releases/download/${CHART_RELEASE}/chart-digest.txt")"
 CHART="${CHART_REF%@*}"
 CHART_DIGEST="${CHART_REF#*@}"
 
 cosign verify \
-  --certificate-identity-regexp 'https://github.com/llm-measurement/otelcol-genai-sketches/.github/workflows/release.yml@refs/tags/v.*' \
+  --certificate-identity "https://github.com/llm-measurement/otelcol-genai-sketches/.github/workflows/chart-release.yml@refs/tags/${CHART_RELEASE}" \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   "$CHART@$CHART_DIGEST"
 
 gh attestation verify "oci://$CHART@$CHART_DIGEST" \
-  --repo llm-measurement/otelcol-genai-sketches
+  --repo llm-measurement/otelcol-genai-sketches \
+  --signer-workflow llm-measurement/otelcol-genai-sketches/.github/workflows/chart-release.yml \
+  --source-ref "refs/tags/${CHART_RELEASE}" --deny-self-hosted-runners
 ```
 
 BuildKit attaches a platform-specific SPDX SBOM and build provenance to each image.
@@ -62,8 +68,9 @@ docker buildx imagetools inspect "$IMAGE@$DIGEST" --format '{{ json .SBOM }}'
 docker buildx imagetools inspect "$IMAGE@$DIGEST" --format '{{ json .Provenance }}'
 ```
 
-Each GitHub release also carries the image and chart digests, an SBOM index export,
-the packaged chart, and SHA-256 checksums. Verify all downloaded files together:
+Runtime releases carry image and chart digests, an SBOM index export, a packaged
+chart, and checksums. Chart-only releases carry the chart, its digest, and
+checksums without rebuilding the image. Verify each release in a separate directory:
 
 ```bash
 mkdir -p release-assets
@@ -71,6 +78,11 @@ gh release download "$RELEASE" \
   --repo llm-measurement/otelcol-genai-sketches \
   --dir release-assets
 (cd release-assets && sha256sum --check SHA256SUMS)
+mkdir -p chart-assets
+gh release download "$CHART_RELEASE" \
+  --repo llm-measurement/otelcol-genai-sketches \
+  --dir chart-assets
+(cd chart-assets && sha256sum --check SHA256SUMS)
 ```
 
 Verification checks the digest's signature and provenance against this repository's
@@ -117,19 +129,19 @@ openssl rand -hex 32 | kubectl -n observability create secret generic \
   genai-sketch-secret --from-file=secret=/dev/stdin
 ```
 
-Install the chart published with the release:
+Install the verified chart with the unchanged, verified image digest:
 
 ```bash
 helm upgrade --install genai-sketches \
   oci://ghcr.io/llm-measurement/charts/otelcol-genai-sketches \
-  --version "$VERSION" \
+  --version "$CHART_VERSION" \
   --namespace observability \
   --set-string existingSecret=genai-sketch-secret \
   --set-string image.digest="$DIGEST"
 ```
 
-The example values file is available in the source archive attached to the same
-release. When working from a checkout, replace the OCI chart reference with
+Example values are in the source tree at the chart's tag. When working from a
+checkout, replace the OCI chart reference with
 `deploy/helm/otelcol-genai-sketches`, omit `--version`, and optionally add
 `--values deploy/kubernetes/central/values.yaml`.
 
