@@ -1,0 +1,356 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": []
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "inspect-contract",
+            "version": "1"
+          },
+          "spans": [
+            {
+              "traceId": "00000000000000000000000000000001",
+              "spanId": "0000000000000001",
+              "name": "synthetic contract span",
+              "startTimeUnixNano": "1700000000000000000",
+              "endTimeUnixNano": "1700000000001000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "chat"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.input_tokens",
+                  "value": {
+                    "intValue": "10"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.output_tokens",
+                  "value": {
+                    "intValue": "2"
+                  }
+                }
+              ]
+            },
+            {
+              "traceId": "00000000000000000000000000000001",
+              "spanId": "0000000000000002",
+              "name": "synthetic contract span",
+              "startTimeUnixNano": "1700000000000000000",
+              "endTimeUnixNano": "1700000000001000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "generate_content"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.input_tokens",
+                  "value": {
+                    "intValue": "20"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.output_tokens",
+                  "value": {
+                    "intValue": "3"
+                  }
+                }
+              ]
+            },
+            {
+              "traceId": "00000000000000000000000000000001",
+              "spanId": "0000000000000003",
+              "name": "synthetic contract span",
+              "startTimeUnixNano": "1700000000000000000",
+              "endTimeUnixNano": "1700000000001000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "text_completion"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.input_tokens",
+                  "value": {
+                    "intValue": "30"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.output_tokens",
+                  "value": {
+                    "intValue": "4"
+                  }
+                }
+              ]
+            },
+            {
+              "traceId": "00000000000000000000000000000001",
+              "spanId": "0000000000000004",
+              "name": "synthetic contract span",
+              "startTimeUnixNano": "1700000000000000000",
+              "endTimeUnixNano": "1700000000001000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "embeddings"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.input_tokens",
+                  "value": {
+                    "intValue": "40"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.output_tokens",
+                  "value": {
+                    "intValue": "0"
+                  }
+                }
+              ]
+            },
+            {
+              "traceId": "00000000000000000000000000000001",
+              "spanId": "0000000000000005",
+              "name": "synthetic contract span",
+              "startTimeUnixNano": "1700000000000000000",
+              "endTimeUnixNano": "1700000000001000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "execute_tool"
+                  }
+                },
+                {
+                  "key": "gen_ai.request.model",
+                  "value": {
+                    "stringValue": "fixture-model"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.input_tokens",
+                  "value": {
+                    "intValue": "999"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.output_tokens",
+                  "value": {
+                    "intValue": "999"
+                  }
+                }
+              ]
+            },
+            {
+              "traceId": "00000000000000000000000000000001",
+              "spanId": "0000000000000006",
+              "name": "synthetic contract span",
+              "startTimeUnixNano": "1700000000000000000",
+              "endTimeUnixNano": "1700000000001000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "retrieval"
+                  }
+                },
+                {
+                  "key": "gen_ai.request.model",
+                  "value": {
+                    "stringValue": "fixture-model"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.input_tokens",
+                  "value": {
+                    "intValue": "999"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.output_tokens",
+                  "value": {
+                    "intValue": "999"
+                  }
+                }
+              ]
+            },
+            {
+              "traceId": "00000000000000000000000000000001",
+              "spanId": "0000000000000007",
+              "name": "synthetic contract span",
+              "startTimeUnixNano": "1700000000000000000",
+              "endTimeUnixNano": "1700000000001000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "workflow"
+                  }
+                },
+                {
+                  "key": "gen_ai.request.model",
+                  "value": {
+                    "stringValue": "fixture-model"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.input_tokens",
+                  "value": {
+                    "intValue": "999"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.output_tokens",
+                  "value": {
+                    "intValue": "999"
+                  }
+                }
+              ]
+            },
+            {
+              "traceId": "00000000000000000000000000000001",
+              "spanId": "0000000000000008",
+              "name": "synthetic contract span",
+              "startTimeUnixNano": "1700000000000000000",
+              "endTimeUnixNano": "1700000000001000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "create_agent"
+                  }
+                },
+                {
+                  "key": "gen_ai.request.model",
+                  "value": {
+                    "stringValue": "fixture-model"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.input_tokens",
+                  "value": {
+                    "intValue": "999"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.output_tokens",
+                  "value": {
+                    "intValue": "999"
+                  }
+                }
+              ]
+            },
+            {
+              "traceId": "00000000000000000000000000000001",
+              "spanId": "0000000000000009",
+              "name": "synthetic contract span",
+              "startTimeUnixNano": "1700000000000000000",
+              "endTimeUnixNano": "1700000000001000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "mcp.call"
+                  }
+                },
+                {
+                  "key": "gen_ai.request.model",
+                  "value": {
+                    "stringValue": "fixture-model"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.input_tokens",
+                  "value": {
+                    "intValue": "999"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.output_tokens",
+                  "value": {
+                    "intValue": "999"
+                  }
+                }
+              ]
+            },
+            {
+              "traceId": "00000000000000000000000000000001",
+              "spanId": "000000000000000a",
+              "name": "synthetic contract span",
+              "startTimeUnixNano": "1700000000000000000",
+              "endTimeUnixNano": "1700000000001000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "CHAT"
+                  }
+                },
+                {
+                  "key": "gen_ai.request.model",
+                  "value": {
+                    "stringValue": "fixture-model"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.input_tokens",
+                  "value": {
+                    "intValue": "999"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.output_tokens",
+                  "value": {
+                    "intValue": "999"
+                  }
+                }
+              ]
+            },
+            {
+              "traceId": "00000000000000000000000000000001",
+              "spanId": "000000000000000b",
+              "name": "synthetic contract span",
+              "startTimeUnixNano": "1700000000000000000",
+              "endTimeUnixNano": "1700000000001000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "invoke_agent"
+                  }
+                }
+              ]
+            },
+            {
+              "traceId": "00000000000000000000000000000001",
+              "spanId": "000000000000000c",
+              "name": "synthetic contract span",
+              "startTimeUnixNano": "1700000000000000000",
+              "endTimeUnixNano": "1700000000001000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "invoke_agent"
+                  }
+                }
+              ],
+              "parentSpanId": "0000000000000001"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

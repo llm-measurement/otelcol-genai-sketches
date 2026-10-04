@@ -1,0 +1,154 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": []
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "inspect-contract",
+            "version": "1"
+          },
+          "spans": [
+            {
+              "traceId": "00000000000000000000000000000001",
+              "spanId": "0000000000000021",
+              "name": "synthetic contract span",
+              "startTimeUnixNano": "1700000000000000000",
+              "endTimeUnixNano": "1700000000001000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "chat"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.input_tokens",
+                  "value": {
+                    "intValue": "0"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.output_tokens",
+                  "value": {
+                    "intValue": "0"
+                  }
+                },
+                {
+                  "key": "gen_ai_sketch.usage.input.provenance",
+                  "value": {
+                    "stringValue": "provider_reported"
+                  }
+                },
+                {
+                  "key": "gen_ai_sketch.usage.output.provenance",
+                  "value": {
+                    "stringValue": "provider_reported"
+                  }
+                }
+              ]
+            },
+            {
+              "traceId": "00000000000000000000000000000001",
+              "spanId": "0000000000000022",
+              "name": "synthetic contract span",
+              "startTimeUnixNano": "1700000000000000000",
+              "endTimeUnixNano": "1700000000001000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "chat"
+                  }
+                }
+              ]
+            },
+            {
+              "traceId": "00000000000000000000000000000001",
+              "spanId": "0000000000000023",
+              "name": "synthetic contract span",
+              "startTimeUnixNano": "1700000000000000000",
+              "endTimeUnixNano": "1700000000001000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "chat"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.input_tokens",
+                  "value": {
+                    "intValue": "5"
+                  }
+                }
+              ]
+            },
+            {
+              "traceId": "00000000000000000000000000000001",
+              "spanId": "0000000000000024",
+              "name": "synthetic contract span",
+              "startTimeUnixNano": "1700000000000000000",
+              "endTimeUnixNano": "1700000000001000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "chat"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.output_tokens",
+                  "value": {
+                    "intValue": "6"
+                  }
+                }
+              ]
+            },
+            {
+              "traceId": "00000000000000000000000000000001",
+              "spanId": "0000000000000025",
+              "name": "synthetic contract span",
+              "startTimeUnixNano": "1700000000000000000",
+              "endTimeUnixNano": "1700000000001000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "chat"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.input_tokens",
+                  "value": {
+                    "intValue": "-1"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.output_tokens",
+                  "value": {
+                    "stringValue": " 3"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.cache_read.input_tokens",
+                  "value": {
+                    "arrayValue": {
+                      "values": [
+                        {
+                          "intValue": "2"
+                        }
+                      ]
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

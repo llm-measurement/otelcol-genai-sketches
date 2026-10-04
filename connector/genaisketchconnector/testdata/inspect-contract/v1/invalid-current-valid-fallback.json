@@ -1,0 +1,94 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": []
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "inspect-contract",
+            "version": "1"
+          },
+          "spans": [
+            {
+              "traceId": "00000000000000000000000000000001",
+              "spanId": "0000000000000020",
+              "name": "synthetic contract span",
+              "startTimeUnixNano": "1700000000000000000",
+              "endTimeUnixNano": "1700000000001000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "chat"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.input_tokens",
+                  "value": {
+                    "stringValue": "invalid"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.prompt_tokens",
+                  "value": {
+                    "stringValue": "12"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.output_tokens",
+                  "value": {
+                    "doubleValue": 1.5
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.completion_tokens",
+                  "value": {
+                    "intValue": "4"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.cache_read.input_tokens",
+                  "value": {
+                    "doubleValue": 3
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.cache_write.input_tokens",
+                  "value": {
+                    "boolValue": true
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.cache_creation.input_tokens",
+                  "value": {
+                    "intValue": "6"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.reasoning.output_tokens",
+                  "value": {
+                    "intValue": "2"
+                  }
+                },
+                {
+                  "key": "gen_ai_sketch.usage.input.provenance",
+                  "value": {
+                    "stringValue": "provider_reported"
+                  }
+                },
+                {
+                  "key": "gen_ai_sketch.usage.output.provenance",
+                  "value": {
+                    "stringValue": "inferred"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
