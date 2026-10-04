@@ -1,0 +1,8 @@
+{
+  "python": {"version": "3.12.12", "image": "python@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c"},
+  "collector": {"version": "0.2.0", "image": "ghcr.io/llm-measurement/otelcol-genai-sketches@sha256:a990c08f29dda3b33b11771fb87788a5c4ba2a2ea3dbf991e94876c5d274800b"},
+  "litellm": {"version": "1.104.0", "image": "ghcr.io/berriai/litellm@sha256:625981c83410a3ea68eb0697590a57ec1d764d634514d54fa5db0591077ee839", "source": "https://github.com/BerriAI/litellm/releases/tag/v1.104.0"},
+  "bifrost": {"version": "2.2.5", "image": "maximhq/bifrost@sha256:65854fd1941ba8159f1f98cd69df380f6e8ac8cd374bde632c4e28f822a6f115", "source": "https://github.com/maximhq/bifrost/releases/tag/transports/v2.2.5"},
+  "agentgateway": {"version": "1.6.0", "image": "ghcr.io/agentgateway/agentgateway@sha256:9d3e6044ddcdc0878b1787f77bd401252b95e22684203fb5e874c4c42d2ed90c", "source": "https://github.com/agentgateway/agentgateway/releases/tag/v1.6.0"},
+  "portkey": {"version": "1.15.2", "image": "portkeyai/gateway@sha256:97f094d9c8a764cbfaa2a7138c0017b247ca923bb06db1b4c13b7f8a33b5200d", "source": "https://github.com/Portkey-AI/gateway/releases/tag/v1.15.2"}
+}

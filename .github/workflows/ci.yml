@@ -203,3 +203,24 @@ jobs:
       - name: Tear down example stack
         if: always()
         run: docker compose -f examples/compose.yaml down -v
+
+  gateway-accounting:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        gateway: [litellm, bifrost, agentgateway, portkey]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Test fixtures and evidence readers
+        run: python3 -B -m unittest discover -s examples/gateway-accounting -p 'test_*.py'
+      - name: Run deterministic gateway cases (no provider credentials)
+        run: |
+          python3 -B examples/gateway-accounting/run.py \
+            --gateways '${{ matrix.gateway }}' --output .cache/gateway-study-ci
+          python3 -B examples/gateway-accounting/verify.py .cache/gateway-study-ci
+      # Captures can contain diagnostic and security-sensitive material. Keep
+      # them off public logs and do not upload raw results as CI artifacts.
