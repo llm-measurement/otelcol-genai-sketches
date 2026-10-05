@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: Apache-2.0
+# Code authors: Vijay and Codex
+# Chart 0.3.1: metrics and snapshot logs. The Docker recipe exports summary files.
+image:
+  tag: '0.3.0'
+  digest: sha256:c7fef29869ada99345725cf8504c8bd265357f570a23f1344769d362e595211c
+shadow:
+  enabled: true
+  endpoint: existing-collector.observability.svc.cluster.local:4317
+  insecure: false
+connector:
+  topK: 10
+  topKKeys:
+    - {field: user_key, weight: tokens}
+    - {field: session_key, weight: requests}
+    - {field: workflow_key, weight: tokens}
+  slices:
+    - {name: by_model, keys: [gen_ai.request.model]}
+  fields:
+    user_key:
+      from_attributes: [user.id]
+      canonicalization: text_v1
+      domain: user:v1
+    session_key:
+      from_attributes: [session.id]
+      canonicalization: text_v1
+      domain: session:v1
+    workflow_key:
+      from_attributes: [app.workflow]
+      canonicalization: text_v1
+      domain: user:v1

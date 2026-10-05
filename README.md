@@ -154,6 +154,12 @@ source-pinned fixtures, missing-usage checks, and an optional two-stack extensio
 The question-oriented `fleetdiff investigate` command is available in fleetdiff
 v0.2.0 and later. Source-provenance accounting requires collector v0.2.0 or later.
 
+To find which users and sessions took over while totals stayed flat, run the
+[agentgateway recipe](examples/integrations/agentgateway/README.md) or its
+[standalone Envoy AI Gateway variant](examples/integrations/envoy-ai-gateway/README.md).
+Both run on released builds with synthetic traffic, keep your existing backend,
+and add user and session summaries plus workflow rankings in snapshot logs.
+
 For ongoing checks, chart **0.3.1** includes [optional Prometheus alerts](docs/ALERTING.md)
 for changes in attempts, tokens per attempt, and usage coverage. They are disabled
 by default. **fleetdiff v0.5.0** includes local `scan` over archived

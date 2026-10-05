@@ -1,0 +1,57 @@
+# SPDX-License-Identifier: Apache-2.0
+# Code authors: Vijay and Codex
+x-runtime: &runtime
+  read_only: true
+  user: '${RECIPE_UID}:${RECIPE_GID}'
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  pids_limit: 256
+  mem_limit: 1g
+  cpus: 2
+  networks: [recipe]
+  tmpfs: ['/tmp:size=128m,mode=1777']
+  logging:
+    driver: json-file
+    options: {max-size: 10m, max-file: '2'}
+services:
+  provider:
+    <<: *runtime
+    image: python@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c
+    command: [python, -B, /study/provider.py]
+    volumes:
+      - ../../gateway-accounting:/study:ro
+      - .:/recipe:ro
+      - ${RECIPE_OUTPUT}:/evidence
+  gateway:
+    <<: *runtime
+    image: ghcr.io/agentgateway/agentgateway@sha256:9d3e6044ddcdc0878b1787f77bd401252b95e22684203fb5e874c4c42d2ed90c
+    command: [-f, /recipe/gateway.yaml]
+    environment:
+      OTEL_BSP_SCHEDULE_DELAY: '100'
+    volumes:
+      - .:/recipe:ro
+      - ${RECIPE_OUTPUT}:/evidence:ro
+  collector:
+    <<: *runtime
+    image: ghcr.io/llm-measurement/otelcol-genai-sketches@sha256:c7fef29869ada99345725cf8504c8bd265357f570a23f1344769d362e595211c
+    command: [--config=/recipe/collector.yaml]
+    environment:
+      GENAI_SKETCH_SECRET: ${GENAI_SKETCH_SECRET}
+    volumes:
+      - .:/recipe:ro
+      - ${RECIPE_OUTPUT}:/evidence
+  backend:
+    <<: *runtime
+    image: otel/opentelemetry-collector-contrib@sha256:fd328de2552466ad78385e1b1289c3f2402b1c45f265b252aab1955b42845ac1
+    command: [--config=/recipe/backend.yaml]
+    volumes:
+      - .:/recipe:ro
+      - ${RECIPE_OUTPUT}:/evidence
+  loki:
+    <<: *runtime
+    image: grafana/loki@sha256:1107dd5274e0ada47e42472b7a7e71f3b2a2fe878878108f3e2f9e51528f0193
+    command: [-config.file=/recipe/loki.yaml]
+    volumes:
+      - .:/recipe:ro
+networks:
+  recipe: {internal: true}

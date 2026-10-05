@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: Apache-2.0
+# Code authors: Vijay and Codex
+# Test-only stand-in for the existing backend. This file contains raw spans.
+receivers:
+  otlp:
+    protocols:
+      grpc: {endpoint: '0.0.0.0:4317'}
+exporters:
+  file:
+    path: /evidence/backend.jsonl
+    flush_interval: 1s
+service:
+  telemetry:
+    metrics: {level: none}
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [file]
