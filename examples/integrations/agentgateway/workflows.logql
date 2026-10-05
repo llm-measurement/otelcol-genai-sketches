@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: Apache-2.0
+# Code authors: Vijay and Codex
+{service_name="otelcol-genai-sketches"}
+| json
+| msg="genaisketch topk snapshot"
+| line_format `{{.payload_json}}`
+| json slices="slices"
+| line_format `{{range $s := fromJson .slices}}{{if eq $s.field "workflow_key"}}window={{$s.window_start_unix_nano}} total={{$s.total_weight}} {{range $i := $s.items}}rank={{$i.rank}} hash={{$i.hash}} tokens={{$i.estimate}} bounds=[{{$i.lower_bound}},{{$i.upper_bound}}] {{end}}{{end}}{{end}}`
+|~ "hash="

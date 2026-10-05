@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: Apache-2.0
+# Code authors: Vijay and Codex
+# Merge after ../agentgateway/compose.yaml. No Kubernetes cluster is needed.
+services:
+  gateway:
+    user: '65532:65532'
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+      - /home/nonroot/.config:size=16m,uid=65532,gid=65532,mode=700
+      - /home/nonroot/.local/state:size=32m,uid=65532,gid=65532,mode=700
+      - /home/nonroot/.local/share/envoy-gateway:size=32m,uid=65532,gid=65532,mode=700
+    image: envoyproxy/ai-gateway-cli@sha256:df69760bb46b6dcb8e9c6cc3cbf040d02e1b970dab05568c478fdcc418d144b6
+    command: [run]
+    environment:
+      HOME: /tmp
+      USER: recipe
+      AIGW_DATA_HOME: /home/nonroot/.local/share/aigw
+      XDG_CONFIG_HOME: /tmp/config
+      XDG_STATE_HOME: /tmp/state
+      XDG_RUNTIME_DIR: /tmp/run
+      OPENAI_BASE_URL: http://provider:8080/v1
+      OPENAI_API_KEY: synthetic-provider-key
+      OTEL_SERVICE_NAME: envoy-recipe
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://collector:4317
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_METRICS_EXPORTER: none
+      OTEL_LOGS_EXPORTER: none
+      OTEL_BSP_SCHEDULE_DELAY: '100'
+      AI_GATEWAY_TRACING_SEMCONV: gen_ai
+      OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: 'false'
+      OTEL_AIGW_REQUEST_HEADER_ATTRIBUTES: ''
+      # Test-only sentinels: remove x-device-id:device.id and
+      # x-resource-uri:mcp.resource.uri from this mapping for real traffic.
+      OTEL_AIGW_SPAN_REQUEST_HEADER_ATTRIBUTES: 'x-user-id:user.id,agent-session-id:session.id,x-workflow:app.workflow,x-device-id:device.id,x-resource-uri:mcp.resource.uri'
+      OTEL_AIGW_METRICS_REQUEST_HEADER_ATTRIBUTES: ''
+      OTEL_AIGW_LOG_REQUEST_HEADER_ATTRIBUTES: ''

@@ -1,0 +1,59 @@
+# SPDX-License-Identifier: Apache-2.0
+# Code authors: Vijay and Codex
+# Private Docker network only. Keep the existing backend alongside sketches.
+receivers:
+  otlp:
+    protocols:
+      grpc: {endpoint: '0.0.0.0:4317'}
+connectors:
+  genaisketch:
+    window_duration: 20s
+    retention_windows: 16
+    max_slices: 10
+    topk: 10
+    hashing: {algo: hmac_sha256_64, secret_env: GENAI_SKETCH_SECRET}
+    fields:
+      user_key:
+        from_attributes: [user.id]
+        canonicalization: text_v1
+        domain: user:v1
+      session_key:
+        from_attributes: [session.id]
+        canonicalization: text_v1
+        domain: session:v1
+      workflow_key:
+        from_attributes: [app.workflow]
+        canonicalization: text_v1
+        domain: user:v1
+    topk_keys:
+      - {field: user_key, weight: tokens}
+      - {field: session_key, weight: requests}
+      - {field: workflow_key, weight: tokens}
+    slices:
+      - {name: by_model, keys: [gen_ai.request.model]}
+    summary_export:
+      directory: /evidence/summaries
+      producer_id: app
+      scope_id: gateway-recipe
+      key_id: recipe-run
+      interval: 1s
+exporters:
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    translation_strategy: UnderscoreEscapingWithoutSuffixes
+  otlp/existing:
+    endpoint: backend:4317
+    tls: {insecure: true}
+    sending_queue: {enabled: false}
+    retry_on_failure: {enabled: false}
+service:
+  telemetry:
+    logs: {encoding: json}
+    metrics: {level: none}
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [genaisketch, otlp/existing]
+    metrics:
+      receivers: [genaisketch]
+      exporters: [prometheus]

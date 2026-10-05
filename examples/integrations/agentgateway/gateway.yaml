@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: Apache-2.0
+# Code authors: Vijay and Codex
+frontendPolicies:
+  accessLog:
+    remove: [jwt.sub]
+config:
+  logging: {format: json}
+  tracing:
+    otlpEndpoint: http://collector:4317
+    randomSampling: true
+    fields:
+      add:
+        user.id: jwt.sub
+        session.id: 'request.headers["agent-session-id"]'
+        app.workflow: '"workflow:" + request.headers["x-workflow"]'
+        # Test-only sentinels: remove both mappings for real traffic.
+        device.id: 'request.headers["x-device-id"]'
+        mcp.resource.uri: 'request.headers["x-resource-uri"]'
+binds:
+  - port: 3000
+    listeners:
+      - routes:
+          - backends:
+              - ai:
+                  name: mock
+                  provider: {openAI: {}}
+                  hostOverride: provider:8080
+                  pathOverride: /v1/chat/completions
+            policies:
+              jwtAuth:
+                mode: strict
+                issuer: recipe.invalid
+                audiences: [recipe]
+                jwks: {file: /evidence/jwks.json}
