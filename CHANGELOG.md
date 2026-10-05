@@ -2,6 +2,13 @@
 
 Notable user-visible changes are recorded here.
 
+## Unreleased
+
+- Update source builds to OpenTelemetry Collector `v0.162.0` / pdata `v1.68.0`.
+  Preserve the gRPC and crypto security pins. Review the upstream change to
+  single-underscore Prometheus label names in [Upgrading](docs/UPGRADING.md).
+  Published v0.3.0 images are unchanged.
+
 ## Helm chart 0.3.1 - 2026-10-04
 
 See the [chart release notes](docs/releases/chart-v0.3.1.md). The collector runtime
