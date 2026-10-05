@@ -55,6 +55,18 @@ known window boundary, record the event, and allow old windows to expire.
 
 ## Compatibility
 
+### Collector v0.162.0 In Source Builds
+
+The source checkout uses Collector `v0.162.0` / pdata `v1.68.0`. Published
+collector v0.3.0 images remain on `v0.161.0` / pdata `v1.67.0`.
+
+Collector Contrib v0.162.0 changes Prometheus label sanitization: names starting
+with one underscore no longer receive a `key_` prefix by default. Check custom
+label names and matching queries before deploying a source build. The previous
+behavior can be selected with
+`--feature-gates=-pkg.translator.prometheus.PermissiveLabelSanitization`.
+See the [upstream release notes](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/tag/v0.162.0).
+
 ### Session Slice Labels In v0.3.0
 
 Version v0.3.0 adds a default hashed `session_key` reading
@@ -100,7 +112,7 @@ See [Usage Provenance](USAGE_PROVENANCE.md).
 
 | Surface | Current support |
 | --- | --- |
-| Collector component APIs | OpenTelemetry Collector `v0.161.0` / pdata `v1.67.0` |
+| Collector component APIs (source) | OpenTelemetry Collector `v0.162.0` / pdata `v1.68.0` |
 | Kubernetes | Chart declares Kubernetes 1.27 or newer |
 | Images | Linux amd64 and arm64 |
 | Configuration | Unknown or invalid connector fields fail startup |
