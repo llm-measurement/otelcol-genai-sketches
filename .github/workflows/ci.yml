@@ -225,6 +225,32 @@ jobs:
       # Captures can contain diagnostic and security-sensitive material. Keep
       # them off public logs and do not upload raw results as CI artifacts.
 
+  coding-agent-rankings:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Verify and install released fleetdiff v0.5.0
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p .cache
+          curl --fail --location --proto '=https' --tlsv1.2 \
+            https://raw.githubusercontent.com/llm-measurement/fleetdiff/v0.5.0/scripts/install.sh \
+            -o .cache/install-fleetdiff.sh
+          echo 'f561e95b7599485f32c2d07f1a5288a4c836ca4b9a816938991ba7e08b24a70e  .cache/install-fleetdiff.sh' | sha256sum -c -
+          sh .cache/install-fleetdiff.sh v0.5.0 .cache/fleetdiff-recipe
+      - name: Test source mappings and privacy controls
+        run: python3 -B -m unittest discover -s examples/integrations/coding-agents -p 'test_*.py' -v
+      - name: Exercise released collector and fleetdiff with synthetic coding-agent spans
+        run: |
+          python3 -B examples/integrations/coding-agents/run.py \
+            --fleetdiff .cache/fleetdiff-recipe/fleetdiff \
+            --output .cache/coding-agent-recipe
+      # Raw shadow captures contain planted identities and code. Never upload them.
+
   gateway-rankings:
     runs-on: ubuntu-latest
     timeout-minutes: 15

@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: Apache-2.0
+# Code authors: Vijay and Codex
+connectors:
+  genaisketch:
+    fields:
+      session_key:
+        from_attributes: [gen_ai.conversation.id]
+        from_resource_attributes: []
+        canonicalization: text_v1
+        domain: session:v1

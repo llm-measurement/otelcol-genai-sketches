@@ -1,0 +1,19 @@
+{
+  "resourceSpans": [{
+    "resource": {"attributes": [
+      {"key": "service.name", "value": {"stringValue": "github-copilot"}},
+      {"key": "service.version", "value": {"stringValue": "1.0.92"}},
+      {"key": "device.id", "value": {"stringValue": "SYNTHETIC_DEVICE"}}
+    ]},
+    "scopeSpans": [{"scope": {"name": "github.copilot"}, "spans": [{
+      "name": "chat synthetic-model", "kind": 3,
+      "attributes": [
+        {"key": "gen_ai.operation.name", "value": {"stringValue": "chat"}},
+        {"key": "gen_ai.request.model", "value": {"stringValue": "synthetic-model"}},
+        {"key": "gen_ai.conversation.id", "value": {"stringValue": "SYNTHETIC_SESSION"}},
+        {"key": "gen_ai.usage.input_tokens", "value": {"intValue": "100"}},
+        {"key": "gen_ai.usage.output_tokens", "value": {"intValue": "20"}}
+      ]
+    }]}]
+  }]
+}

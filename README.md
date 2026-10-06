@@ -160,6 +160,10 @@ To find which users and sessions took over while totals stayed flat, run the
 Both run on released builds with synthetic traffic, keep your existing backend,
 and add user and session summaries plus workflow rankings in snapshot logs.
 
+For coding-agent telemetry, the [Copilot CLI and Copilot Chat recipe](examples/integrations/coding-agents/README.md)
+finds a session taking over while totals stay flat, with separate device rankings
+in snapshot logs. It uses explicit source mappings and released binaries.
+
 For ongoing checks, chart **0.3.1** includes [optional Prometheus alerts](docs/ALERTING.md)
 for changes in attempts, tokens per attempt, and usage coverage. They are disabled
 by default. **fleetdiff v0.5.0** includes local `scan` over archived
