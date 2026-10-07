@@ -91,12 +91,12 @@ pair. Paste those three assignments into your shell, then run:
 ```sh
 umask 077
 fleetdiff investigate \
-  --before "${BEFORE:?use the copy helper's assignment}" \
-  --after "${AFTER:?use the copy helper's assignment}" --expected app
+  --before "${BEFORE:?run the copy helper first}" \
+  --after "${AFTER:?run the copy helper first}" --expected app
 
 scan_status=0
 fleetdiff scan ./summaries-NEW --expected app --baseline 6 \
-  --as-of "${AS_OF:?use the copy helper's assignment}" || scan_status=$?
+  --as-of "${AS_OF:?run the copy helper first}" || scan_status=$?
 printf 'scan exit: %s\n' "$scan_status"
 ```
 
