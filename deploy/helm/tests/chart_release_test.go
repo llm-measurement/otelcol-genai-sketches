@@ -156,11 +156,15 @@ func TestChartAttestationInstructions(t *testing.T) {
 	command := guide[start : start+end]
 	for _, required := range []string{
 		"--source-ref refs/tags/chart-v0.3.2",
-		"--signer-workflow llm-measurement/otelcol-genai-sketches/.github/workflows/chart-release.yml",
 		"--cert-identity 'https://github.com/llm-measurement/otelcol-genai-sketches/.github/workflows/chart-release.yml@refs/tags/chart-v0.3.2'",
 	} {
 		if !strings.Contains(command, required) {
 			t.Fatalf("attestation verification lost binding: %s", required)
+		}
+	}
+	for _, incompatible := range []string{"--signer-workflow", "--signer-repo", "--cert-identity-regex"} {
+		if strings.Contains(command, incompatible) {
+			t.Fatalf("exact certificate identity must not be combined with %s", incompatible)
 		}
 	}
 }

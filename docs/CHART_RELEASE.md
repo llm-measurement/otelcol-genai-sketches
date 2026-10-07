@@ -83,7 +83,6 @@ cosign verify \
   --certificate-identity 'https://github.com/llm-measurement/otelcol-genai-sketches/.github/workflows/chart-release.yml@refs/tags/chart-v0.3.2' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com "$CHART_REF"
 gh attestation verify "oci://$CHART_REF" --repo llm-measurement/otelcol-genai-sketches \
-  --signer-workflow llm-measurement/otelcol-genai-sketches/.github/workflows/chart-release.yml \
   --cert-identity 'https://github.com/llm-measurement/otelcol-genai-sketches/.github/workflows/chart-release.yml@refs/tags/chart-v0.3.2' \
   --source-ref refs/tags/chart-v0.3.2
 helm show chart ./otelcol-genai-sketches-0.3.2.tgz
@@ -100,7 +99,9 @@ runtime identity in [Deployment](DEPLOYMENT.md); do not substitute a chart tag
 into the runtime-image verification command.
 The [attestation verification flags](https://cli.github.com/manual/gh_attestation_verify)
 bind both the signing workflow's certificate identity and the attested source ref
-to this chart tag. A workflow path alone does not bind the release ref. Also use
+to this chart tag. Use the exact `--cert-identity` without `--signer-workflow`;
+GitHub CLI versions that treat these as mutually exclusive reject the combination.
+A workflow path alone does not bind the release ref. Also use
 `--source-digest "$RELEASE_COMMIT"` when the reviewed full commit SHA is available.
 
 ## Permissions And Limits
