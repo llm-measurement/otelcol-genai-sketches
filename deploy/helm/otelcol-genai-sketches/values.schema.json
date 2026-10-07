@@ -3,7 +3,108 @@
   "title": "otelcol-genai-sketches values",
   "type": "object",
   "required": ["existingSecret", "secretKey", "image", "connector"],
+  "allOf": [
+    {
+      "if": {"properties": {"summaryExport": {"properties": {"enabled": {"const": true}}}}},
+      "then": {
+        "properties": {
+          "summaryExport": {
+            "properties": {
+              "producerID": {"pattern": "^[A-Za-z0-9._:-]{1,128}$"},
+              "scopeID": {"pattern": "^[A-Za-z0-9._:-]{1,128}$"},
+              "keyID": {"pattern": "^[A-Za-z0-9._:-]{1,128}$"}
+            }
+          },
+          "connector": {"properties": {
+            "retentionWindows": {"minimum": 2},
+            "windowDuration": {"type": "string", "pattern": "^[1-9][0-9]{0,4}(s|m|h)$"}
+          }},
+          "strategy": {"properties": {"type": {"const": "Recreate"}}},
+          "podSecurityContext": {
+            "required": ["runAsNonRoot", "runAsUser", "runAsGroup", "fsGroup"],
+            "properties": {
+              "runAsNonRoot": {"const": true},
+              "runAsUser": {"type": "integer", "minimum": 1},
+              "runAsGroup": {"type": "integer", "minimum": 1},
+              "fsGroup": {"type": "integer", "minimum": 1},
+              "fsGroupChangePolicy": {"const": "OnRootMismatch"}
+            }
+          },
+          "securityContext": {
+            "required": ["allowPrivilegeEscalation", "readOnlyRootFilesystem", "capabilities"],
+            "not": {"anyOf": [{"required": ["runAsUser"]}, {"required": ["runAsGroup"]}]},
+            "properties": {
+              "allowPrivilegeEscalation": {"const": false},
+              "readOnlyRootFilesystem": {"const": true},
+              "runAsNonRoot": {"const": true},
+              "privileged": {"const": false},
+              "capabilities": {"properties": {
+                "drop": {"type": "array", "contains": {"const": "ALL"}},
+                "add": {"type": "array", "maxItems": 0}
+              }, "required": ["drop"]}
+            }
+          }
+        }
+      }
+    }
+  ],
   "properties": {
+    "summaryExport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "producerID", "scopeID", "keyID", "interval", "utilityImage", "reader", "storage"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "producerID": {"type": "string"},
+        "scopeID": {"type": "string"},
+        "keyID": {"type": "string"},
+        "interval": {"type": "string", "pattern": "^(([1-9]|[1-5][0-9]|60)s|1m)$"},
+        "utilityImage": {
+          "type": "object", "additionalProperties": false,
+          "required": ["repository", "digest"],
+          "properties": {
+            "repository": {"type": "string", "minLength": 1, "maxLength": 253, "pattern": "^([a-z0-9.-]+(:[0-9]+)?/)?[a-z0-9]+([._-][a-z0-9]+)*(/[a-z0-9]+([._-][a-z0-9]+)*)*$"},
+            "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+          }
+        },
+        "reader": {
+          "type": "object", "additionalProperties": false, "required": ["enabled"],
+          "properties": {"enabled": {"type": "boolean"}}
+        },
+        "storage": {
+          "type": "object", "additionalProperties": false,
+          "required": ["type", "sizeLimit", "existingClaim"],
+          "properties": {
+            "type": {"enum": ["emptyDir", "existingClaim"]},
+            "sizeLimit": {"type": "string"},
+            "existingClaim": {"type": "string"}
+          },
+          "allOf": [{
+            "if": {"properties": {"type": {"const": "emptyDir"}}},
+            "then": {"properties": {
+              "sizeLimit": {"pattern": "^[1-9][0-9]*(Ki|Mi|Gi)$"},
+              "existingClaim": {"const": ""}
+            }},
+            "else": {"properties": {
+              "sizeLimit": {"const": ""},
+              "existingClaim": {"minLength": 1, "maxLength": 253, "pattern": "^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$"}
+            }}
+          }]
+        }
+      },
+      "allOf": [{
+        "if": {"properties": {"reader": {"properties": {"enabled": {"const": true}}}}},
+        "then": {"properties": {"enabled": {"const": true}}}
+      }]
+    },
+    "telemetry": {
+      "type": "object", "additionalProperties": false,
+      "required": ["logs"],
+      "properties": {"logs": {
+        "type": "object", "additionalProperties": false, "required": ["encoding"],
+        "properties": {"encoding": {"enum": ["console", "json"]}}
+      }}
+    },
     "replicaCount": {"type": "integer", "minimum": 1, "maximum": 1},
     "existingSecret": {"type": "string", "minLength": 1},
     "secretKey": {"type": "string", "minLength": 1},

@@ -31,7 +31,7 @@ func TestChartReleaseMetadata(t *testing.T) {
 	if err := yaml.Unmarshal(data, &chart); err != nil {
 		t.Fatal(err)
 	}
-	if chart.Version != "0.3.1" || chart.AppVersion != "0.3.0" {
+	if chart.Version != "0.3.2" || chart.AppVersion != "0.3.0" {
 		t.Fatalf("chart-only release metadata changed: %+v", chart)
 	}
 	if tag := os.Getenv("CHART_RELEASE_TAG"); tag != "" && tag != "chart-v"+chart.Version {
@@ -107,7 +107,7 @@ func TestChartReleasePackage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("package: %v\n%s", err, output)
 	}
-	file, err := os.Open(filepath.Join(dir, "otelcol-genai-sketches-0.3.1.tgz"))
+	file, err := os.Open(filepath.Join(dir, "otelcol-genai-sketches-0.3.2.tgz"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +131,7 @@ func TestChartReleasePackage(t *testing.T) {
 			if err := yaml.NewDecoder(archive).Decode(&chart); err != nil {
 				t.Fatal(err)
 			}
-			if chart.Version != "0.3.1" || chart.AppVersion != "0.3.0" {
+			if chart.Version != "0.3.2" || chart.AppVersion != "0.3.0" {
 				t.Fatalf("packaging changed chart or runtime version: %+v", chart)
 			}
 			break
@@ -155,9 +155,9 @@ func TestChartAttestationInstructions(t *testing.T) {
 	}
 	command := guide[start : start+end]
 	for _, required := range []string{
-		"--source-ref refs/tags/chart-v0.3.1",
+		"--source-ref refs/tags/chart-v0.3.2",
 		"--signer-workflow llm-measurement/otelcol-genai-sketches/.github/workflows/chart-release.yml",
-		"--cert-identity 'https://github.com/llm-measurement/otelcol-genai-sketches/.github/workflows/chart-release.yml@refs/tags/chart-v0.3.1'",
+		"--cert-identity 'https://github.com/llm-measurement/otelcol-genai-sketches/.github/workflows/chart-release.yml@refs/tags/chart-v0.3.2'",
 	} {
 		if !strings.Contains(command, required) {
 			t.Fatalf("attestation verification lost binding: %s", required)
@@ -200,8 +200,8 @@ func TestChartReleaseWorkflow(t *testing.T) {
 		tag      string
 		want     bool
 	}{
-		{chart, "chart-v0.3.1", true}, {chart, "v0.3.0", false},
-		{runtime, "v0.3.0", true}, {runtime, "chart-v0.3.1", false},
+		{chart, "chart-v0.3.2", true}, {chart, "v0.3.0", false},
+		{runtime, "v0.3.0", true}, {runtime, "chart-v0.3.2", false},
 	} {
 		matched := false
 		for _, pattern := range tc.workflow.On.Push.Tags {
@@ -260,7 +260,7 @@ func TestChartReleaseWorkflow(t *testing.T) {
 curl() {
   if [[ "$*" == *"https://ghcr.io/token?"* ]]; then
     printf '%s' '{"token":"test-token"}'
-  elif [[ "$*" == *"https://ghcr.io/v2/llm-measurement/charts/otelcol-genai-sketches/manifests/0.3.1"* ]]; then
+  elif [[ "$*" == *"https://ghcr.io/v2/llm-measurement/charts/otelcol-genai-sketches/manifests/0.3.2"* ]]; then
     printf '%s' "$TEST_HTTP_STATUS"
   else
     return 22
@@ -271,7 +271,7 @@ jq() { cat >/dev/null; printf '%s' 'test-token'; }
 	for _, status := range []string{"404", "200", "401", "403", "429", "500"} {
 		t.Run("registry-status-"+status, func(t *testing.T) {
 			cmd := exec.Command("bash", "-euo", "pipefail", "-c", stub+preflight)
-			cmd.Env = append(os.Environ(), "TEST_HTTP_STATUS="+status, "GITHUB_REF_NAME=chart-v0.3.1",
+			cmd.Env = append(os.Environ(), "TEST_HTTP_STATUS="+status, "GITHUB_REF_NAME=chart-v0.3.2",
 				"CHART_NAME=ghcr.io/llm-measurement/charts/otelcol-genai-sketches")
 			output, err := cmd.CombinedOutput()
 			if (err == nil) != (status == "404") {

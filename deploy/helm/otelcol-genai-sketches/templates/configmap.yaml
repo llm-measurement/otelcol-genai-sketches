@@ -76,6 +76,14 @@ data:
           enabled: {{ .Values.connector.dedup.enabled }}
           request_id_from:
             {{- toYaml .Values.connector.dedup.requestIDFrom | nindent 12 }}
+        {{- if .Values.summaryExport.enabled }}
+        summary_export:
+          directory: /var/lib/genai-sketches/exports
+          producer_id: {{ .Values.summaryExport.producerID | quote }}
+          scope_id: {{ .Values.summaryExport.scopeID | quote }}
+          key_id: {{ .Values.summaryExport.keyID | quote }}
+          interval: {{ .Values.summaryExport.interval | quote }}
+        {{- end }}
 
     exporters:
       prometheus:
@@ -98,6 +106,11 @@ data:
       {{- end }}
 
     service:
+      {{- if eq .Values.telemetry.logs.encoding "json" }}
+      telemetry:
+        logs:
+          encoding: json
+      {{- end }}
       extensions: [health_check]
       pipelines:
         traces:

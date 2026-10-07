@@ -164,11 +164,12 @@ For coding-agent telemetry, the [Copilot CLI and Copilot Chat recipe](examples/i
 finds a session taking over while totals stay flat, with separate device rankings
 in snapshot logs. It uses explicit source mappings and released binaries.
 
-For ongoing checks, chart **0.3.1** includes [optional Prometheus alerts](docs/ALERTING.md)
+For ongoing checks, chart **0.3.2** includes [optional Prometheus alerts](docs/ALERTING.md)
 for changes in attempts, tokens per attempt, and usage coverage. They are disabled
 by default. **fleetdiff v0.5.0** includes local `scan` over archived
 summary windows for user/session attribution, plus `diagnose` for a static config
-review. The collector runtime remains v0.3.0; see
+review. The chart's [summary export and read-only reader](docs/SUMMARY_EXPORT_HELM.md)
+provide the files for this workflow. The collector runtime remains v0.3.0; see
 [scan and history retention](https://github.com/llm-measurement/fleetdiff/blob/main/docs/SCAN.md).
 
 To compare two windows across operators, use [fleetdiff](https://github.com/llm-measurement/fleetdiff).

@@ -138,7 +138,7 @@ def verify_readme_reports(root):
         check(blocks[0] in (root / f"{name}.txt").read_text(), f"README {name} output differs from saved report")
 
 
-def verify(root, secret, starts, fleetdiff):
+def verify(root, secret, starts, fleetdiff, *, span_source="real gateway"):
     raw = [attrs(s) for s in spans(root / "backend.jsonl")]
     models = [s for s in raw if s.get("gen_ai.operation.name") == "chat"]
     check(len(models) == 800, "shadow backend did not receive exactly 800 model spans")
@@ -150,7 +150,7 @@ def verify(root, secret, starts, fleetdiff):
     check(all(int(s["gen_ai.usage.input_tokens"]) == 100 and int(s["gen_ai.usage.output_tokens"]) == 20
               for s in models), "token fields differ from provider fixture")
     check(PROMPT not in (root / "backend.jsonl").read_text(), "gateway captured prompt content")
-    print("PASS: 800 real gateway model spans; identity, session, workflow and usage mapping; shadow copy")
+    print(f"PASS: 800 {span_source} model spans; identity, session, workflow and usage mapping; shadow copy")
 
     docs = {}
     for path in (root / "summaries").glob("*.json"):

@@ -4,6 +4,23 @@
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
+{{/* Both utilities share one digest-pinned image; the default is BusyBox 1.37.0-musl. */}}
+{{- define "otelcol-genai-sketches.utilityImage" -}}
+{{- printf "%s@%s" .Values.summaryExport.utilityImage.repository .Values.summaryExport.utilityImage.digest -}}
+{{- end }}
+
+{{- define "otelcol-genai-sketches.utilitySecurity" -}}
+runAsNonRoot: true
+runAsUser: {{ .Values.podSecurityContext.runAsUser }}
+runAsGroup: {{ .Values.podSecurityContext.runAsGroup }}
+allowPrivilegeEscalation: false
+readOnlyRootFilesystem: true
+capabilities:
+  drop: [ALL]
+seccompProfile:
+  type: RuntimeDefault
+{{- end }}
+
 {{- define "otelcol-genai-sketches.fullname" -}}
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}

@@ -184,6 +184,29 @@ podDisruptionBudget:
   minAvailable: 1
 
 terminationGracePeriodSeconds: 30
+
+# Exported files, not persistent in-memory sketch state. See docs/SUMMARY_EXPORT_HELM.md.
+summaryExport:
+  enabled: false
+  producerID: ""
+  scopeID: ""
+  keyID: ""
+  interval: 5s
+  # Mirror this BusyBox image into an internal registry if needed; keep a digest pin.
+  utilityImage:
+    repository: docker.io/library/busybox
+    digest: sha256:5cec3fc171c87218698e85a52af7087de727372aae264a787b8112901a5b0092
+  reader:
+    enabled: false
+  storage:
+    type: emptyDir
+    sizeLimit: 128Mi
+    existingClaim: ""
+
+telemetry:
+  logs:
+    encoding: console
+
 nodeSelector: {}
 tolerations: []
 affinity: {}
