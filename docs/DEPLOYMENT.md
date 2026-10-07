@@ -57,7 +57,7 @@ cosign verify \
 
 gh attestation verify "oci://$CHART@$CHART_DIGEST" \
   --repo llm-measurement/otelcol-genai-sketches \
-  --signer-workflow llm-measurement/otelcol-genai-sketches/.github/workflows/chart-release.yml \
+  --cert-identity "https://github.com/llm-measurement/otelcol-genai-sketches/.github/workflows/chart-release.yml@refs/tags/${CHART_RELEASE}" \
   --source-ref "refs/tags/${CHART_RELEASE}" --deny-self-hosted-runners
 ```
 
