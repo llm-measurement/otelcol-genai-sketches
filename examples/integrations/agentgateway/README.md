@@ -140,15 +140,17 @@ query, and checks that the only stored label is the fixed service name.
 ## Helm Mapping
 
 [chart-values.yaml](chart-values.yaml) applies the same field mappings and shadow
-destination to released **chart 0.3.1**, using the collector v0.3.0 image digest:
+destination to **chart 0.3.2**, using the collector v0.3.0 image digest:
 
 ```sh
 helm template rankings oci://ghcr.io/llm-measurement/charts/otelcol-genai-sketches \
-  --version 0.3.1 -f examples/integrations/agentgateway/chart-values.yaml
+  --version 0.3.2 -f examples/integrations/agentgateway/chart-values.yaml
 ```
 
 Set up the hashing secret and receiver security using the
 [deployment guide](../../../docs/DEPLOYMENT.md) before deploying.
+For summary files and local investigation, add the storage and readback settings
+from [Summary Export With Helm](../../../docs/SUMMARY_EXPORT_HELM.md).
 
 ## What The Test Checks
 
@@ -172,8 +174,7 @@ pseudonymous; the existing trace backend keeps its own data policy. Workflow val
 use the existing `user:v1` hash domain with a `workflow:` prefix in their own field,
 not a newly registered domain. Session and workflow headers describe activity;
 they are not authorization decisions. **fleetdiff v0.5.0 does not read custom keys
-yet; `workflow_key` is shown in snapshot logs only.** The Helm values are
-render-tested, not deployed to Kubernetes; chart 0.3.1 configures the rankings but
-does not expose summary-file export or JSON log encoding. The Docker configuration
-supplies both. The Loki test verifies
+yet; `workflow_key` is shown in snapshot logs only.** A separate Kubernetes test
+checks these field mappings with synthetic OTLP input, summary storage, and
+readback; it does not deploy the gateway runtime in Kubernetes. The Loki test verifies
 the query and labels by replaying logs, not a production log-shipping deployment.

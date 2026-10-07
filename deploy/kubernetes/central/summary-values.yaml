@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: Apache-2.0
+# Code authors: Vijay and Codex
+# Chart 0.3.2; use the verified collector v0.3.0 digest.
+# Provision this private PVC separately in the release namespace. See docs/SUMMARY_EXPORT_HELM.md.
+existingSecret: genai-sketch-secret
+secretKey: secret
+
+replicaCount: 1
+strategy:
+  type: Recreate
+
+summaryExport:
+  enabled: true
+  producerID: app
+  scopeID: app-observations
+  keyID: app-key-v1
+  interval: 5s
+  reader:
+    enabled: true
+  storage:
+    type: existingClaim
+    existingClaim: genai-sketch-summaries
+    sizeLimit: ""
+
+connector:
+  windowDuration: 60s
+  retentionWindows: 16
+  topK: 20
+  # These replace the default prompt-only list; size per-key, per-window state first.
+  topKKeys:
+    - {field: prompt_key, weight: tokens}
+    - {field: user_key, weight: tokens}
+    - {field: session_key, weight: requests}
+
+telemetry:
+  logs:
+    encoding: json

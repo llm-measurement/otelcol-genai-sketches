@@ -55,6 +55,49 @@ known window boundary, record the event, and allow old windows to expire.
 
 ## Compatibility
 
+### Chart 0.3.2
+
+Chart 0.3.2 keeps `appVersion` and the default collector image
+at v0.3.0; it does not include the Collector dependency update in source builds
+below. Continue to verify the released v0.3.0 image using [Deployment](DEPLOYMENT.md).
+Verify the chart separately using tag `chart-v0.3.2` and the chart-only workflow.
+
+The new `summaryExport` values are opt-in. Defaults add no export volume,
+initialization container, or reader sidecar. `telemetry.logs.encoding` defaults to
+`console`; `json` can be enabled independently. Existing image-digest, hashing
+Secret, TLS, and shadow settings remain in effect. Start with the
+[summary guide and values](SUMMARY_EXPORT_HELM.md), preserving your existing
+deployment settings when rendering and reviewing the upgrade.
+
+Enabling export requires explicit producer/scope/key-version IDs, at least two
+retained windows, and an interval no longer than the window. IDs must match
+`^[A-Za-z0-9._:-]{1,128}$`. Intervals accept whole seconds `1s` through `60s` or
+`1m`; export windows use a positive integer with `s`, `m`, or `h`. For an existing
+PVC, set `summaryExport.storage.type=existingClaim`, name the claim, and explicitly
+set `summaryExport.storage.sizeLimit=""` to clear the `emptyDir` default of `128Mi`.
+The chart rejects conflicting storage choices. The reader requires export enabled.
+
+Use one writer, one replica, and `Recreate`. A PVC retains files, not sketch state;
+every restart begins a new epoch and may leave partial windows. Export retention
+also deletes expired files from earlier epochs. Use 16 retained windows with
+`scan --baseline 6` as an initial history budget, not a memory-sizing guarantee.
+Archive needed closed windows before rollout or expiration; do not mix epochs or
+partial windows in the simple readback workflow.
+
+Export enables `fsGroupChangePolicy: OnRootMismatch` automatically. The non-root
+initializer restores `0700` on its owned `exports` directory and `0600` on its
+recognized owned files, including after a volume remount. It refuses symlinks,
+wrong-owner entries, nonregular files, hard links, and unknown names inside that
+directory. It does not recursively repair the PVC. Storage must support these
+ownership and permission requirements; verify them on the intended storage driver
+before rollout. Do not work around failure with a root initializer or public modes.
+
+Before rollback, copy required summaries while the reader is still available.
+Rollback to chart 0.3.1 removes the chart-managed export and reader, and returns
+to that chart's log configuration. An operator-owned PVC is not deleted, but
+`emptyDir` files disappear when the pod is replaced. Restore the old values and
+recorded image digest; remaining files are not restart checkpoints.
+
 ### Collector v0.162.0 In Source Builds
 
 The source checkout uses Collector `v0.162.0` / pdata `v1.68.0`. Published

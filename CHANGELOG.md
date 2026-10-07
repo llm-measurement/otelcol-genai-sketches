@@ -9,6 +9,23 @@ Notable user-visible changes are recorded here.
   single-underscore Prometheus label names in [Upgrading](docs/UPGRADING.md).
   Published v0.3.0 images are unchanged.
 
+## Helm chart 0.3.2 - 2026-10-06
+
+See the [chart notes](docs/releases/chart-v0.3.2.md) and
+[summary-export guide](docs/SUMMARY_EXPORT_HELM.md). The collector stays at
+v0.3.0 and nothing else needs a release.
+
+- Add opt-in summary export to a private `emptyDir` or operator-owned existing PVC,
+  with explicit identities, bounded retention, and non-root initialization of the
+  fixed export directory. Keep one replica and `Recreate`.
+- Add an optional read-only `reader` sidecar for authenticated `kubectl exec` tar
+  readback. It shares the pinned utility image with initialization, receives no
+  hashing/TLS credentials or service-account token, and exposes no server.
+- Allow internal-registry utility images with a required SHA-256 digest.
+- Add independent JSON collector logging, with console logging still the default.
+- Add a private copy helper that prints validated BEFORE, AFTER and AS_OF
+  assignments for fleetdiff v0.5.0 investigation and scan commands.
+
 ## Helm chart 0.3.1 - 2026-10-04
 
 See the [chart release notes](docs/releases/chart-v0.3.1.md). The collector runtime

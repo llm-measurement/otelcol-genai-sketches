@@ -1,5 +1,14 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{/* Code authors: Vijay and Codex */}}
+{{- if .Values.summaryExport.enabled }}
+{{- $interval := int (regexFind "^[0-9]+" .Values.summaryExport.interval) }}
+{{- if hasSuffix "m" .Values.summaryExport.interval }}{{ $interval = mul $interval 60 | int }}{{ end }}
+{{- $window := int (regexFind "^[0-9]+" .Values.connector.windowDuration) }}
+{{- if hasSuffix "m" .Values.connector.windowDuration }}{{ $window = mul $window 60 | int }}{{ end }}
+{{- if hasSuffix "h" .Values.connector.windowDuration }}{{ $window = mul $window 3600 | int }}{{ end }}
+{{- if or (lt $window 1) (gt $window 86400) }}{{ fail "connector.windowDuration must be between 1s and 24h" }}{{ end }}
+{{- if gt $interval $window }}{{ fail "summaryExport.interval must not exceed connector.windowDuration" }}{{ end }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -30,10 +39,29 @@ spec:
       automountServiceAccountToken: false
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       securityContext:
-        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+        {{- $podSecurity := deepCopy .Values.podSecurityContext }}
+        {{- if .Values.summaryExport.enabled }}{{ $_ := set $podSecurity "fsGroupChangePolicy" "OnRootMismatch" }}{{ end }}
+        {{- toYaml $podSecurity | nindent 8 }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.summaryExport.enabled }}
+      initContainers:
+        - name: init-summary-export
+          image: {{ include "otelcol-genai-sketches.utilityImage" . | quote }}
+          imagePullPolicy: IfNotPresent
+          command: [sh, -ec]
+          args:
+            - |
+              {{- .Files.Get "files/init-summary.sh" | nindent 14 }}
+          securityContext:
+            {{- include "otelcol-genai-sketches.utilitySecurity" . | nindent 12 }}
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {cpu: 100m, memory: 32Mi}
+          volumeMounts:
+            - {name: summary-export, mountPath: /var/lib/genai-sketches}
       {{- end }}
       containers:
         - name: collector
@@ -79,6 +107,10 @@ spec:
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           volumeMounts:
+            {{- if .Values.summaryExport.enabled }}
+            - name: summary-export
+              mountPath: /var/lib/genai-sketches
+            {{- end }}
             - name: config
               mountPath: /etc/otelcol-genai-sketches
               readOnly: true
@@ -87,7 +119,32 @@ spec:
               mountPath: /var/run/genai-sketches/tls
               readOnly: true
             {{- end }}
+        {{- if .Values.summaryExport.reader.enabled }}
+        - name: reader
+          image: {{ include "otelcol-genai-sketches.utilityImage" . | quote }}
+          imagePullPolicy: IfNotPresent
+          command: [sh, -ec, 'trap "exit 0" TERM INT; while :; do sleep 3600 & wait $!; done']
+          securityContext:
+            {{- include "otelcol-genai-sketches.utilitySecurity" . | nindent 12 }}
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {cpu: 100m, memory: 32Mi}
+          volumeMounts:
+            - name: summary-export
+              mountPath: /var/lib/genai-sketches
+              readOnly: true
+        {{- end }}
       volumes:
+        {{- if .Values.summaryExport.enabled }}
+        - name: summary-export
+          {{- if eq .Values.summaryExport.storage.type "existingClaim" }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.summaryExport.storage.existingClaim | quote }}
+          {{- else }}
+          emptyDir:
+            sizeLimit: {{ .Values.summaryExport.storage.sizeLimit | quote }}
+          {{- end }}
+        {{- end }}
         - name: config
           configMap:
             name: {{ include "otelcol-genai-sketches.fullname" . }}

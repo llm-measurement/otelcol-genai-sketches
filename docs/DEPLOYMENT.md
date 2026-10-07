@@ -37,13 +37,14 @@ gh attestation verify "oci://$IMAGE@$DIGEST" \
   --repo llm-measurement/otelcol-genai-sketches
 ```
 
-Chart 0.3.1 adds opt-in warning rules while keeping collector image 0.3.0.
+Chart 0.3.2 adds summary storage and readback alongside opt-in warning rules,
+while keeping collector image 0.3.0.
 It is signed and attested by the separate chart-only workflow. Verify its
 immutable reference too:
 
 ```bash
-CHART_RELEASE=chart-v0.3.1
-CHART_VERSION=0.3.1
+CHART_RELEASE=chart-v0.3.2
+CHART_VERSION=0.3.2
 CHART_REF="$(curl -fsSL \
   "https://github.com/llm-measurement/otelcol-genai-sketches/releases/download/${CHART_RELEASE}/chart-digest.txt")"
 CHART="${CHART_REF%@*}"
@@ -158,8 +159,10 @@ identity in the release name and Prometheus external labels.
 Release images from v0.1.0 and source builds support
 [opt-in summary file export](SUMMARY_EXCHANGE.md).
 It exports complete state for local combination across independent collectors;
-it does not make Prometheus able to merge sketches. The chart does not enable
-this export or provision its private writable volume.
+it does not make Prometheus able to merge sketches. Chart **0.3.2** adds opt-in
+summary storage, a read-only reader sidecar, and independent JSON logging.
+[Summary Export With Helm](SUMMARY_EXPORT_HELM.md) walks through copy,
+investigate, and scan with the v0.3.0 collector image.
 
 With the v0.3.0 chart and image, `connector.topKKeys` passes through the optional
 key list; its default `[]` omits `topk_keys` and preserves prompt-only ranking.
