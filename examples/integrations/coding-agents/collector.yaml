@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: Apache-2.0
+# Code authors: Vijay and Codex
+# Merge with exactly one source mapping. Internal Docker network for this demo.
+receivers:
+  otlp:
+    protocols:
+      http: {endpoint: '0.0.0.0:4318'}
+connectors:
+  genaisketch:
+    window_duration: 20s
+    retention_windows: 16
+    max_slices: 10
+    topk: 10
+    hashing: {algo: hmac_sha256_64, secret_env: GENAI_SKETCH_SECRET}
+    fields:
+      device_key:
+        from_attributes: []
+        from_resource_attributes: [device.id]
+        canonicalization: text_v1
+        domain: user:v1
+    topk_keys:
+      - {field: session_key, weight: requests}
+      - {field: device_key, weight: tokens}
+    slices:
+      - {name: by_model, keys: [gen_ai.request.model]}
+    summary_export:
+      directory: /evidence/${env:CODING_AGENT}/summaries
+      producer_id: app
+      scope_id: coding-${env:CODING_AGENT}
+      key_id: recipe-run
+      interval: 1s
+exporters:
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    translation_strategy: UnderscoreEscapingWithoutSuffixes
+  otlp/existing:
+    endpoint: backend:4317
+    tls: {insecure: true}
+    sending_queue: {enabled: false}
+    retry_on_failure: {enabled: false}
+service:
+  telemetry:
+    logs: {encoding: json}
+    metrics: {level: none}
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [genaisketch, otlp/existing]
+    metrics:
+      receivers: [genaisketch]
+      exporters: [prometheus]

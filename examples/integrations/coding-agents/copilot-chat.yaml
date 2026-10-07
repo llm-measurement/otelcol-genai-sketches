@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: Apache-2.0
+# Code authors: Vijay and Codex
+connectors:
+  genaisketch:
+    fields:
+      session_key:
+        # v0.43.0 puts a request ID in gen_ai.conversation.id. Do not select it.
+        from_attributes: [copilot_chat.session_id]
+        from_resource_attributes: [session.id]
+        canonicalization: text_v1
+        domain: session:v1

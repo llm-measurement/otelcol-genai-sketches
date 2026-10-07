@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: Apache-2.0
+# Code authors: Vijay and Codex
+# Synthetic shadow capture only. Basic diagnostics contain counts, not attributes.
+receivers:
+  otlp:
+    protocols:
+      grpc: {endpoint: '0.0.0.0:4317'}
+exporters:
+  file:
+    path: /evidence/backend.jsonl
+    # Rotation uses an unbuffered writer. This fixture stays well below 100 MiB.
+    rotation: {max_megabytes: 100, max_backups: 1}
+  debug: {verbosity: basic}
+service:
+  telemetry:
+    metrics: {level: none}
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [file, debug]
