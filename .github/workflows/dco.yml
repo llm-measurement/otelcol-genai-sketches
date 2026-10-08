@@ -1,0 +1,115 @@
+# SPDX-License-Identifier: Apache-2.0
+# Code authors: Vijay and Codex
+name: dco
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  dco:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Verify every author's sign-off
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const { execFileSync } = require('node:child_process');
+            const event = context.payload.pull_request;
+            const params = { ...context.repo, pull_number: event.number };
+            const { data: before } = await github.rest.pulls.get(params);
+            if (before.head.sha !== event.head.sha || before.base.ref !== event.base.ref) {
+              throw new Error('PR changed since this run was requested; run the check on the current PR.');
+            }
+            const commits = await github.paginate(github.rest.pulls.listCommits, {
+              ...params, per_page: 100,
+            });
+            const shas = new Set(commits.map(commit => commit.sha));
+            if (!Number.isInteger(before.commits) || before.commits < 1 ||
+                commits.length !== before.commits || shas.size !== before.commits ||
+                !shas.has(before.head.sha)) {
+              throw new Error('Could not verify the complete PR commit list. PRs over 250 commits must be split.');
+            }
+
+            function hasAuthorSignoff(commit) {
+              const author = commit.commit?.author;
+              const message = commit.commit?.message;
+              if (!author?.name || !author.email || typeof message !== 'string') return false;
+              // Git parses the final trailer block; commit text is stdin, never shell code.
+              const trailers = execFileSync('git', ['-c', 'trailer.separators=:',
+                'interpret-trailers', '--parse', '--no-divider'], { input: message, encoding: 'utf8' });
+              return trailers.split('\n').some(line => {
+                const match = /^Signed-off-by:\s*(.+?)\s+<([^<>\r\n]+)>\s*$/i.exec(line);
+                return match && match[1] === author.name && match[2] === author.email;
+              });
+            }
+
+            async function isGitHubBranchUpdate(commit) {
+              if (commit.parents?.length !== 2 || !shas.has(commit.parents[0].sha) ||
+                  commit.commit?.verification?.verified !== true ||
+                  commit.committer?.login !== 'web-flow' ||
+                  commit.commit?.committer?.name !== 'GitHub' ||
+                  commit.commit?.committer?.email !== 'noreply@github.com' ||
+                  commit.commit?.message !== `Merge branch '${before.base.ref}' into ${before.head.ref}`) {
+                return false;
+              }
+              // A matching message or spoofed committer is not enough: require GitHub's signature.
+              const result = await github.graphql(`query($owner: String!, $repo: String!, $oid: GitObjectID!) {
+                repository(owner: $owner, name: $repo) {
+                  object(oid: $oid) { ... on Commit {
+                    signature { isValid wasSignedByGitHub signer { login } }
+                  } }
+                }
+              }`, { ...context.repo, oid: commit.sha });
+              const signature = result.repository?.object?.signature;
+              if (signature?.isValid !== true || signature.wasSignedByGitHub !== true ||
+                  signature.signer?.login !== 'web-flow') return false;
+              const { data: ancestry } = await github.rest.repos.compareCommits({
+                ...context.repo, base: commit.parents[1].sha, head: before.base.sha,
+              });
+              return ancestry.status === 'identical' || ancestry.status === 'ahead';
+            }
+
+            const failures = [];
+            for (const commit of commits) {
+              if (hasAuthorSignoff(commit)) continue;
+              if (await isGitHubBranchUpdate(commit)) {
+                core.info(`Exempt GitHub branch-update merge: ${commit.sha}`);
+              } else {
+                failures.push(commit.sha);
+              }
+            }
+            const { data: after } = await github.rest.pulls.get(params);
+            if (after.head.sha !== before.head.sha || after.base.sha !== before.base.sha ||
+                after.base.ref !== before.base.ref || after.head.ref !== before.head.ref ||
+                after.commits !== before.commits) {
+              throw new Error('PR changed during verification; rerun the check.');
+            }
+            const fix = 'For your own commits, use git commit --amend -s -S for the latest, or ' +
+              'git rebase --signoff --gpg-sign origin/main for the branch, then git push --force-with-lease. ' +
+              'The sign-off must match the commit author; do not certify another author\'s contribution.';
+            for (const sha of failures) {
+              core.error(`Missing or mismatched author Signed-off-by trailer: ${sha}. ${fix}`);
+            }
+            if (failures.length) {
+              core.setFailed(`${failures.length} of ${commits.length} PR commits need an author sign-off. ${fix}`);
+            } else {
+              core.info(`All ${commits.length} PR commits have author sign-offs or a verified GitHub branch-update exemption.`);
+            }
+
+  dco-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Test sign-off checks and merge exemptions
+        run: node --test .github/tests/dco.test.cjs
