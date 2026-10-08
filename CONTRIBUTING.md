@@ -6,15 +6,25 @@ for a behavior change or a new integration. Include the question you need to
 answer, the input attributes available, and the expected accounting behavior.
 Report vulnerabilities through [Security](SECURITY.md), not a public issue.
 
-## Signed commits
+## Signed and signed-off commits
 
-Every commit in a pull request must have a signature GitHub verifies. The
-`commit-signatures` check lists every unverified commit, including bot and merge
-commits. A signed final commit does not cover earlier unsigned commits. A
-`Signed-off-by` line (`git commit -s`) is not a cryptographic signature.
+Every pull-request commit needs both:
 
-For SSH signing, use Git 2.34 or later. Use an existing signing key or create one
-with a passphrase; do not overwrite an existing key:
+- A cryptographic signature that GitHub verifies, to establish commit provenance.
+- A `Signed-off-by: Name <email>` trailer matching the commit author's name and
+  email. This records your certification under the
+  [Developer Certificate of Origin](https://developercertificate.org/) that you
+  have the right to contribute the work under this project's Apache-2.0 license.
+
+A signature and a sign-off serve different purposes; neither replaces the other.
+The `commit-signatures` and `dco` checks name every failing commit. A passing final
+commit does not cover earlier commits. The DCO check exempts only GitHub's own
+verified branch-update merge commits; ordinary merges and bots still need sign-offs.
+
+### Set up SSH signing
+
+Use Git 2.34 or later. Use an existing signing key or create one with a passphrase;
+do not overwrite an existing key:
 
 ```sh
 ssh-keygen -t ed25519 -C "your-verified-email@example.com" -f "$HOME/.ssh/id_ed25519_signing"
@@ -26,25 +36,38 @@ Add the contents of `~/.ssh/id_ed25519_signing.pub` to GitHub under **Settings >
 SSH and GPG keys > New SSH key**, choosing **Signing key**. Upload only the public
 `.pub` file; a key registered only for authentication is not enough.
 
-From this repository, configure signing and an email verified on your GitHub
-account (your GitHub-provided no-reply email also works):
+From this repository, configure your author identity and signing. Use an email
+verified on GitHub; your GitHub-provided no-reply email also works.
 
 ```sh
+git config --local user.name "Your Name"
 git config --local user.email "your-verified-email@example.com"
 git config --local gpg.format ssh
 git config --local user.signingkey "$HOME/.ssh/id_ed25519_signing.pub"
 git config --local commit.gpgsign true
-git commit -S -m "Describe the change"
+git commit -s -S -m "Describe the change"
 ```
 
-After pushing, confirm **Verified** on every PR commit and a passing
-`commit-signatures` check. Existing unsigned commits need to be signed again by
-their contributor; adding another signed commit does not fix them. Rewriting a
-shared branch requires coordination and changes commit IDs. GPG signatures
-verified by GitHub also satisfy the check.
+`-s` adds the DCO trailer; `-S` creates the cryptographic signature. GPG signatures
+verified by GitHub are also accepted. Read the DCO before signing off.
 
-Split PRs with more than 250 commits: GitHub's PR-commit API caps the list there,
-and the check rejects incomplete lists rather than approving unexamined commits.
+### Fix your own commits
+
+For the latest commit, use `git commit --amend -s -S --no-edit`. For a branch
+containing only your own contributions, fetch the current base and re-sign it:
+
+```sh
+git fetch origin
+git rebase --force-rebase --signoff --gpg-sign origin/main
+git push --force-with-lease
+```
+
+The rebase command rewrites commits even when the branch is already up to date.
+These commands change commit IDs. Coordinate before rewriting a shared branch.
+Use the name and email matching your commit author identity, and ask other authors
+to fix their own commits; do not add their certification for them. After pushing,
+confirm **Verified** on each commit and passing `commit-signatures` and `dco`
+checks. Both checks reject incomplete API results, including PRs over 250 commits.
 
 See GitHub's [SSH signing setup](https://docs.github.com/en/authentication/managing-commit-signature-verification/telling-git-about-your-signing-key#telling-git-about-your-ssh-key),
 [adding an SSH signing key](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account),
