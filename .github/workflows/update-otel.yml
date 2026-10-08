@@ -3,31 +3,46 @@
 name: update-otel-collector
 
 on:
+  pull_request:
+    paths:
+      - .github/workflows/update-otel.yml
+      - scripts/update_otel_collector.sh
+      - scripts/prepare_otel_update.py
+      - scripts/test_prepare_otel_update.py
   schedule:
     - cron: "17 14 * * 2"
   workflow_dispatch:
 
 permissions:
-  actions: write
-  contents: write
-  pull-requests: write
+  contents: read
 
 concurrency:
   group: update-otel-collector
   cancel-in-progress: false
 
 jobs:
+  patch-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Test patch packaging without network access
+        run: python3 -m unittest discover -s scripts -p test_prepare_otel_update.py -v
+
   update:
+    needs: patch-tests
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
+    if: github.ref == 'refs/heads/main'
     env:
-      GH_TOKEN: ${{ github.token }}
       GOWORK: "off"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-          persist-credentials: true
+          persist-credentials: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: "1.26.6"
@@ -37,46 +52,16 @@ jobs:
             connector/genaisketchconnector/go.sum
       - name: Update Collector dependencies
         run: scripts/update_otel_collector.sh
-      - name: Open update pull request
-        shell: bash
-        run: |
-          set -euo pipefail
-          tracked=(
-            otel.version
-            builder.yaml
-            go.mod
-            go.sum
-            connector/genaisketchconnector/go.mod
-            connector/genaisketchconnector/go.sum
-          )
-          if git diff --quiet -- "${tracked[@]}"; then
-            echo "Collector dependencies are current."
-            exit 0
-          fi
-
-          version="$(cat otel.version)"
-          branch="automation/otel-collector-${version}"
-          existing="$(gh pr list --state open --head "${branch}" --json url --jq '.[0].url // empty')"
-          if [[ -n "${existing}" ]]; then
-            echo "Update pull request already exists: ${existing}"
-            exit 0
-          fi
-          if git ls-remote --exit-code --heads origin "${branch}" >/dev/null 2>&1; then
-            branch="${branch}-${GITHUB_RUN_ID}"
-          fi
-
-          git switch -c "${branch}"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -- "${tracked[@]}"
-          git commit -m "Update OpenTelemetry Collector to ${version}"
-          git push origin "${branch}"
-
-          release_url="https://github.com/open-telemetry/opentelemetry-collector/releases/tag/${version}"
-          pr_url="$(gh pr create \
-            --base main \
-            --head "${branch}" \
-            --title "Update OpenTelemetry Collector to ${version}" \
-            --body "Automated Collector dependency update. Review the upstream release notes at ${release_url}. The normal CI workflow is dispatched for this branch before merge.")"
-          gh workflow run ci.yml --ref "${branch}"
-          echo "Opened ${pr_url}"
+      - name: Check the updated dependencies
+        run: make check
+      - name: Prepare a patch for maintainer review
+        id: patch
+        run: python3 scripts/prepare_otel_update.py "$RUNNER_TEMP/collector-dependency-update"
+      - name: Upload the dependency update patch
+        if: steps.patch.outputs.changed == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: collector-dependency-update
+          path: ${{ runner.temp }}/collector-dependency-update/
+          if-no-files-found: error
+          retention-days: 14
