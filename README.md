@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/llm-measurement/otelcol-genai-sketches/actions/workflows/ci.yml/badge.svg)](https://github.com/llm-measurement/otelcol-genai-sketches/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/llm-measurement/otelcol-genai-sketches/badge)](https://scorecard.dev/viewer/?uri=github.com/llm-measurement/otelcol-genai-sketches)
 
 An OpenTelemetry Collector distribution for continuous, bounded answers about
 high-cardinality agent traffic without exporting or indexing every underlying value.

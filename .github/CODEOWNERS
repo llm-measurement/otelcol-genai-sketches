@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: Apache-2.0
+# Code authors: Vijay and Codex
+# Review routing only; required approvals are configured separately.
+/.github/CODEOWNERS @kwisatzh
+/.github/workflows/ @kwisatzh
+/.github/tests/ @kwisatzh
+/scripts/ @kwisatzh
+/deploy/helm/ @kwisatzh
+/packaging/ @kwisatzh
+/builder.yaml @kwisatzh
+/Makefile @kwisatzh
+/connector/genaisketchconnector/ @kwisatzh
