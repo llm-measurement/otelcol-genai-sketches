@@ -346,7 +346,7 @@ Packaging checks are available with `make production-image` and `make helm-check
 See [Sizing](docs/SIZING.md) and [Upgrading](docs/UPGRADING.md) before a production
 rollout.
 
-See [Contributing](CONTRIBUTING.md) for focused checks and small, reproducible changes.
+See [Contributing](CONTRIBUTING.md) for focused checks and signed, signed-off commits.
 Questions or feedback: [open an issue](https://github.com/llm-measurement/otelcol-genai-sketches/issues/new/choose).
 
 The integration suite covers OTLP-to-Prometheus behavior, gRPC and HTTP shadow-mode
