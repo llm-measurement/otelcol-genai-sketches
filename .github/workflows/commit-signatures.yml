@@ -1,0 +1,54 @@
+# SPDX-License-Identifier: Apache-2.0
+# Code authors: Vijay and Codex
+name: commit-signatures
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  commit-signatures:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Verify every PR commit
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const event = context.payload.pull_request;
+            const params = { ...context.repo, pull_number: event.number };
+            const { data: before } = await github.rest.pulls.get(params);
+            if (before.head.sha !== event.head.sha || before.base.ref !== event.base.ref) {
+              throw new Error('PR changed since this run was requested; run the check on the current PR.');
+            }
+
+            // The PR commits endpoint caps results at 250; never approve a partial list.
+            const commits = await github.paginate(github.rest.pulls.listCommits, {
+              ...params, per_page: 100,
+            });
+            const { data: after } = await github.rest.pulls.get(params);
+            if (after.head.sha !== before.head.sha || after.base.sha !== before.base.sha ||
+                after.base.ref !== before.base.ref || after.commits !== before.commits) {
+              throw new Error('PR changed during verification; rerun the check.');
+            }
+            const shas = new Set(commits.map(commit => commit.sha));
+            if (!Number.isInteger(before.commits) || before.commits < 1 ||
+                commits.length !== before.commits || shas.size !== before.commits ||
+                !shas.has(before.head.sha)) {
+              throw new Error('Could not verify the complete PR commit list. PRs over 250 commits must be split.');
+            }
+
+            const unverified = commits.filter(commit => commit.commit?.verification?.verified !== true);
+            for (const commit of unverified) {
+              const reason = commit.commit?.verification?.reason ?? 'verification unavailable';
+              core.error(`Unverified commit ${commit.sha}: ${reason}`);
+            }
+            if (unverified.length > 0) {
+              core.setFailed(`${unverified.length} of ${commits.length} PR commits are not verified. Sign every commit and push the updated branch.`);
+            } else {
+              core.info(`All ${commits.length} PR commits have verified signatures.`);
+            }
