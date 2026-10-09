@@ -21,7 +21,7 @@ Use an immutable digest from the GitHub release, not a mutable tag:
 Fetch the references from that release's published metadata:
 
 ```bash
-RELEASE=v0.3.0
+RELEASE=v0.3.1
 IMAGE_REF="$(curl -fsSL \
   "https://github.com/llm-measurement/otelcol-genai-sketches/releases/download/${RELEASE}/image-digest.txt")"
 IMAGE="${IMAGE_REF%@*}"
@@ -29,35 +29,36 @@ DIGEST="${IMAGE_REF#*@}"
 VERSION="${RELEASE#v}"
 
 cosign verify \
-  --certificate-identity-regexp 'https://github.com/llm-measurement/otelcol-genai-sketches/.github/workflows/release.yml@refs/tags/v.*' \
+  --certificate-identity "https://github.com/llm-measurement/otelcol-genai-sketches/.github/workflows/release.yml@refs/tags/${RELEASE}" \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   "$IMAGE@$DIGEST"
 
 gh attestation verify "oci://$IMAGE@$DIGEST" \
-  --repo llm-measurement/otelcol-genai-sketches
+  --repo llm-measurement/otelcol-genai-sketches \
+  --cert-identity "https://github.com/llm-measurement/otelcol-genai-sketches/.github/workflows/release.yml@refs/tags/${RELEASE}" \
+  --source-ref "refs/tags/${RELEASE}" --deny-self-hosted-runners
 ```
 
-Chart 0.3.2 adds summary storage and readback alongside opt-in warning rules,
-while keeping collector image 0.3.0.
-It is signed and attested by the separate chart-only workflow. Verify its
-immutable reference too:
+Chart 0.3.3 includes summary storage and readback alongside opt-in warning rules,
+and defaults to collector image 0.3.1. Both artifacts were published, signed and
+attested by the v0.3.1 release workflow. Verify the chart's immutable reference too:
 
 ```bash
-CHART_RELEASE=chart-v0.3.2
-CHART_VERSION=0.3.2
+CHART_RELEASE=v0.3.1
+CHART_VERSION=0.3.3
 CHART_REF="$(curl -fsSL \
   "https://github.com/llm-measurement/otelcol-genai-sketches/releases/download/${CHART_RELEASE}/chart-digest.txt")"
 CHART="${CHART_REF%@*}"
 CHART_DIGEST="${CHART_REF#*@}"
 
 cosign verify \
-  --certificate-identity "https://github.com/llm-measurement/otelcol-genai-sketches/.github/workflows/chart-release.yml@refs/tags/${CHART_RELEASE}" \
+  --certificate-identity "https://github.com/llm-measurement/otelcol-genai-sketches/.github/workflows/release.yml@refs/tags/${CHART_RELEASE}" \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   "$CHART@$CHART_DIGEST"
 
 gh attestation verify "oci://$CHART@$CHART_DIGEST" \
   --repo llm-measurement/otelcol-genai-sketches \
-  --cert-identity "https://github.com/llm-measurement/otelcol-genai-sketches/.github/workflows/chart-release.yml@refs/tags/${CHART_RELEASE}" \
+  --cert-identity "https://github.com/llm-measurement/otelcol-genai-sketches/.github/workflows/release.yml@refs/tags/${CHART_RELEASE}" \
   --source-ref "refs/tags/${CHART_RELEASE}" --deny-self-hosted-runners
 ```
 
@@ -130,7 +131,7 @@ openssl rand -hex 32 | kubectl -n observability create secret generic \
   genai-sketch-secret --from-file=secret=/dev/stdin
 ```
 
-Install the verified chart with the unchanged, verified image digest:
+Install the verified chart with the verified image digest:
 
 ```bash
 helm upgrade --install genai-sketches \
@@ -162,11 +163,11 @@ It exports complete state for local combination across independent collectors;
 it does not make Prometheus able to merge sketches. Chart **0.3.2** adds opt-in
 summary storage, a read-only reader sidecar, and independent JSON logging.
 [Summary Export With Helm](SUMMARY_EXPORT_HELM.md) walks through copy,
-investigate, and scan with the v0.3.0 collector image.
+investigate, and scan with the v0.3.1 collector image.
 
-With the v0.3.0 chart and image, `connector.topKKeys` passes through the optional
+The chart's `connector.topKKeys` passes through the optional
 key list; its default `[]` omits `topk_keys` and preserves prompt-only ranking.
-Pin a verified v0.3.0 or later image before opting in: older v0.2.0 images do not
+Pin a verified v0.3.1 or later image before opting in: older v0.2.0 images do not
 understand this option. See [Top-K Keys](TOPK_KEYS.md).
 Additional keys allocate sketch state per slice and retained window. The chart's
 2 GiB limit is not a sizing recommendation for extra keys; consult the

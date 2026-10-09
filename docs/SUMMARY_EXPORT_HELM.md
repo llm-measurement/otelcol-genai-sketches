@@ -4,9 +4,8 @@
 # Summary Export With Helm
 
 Keep summary windows in Kubernetes, copy them locally, and use fleetdiff to find
-the users and sessions behind a change. Chart **0.3.2** adds private storage, a
-read-only reader sidecar, and JSON log encoding. The collector stays at **v0.3.0**
-and nothing else needs a release.
+the users and sessions behind a change. Chart **0.3.3** provides private storage,
+a read-only reader sidecar, and JSON log encoding with collector **v0.3.1**.
 
 ## Install
 
@@ -28,13 +27,13 @@ image digest, TLS, shadow, and resource settings when upgrading:
 ```sh
 umask 077
 helm template genai-sketches \
-  oci://ghcr.io/llm-measurement/charts/otelcol-genai-sketches --version 0.3.2 \
+  oci://ghcr.io/llm-measurement/charts/otelcol-genai-sketches --version 0.3.3 \
   --namespace observability \
   -f deploy/kubernetes/central/summary-values.yaml \
-  --set-string image.digest="${DIGEST:?verify the released v0.3.0 image first}"
+  --set-string image.digest="${DIGEST:?verify the released v0.3.1 image first}"
 
 helm upgrade --install genai-sketches \
-  oci://ghcr.io/llm-measurement/charts/otelcol-genai-sketches --version 0.3.2 \
+  oci://ghcr.io/llm-measurement/charts/otelcol-genai-sketches --version 0.3.3 \
   --namespace observability \
   -f deploy/kubernetes/central/summary-values.yaml \
   --set-string image.digest="${DIGEST:?verify the release image first}"
@@ -158,7 +157,7 @@ Fleetdiff v0.5.0 reads user/session rankings; custom workflows stay in snapshots
 
 ## Validation
 
-The checked-in Kubernetes test uses collector v0.3.0 and fleetdiff v0.5.0 with
+The checked-in Kubernetes test uses collector v0.3.1 and fleetdiff v0.5.0 with
 800 synthetic spans. It checks private storage and PVC remounts, finds the planted
 91% user/session shares, verifies scan exits 3/0 for changed/quiet cases, and scans
 metrics, logs, summaries, decoded sketches, reports, and Loki for planted identities,

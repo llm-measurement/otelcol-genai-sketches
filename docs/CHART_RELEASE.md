@@ -1,11 +1,12 @@
 # Chart-Only Releases
 
 Use `.github/workflows/chart-release.yml` and a signed `chart-v<version>` tag for
-chart-only changes. The existing `release.yml` listens to `v*`, builds an image,
-and packages a chart with both version fields overridden from that runtime tag.
-Do not rerun `v0.3.0` or create `v0.3.2` for this chart-only release.
+chart-only changes. The runtime `release.yml` listens to `v*`, builds an image,
+and packages the independently versioned chart from `Chart.yaml`. Its appVersion
+must match the runtime tag. Both workflows refuse to overwrite an OCI version.
+For current installation instructions, use [Deployment](DEPLOYMENT.md).
 
-For this release, `Chart.yaml` must contain `version: 0.3.2` and
+The historical chart-only 0.3.2 example below uses `version: 0.3.2` and
 `appVersion: "0.3.0"`. The chart image helper derives its default tag from
 `appVersion`, not the chart version. Both alert switches remain off by default.
 Summary export and its reader also remain off by default. The chart workflow
@@ -16,14 +17,14 @@ Its entire publishing job runs only when repository visibility is explicitly
 and public transparency operations.
 
 Chart and runtime releases share the chart's OCI version namespace. Chart-only
-versions 0.3.1 and 0.3.2 are allocated to their chart releases. The unchanged
-combined-release workflow must not later publish those runtime versions and
-overwrite them: choose a new unused combined version or separate that workflow's
-chart version first.
+versions 0.3.1 and 0.3.2 are allocated to their chart releases; runtime v0.3.1
+publishes chart 0.3.3. Choose an unused chart version for every release and keep
+the runtime and chart version fields independent.
 
 ## Maintainer Steps
 
-These are release-owner actions, not commands to run during preparation.
+These are release-owner actions. The commands record the 0.3.2 release procedure;
+for a future release, use its reviewed metadata and a new, unused chart tag.
 
 1. Review and merge the signed PR into `main`, including the summary templates,
    values/schema, chart tests, chart version, workflow, and chart release notes.

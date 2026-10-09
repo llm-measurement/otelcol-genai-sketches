@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # Code authors: Vijay and Codex
-# Chart 0.3.1: metrics and snapshot logs. The Docker recipe exports summary files.
+# Chart 0.3.3: metrics and snapshot logs. The Docker recipe exports summary files.
 image:
-  tag: '0.3.0'
-  digest: sha256:c7fef29869ada99345725cf8504c8bd265357f570a23f1344769d362e595211c
+  tag: '0.3.1'
+  digest: sha256:d1eb959970df82149512e47bbb6b1a699445f3e0e360a7a0f965fcd090a8aa7c
 shadow:
   enabled: true
   endpoint: existing-collector.observability.svc.cluster.local:4317
