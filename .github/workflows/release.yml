@@ -49,23 +49,6 @@ jobs:
           go run ./scripts/collector-version --release-chart "${GITHUB_REF_NAME}" >> "${GITHUB_OUTPUT}"
           test -f "docs/releases/${GITHUB_REF_NAME}.md"
 
-      - name: Refuse an existing OCI chart version
-        env:
-          VERSION: ${{ steps.versions.outputs.chart_version }}
-        run: |
-          pull_token="$(curl --fail --silent --show-error \
-            'https://ghcr.io/token?service=ghcr.io&scope=repository:llm-measurement/charts/otelcol-genai-sketches:pull' \
-            | jq -er '.token')"
-          status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
-            --header "Authorization: Bearer ${pull_token}" \
-            --header 'Accept: application/vnd.oci.image.manifest.v1+json' \
-            "https://ghcr.io/v2/${CHART_NAME#ghcr.io/}/manifests/${VERSION}")"
-          case "${status}" in
-            404) ;;
-            200) echo "Chart ${VERSION} already exists; refusing to overwrite it" >&2; exit 1 ;;
-            *) echo "Cannot establish chart availability (HTTP ${status})" >&2; exit 1 ;;
-          esac
-
       - name: Verify source and module files
         run: |
           make tidy
@@ -118,6 +101,23 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - name: Refuse an existing OCI chart version
+        env:
+          VERSION: ${{ needs.verify.outputs.chart_version }}
+        run: |
+          pull_token="$(curl --fail --silent --show-error \
+            'https://ghcr.io/token?service=ghcr.io&scope=repository:llm-measurement/charts/otelcol-genai-sketches:pull' \
+            | jq -er '.token')"
+          status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+            --header "Authorization: Bearer ${pull_token}" \
+            --header 'Accept: application/vnd.oci.image.manifest.v1+json' \
+            "https://ghcr.io/v2/${CHART_NAME#ghcr.io/}/manifests/${VERSION}")"
+          case "${status}" in
+            404) ;;
+            200) echo "Chart ${VERSION} already exists; refusing to overwrite it" >&2; exit 1 ;;
+            *) echo "Cannot establish chart availability (HTTP ${status})" >&2; exit 1 ;;
+          esac
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4

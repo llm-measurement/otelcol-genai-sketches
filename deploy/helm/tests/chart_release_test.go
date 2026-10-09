@@ -308,9 +308,12 @@ func TestRuntimeReleaseUsesIndependentChartVersion(t *testing.T) {
 		t.Fatal("chart version must come from validated checked-in metadata")
 	}
 	var preflight string
-	for _, step := range workflow.Jobs["verify"].Steps {
+	for _, step := range workflow.Jobs["image"].Steps {
 		if step.Name == "Refuse an existing OCI chart version" {
 			preflight = step.Run
+		}
+		if (strings.Contains(step.Name, "Build and push") || strings.Contains(step.Run, "helm push")) && preflight == "" {
+			t.Fatal("publishing job retries must run the overwrite guard before publication")
 		}
 	}
 	if preflight == "" {
