@@ -4,6 +4,10 @@ Notable user-visible changes are recorded here.
 
 ## Unreleased
 
+- Check canonical bytes and keyed hashes against a pinned identity corpus in
+  both the connector and distribution dependency graphs. Changes to an existing
+  baseline require a new identity-migration entry in this changelog.
+
 - Prepare collector v0.3.1 and chart 0.3.3 with Go 1.26.9, x/net v0.60.0,
   and x/mod v0.41.0. See the [security release notes](docs/releases/v0.3.1.md)
   for advisory IDs and upgrade checks. Existing release artifacts are unchanged.

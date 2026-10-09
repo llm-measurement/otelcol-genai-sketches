@@ -75,6 +75,23 @@ and [signing commits](https://docs.github.com/en/authentication/managing-commit-
 
 ## Development
 
+### Identity compatibility
+
+CI checks canonical bytes and keyed hashes against the fixed test corpus in
+[`testdata/identity`](connector/genaisketchconnector/testdata/identity/README.md).
+It runs with both the connector module's dependencies and the built
+distribution's dependencies. A dependency update must pass both baselines.
+CI never regenerates the expected identities.
+
+If a reviewed change intentionally changes an existing baseline, add a new
+`- Identity change:` entry to `CHANGELOG.md` explaining the affected inputs,
+the cause, and how operators handle older summaries. Include that migration
+in `docs/UPGRADING.md` and the release notes, and review the golden diff with
+the dependency change. A PR that edits an existing baseline without the new
+changelog entry fails CI.
+
+### Local checks
+
 Use Go 1.26.9 or later and Make. Docker with Compose v2 is needed for the demo
 and container checks; Helm is needed for chart checks. Run from the repository
 root with parent Go workspaces disabled:
