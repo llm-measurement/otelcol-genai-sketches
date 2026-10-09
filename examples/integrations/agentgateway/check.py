@@ -281,7 +281,7 @@ def run(args):
         dc("up", "-d", "--wait", "--wait-timeout", "120")
         time.sleep(8)
         version = dc("exec", "-T", "collector", "/otelcol-genai-sketches", "--version").stdout
-        check("0.3.0" in version, "collector release mismatch")
+        check("version 0.3.1" in version, "collector release mismatch")
         dc("exec", "-T", "provider", "python", "-B", "/recipe/check.py", "--traffic", "--gateway", args.gateway,
            "--counts", "[]")
         starts = []

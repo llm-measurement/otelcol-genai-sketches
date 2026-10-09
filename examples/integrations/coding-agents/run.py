@@ -249,7 +249,7 @@ def run(args):
         dc("up", "-d", "--wait", "--wait-timeout", "120")
         time.sleep(8)
         for source in SOURCES:
-            check("version 0.3.0" in dc("exec", "-T", source, "/otelcol-genai-sketches", "--version").stdout,
+            check("version 0.3.1" in dc("exec", "-T", source, "/otelcol-genai-sketches", "--version").stdout,
                   "collector release mismatch")
         dc("exec", "-T", "driver", "python", "-B", "/integrations/coding-agents/run.py", "--codex-probe")
         for _ in range(10):
