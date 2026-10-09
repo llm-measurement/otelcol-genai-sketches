@@ -74,9 +74,9 @@ func releaseChartVersion(data []byte, tag string) (string, error) {
 	if err := yaml.Unmarshal(data, &chart); err != nil {
 		return "", err
 	}
-	stable := regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
-	if !stable.MatchString(chart.Version) || !stable.MatchString(chart.AppVersion) || tag != "v"+chart.AppVersion {
-		return "", fmt.Errorf("release tag must match chart appVersion; both chart versions must be stable")
+	valid := regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$`)
+	if !valid.MatchString(chart.Version) || !valid.MatchString(chart.AppVersion) || tag != "v"+chart.AppVersion {
+		return "", fmt.Errorf("release tag must match chart appVersion; both chart versions must be valid release versions")
 	}
 	return chart.Version, nil
 }
