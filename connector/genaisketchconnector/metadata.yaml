@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: Apache-2.0
+# Code authors: Vijay and Codex
+
+display_name: GenAI Sketch Connector
+type: genaisketch
+github_project: llm-measurement/otelcol-genai-sketches
+
+status:
+  class: connector
+  stability:
+    alpha: [traces_to_metrics]
+  distributions: [otelcol-genai-sketches]
+  codeowners:
+    active: [kwisatzh]
+  disable_codecov_badge: true
