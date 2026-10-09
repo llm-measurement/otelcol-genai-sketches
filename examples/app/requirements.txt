@@ -1,3 +1,28 @@
-opentelemetry-api==1.43.0
-opentelemetry-sdk==1.43.0
-opentelemetry-exporter-otlp-proto-grpc==1.43.0
+# Generated from requirements.in with pip 26.1.2 in the digest-pinned Dockerfile image.
+# Target: CPython 3.14, Linux amd64 and arm64; wheel-only, including all transitive dependencies.
+# Resolve each architecture with:
+#   python -m pip install --dry-run --ignore-installed --only-binary=:all: \
+#     --report report.json -r requirements.in
+# Combine the reports' exact versions and download_info.archive_info.hashes.sha256 values.
+googleapis-common-protos==1.75.5 \
+    --hash=sha256:d7285525c23039db98f2463e6d5a4f9b958b94d497f03a844ece3259c4e72d5d
+grpcio==1.84.0 \
+    --hash=sha256:57dc36a5ab0e676f5f6e171de2917fd0aef73f32a9aaf23956bfe19997a30bd1 \
+    --hash=sha256:e90e3bdf7b5eac005fef631adae9cafde16f922def207b80a7c46b253c18ad20
+opentelemetry-api==1.43.0 \
+    --hash=sha256:20acf45e9b21851926835292e4045d290acade1edd2ff3de86d2f069687ba1fd
+opentelemetry-exporter-otlp-proto-common==1.43.0 \
+    --hash=sha256:123c3f9cc87218562490c63b36f497bf3a722faf174a515d1443f31ababa6264
+opentelemetry-exporter-otlp-proto-grpc==1.43.0 \
+    --hash=sha256:6a10d1feacffffda19acacbf277b736094b1e2f4dbb98c90ccb2c6e1962e2ec6
+opentelemetry-proto==1.43.0 \
+    --hash=sha256:c58f1f7ef84bc7dc2834016c0c37fe0081dde7ca9f6339be1970fbf9cdaaa90d
+opentelemetry-sdk==1.43.0 \
+    --hash=sha256:d1323a547c1ce69d6a069a17a44b7da82bb8b332051ecb074041f87642c86823
+opentelemetry-semantic-conventions==0.64b0 \
+    --hash=sha256:ea77e85e354b8f604ddbe5f3d9135216f982fa4d77e5859ac30f6d8a50505aa6
+protobuf==7.36.2 \
+    --hash=sha256:89f23aa53c24553a2416fd4fd1ec06f74fa42b14b546d8883128813f775bbfd2 \
+    --hash=sha256:e11e1f0180583a2af89db6a2ecd9e8dc40aa6d2988ca175bfd0e6d12ea72d74e
+typing-extensions==4.16.0 \
+    --hash=sha256:481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8
