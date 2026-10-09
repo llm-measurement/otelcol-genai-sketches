@@ -9,6 +9,10 @@ describes the connector-specific fields.
 ```yaml
 connectors:
   genaisketch:
+    window_duration: 1m
+    retention_windows: 10
+    max_slices: 2000
+    topk: 20
     hashing:
       algo: hmac_sha256_64
       secret_env: GENAI_SKETCH_SECRET
@@ -21,6 +25,12 @@ connectors:
 `GENAI_SKETCH_SECRET` must contain at least 16 bytes. Generate at least 128 bits of
 entropy and keep the value out of configuration files, images, logs, and source
 control.
+
+When using the standalone connector with the OpenTelemetry Collector Builder,
+configure `genaisketch` as an exporter from the traces pipeline and a receiver in
+the metrics pipeline. The `path:` override in this repository's builder manifest
+is only for a local checkout; published-module builds use the versioned `gomod`
+entry from [Install](../README.md#install).
 
 ## Capacity And Windows
 

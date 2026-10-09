@@ -90,7 +90,8 @@ missing producer is an error unless explicitly allowed as a partial comparison;
 it is not treated as zero usage. The same compatibility and disjoint-observation
 requirements apply. Summary files still require authorized sharing.
 
-Try the [two-collector demo](https://github.com/llm-measurement/fleetdiff/tree/main/examples/two-operators)
+Try the [two-collector demo](https://github.com/llm-measurement/fleetdiff#run-it-through-real-collectors)
+and its [example files](https://github.com/llm-measurement/fleetdiff/tree/main/examples/two-operators),
 or follow the [two-operator trial checklist](https://github.com/llm-measurement/fleetdiff/blob/main/docs/TWO_OPERATOR_TRIAL.md)
 with approved exports, then use the report to select a trace investigation.
 

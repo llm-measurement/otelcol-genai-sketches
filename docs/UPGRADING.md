@@ -55,12 +55,33 @@ known window boundary, record the event, and allow old windows to expire.
 
 ## Compatibility
 
+### Feature Availability
+
+Use collector v0.3.1 and chart 0.3.3 for the current security fixes; see the
+[release notes](releases/v0.3.1.md) and [verified installation](DEPLOYMENT.md).
+The table records when each capability first became available, not a
+recommendation to deploy an older release.
+
+| Capability | First available | Guide |
+| --- | --- | --- |
+| Summary exchange in images and the connector module, using llm-sketchkit v0.2.0 | Collector v0.1.0 | [Summary exchange](SUMMARY_EXCHANGE.md) |
+| Source-usage provenance accounting | Collector v0.2.0 | [Usage provenance](USAGE_PROVENANCE.md) |
+| Question-oriented before/after investigation | fleetdiff v0.2.0 | [LiteLLM recipe](../examples/integrations/litellm/README.md) |
+| Opt-in user/session ranking via `topk_keys` | Collector and fleetdiff v0.3.0 | [Top-K Keys](TOPK_KEYS.md) |
+| Optional warning rules for unusual attempts, tokens per attempt, and coverage | Chart 0.3.1 | [Alerts](ALERTING.md) |
+| Summary storage, read-only reader, and JSON logging values | Chart 0.3.2 | [Summary export](SUMMARY_EXPORT_HELM.md) |
+| Local `scan` over retained windows and static config `diagnose` | fleetdiff v0.5.0 | [Scan and history retention](https://github.com/llm-measurement/fleetdiff/blob/main/docs/SCAN.md) |
+
+Distinct gauges describe the current window. For a longer period, merge compatible
+summary state rather than adding gauges. Collect new ranking fields for complete
+windows before comparison; enabling a field does not create historical data.
+
 ### Chart 0.3.2
 
-Chart 0.3.2 keeps `appVersion` and the default collector image
-at v0.3.0; it does not include the Collector dependency update in source builds
-below. Continue to verify the released v0.3.0 image using [Deployment](DEPLOYMENT.md).
-Verify the chart separately using tag `chart-v0.3.2` and the chart-only workflow.
+Chart 0.3.2 originally shipped with `appVersion` and the default collector image
+at v0.3.0. Chart 0.3.3 supersedes it with the patched v0.3.1 image; use
+[Deployment](DEPLOYMENT.md) to verify the current artifacts. The original
+chart-only release remains identified by tag `chart-v0.3.2`.
 
 The new `summaryExport` values are opt-in. Defaults add no export volume,
 initialization container, or reader sidecar. `telemetry.logs.encoding` defaults to
@@ -100,12 +121,12 @@ recorded image digest; remaining files are not restart checkpoints.
 
 ### Collector v0.162.0 In Source Builds
 
-The source checkout uses Collector `v0.162.0` / pdata `v1.68.0`. Published
-collector v0.3.0 images remain on `v0.161.0` / pdata `v1.67.0`.
+The source checkout and collector v0.3.1 use Collector `v0.162.0` / pdata `v1.68.0`.
+Published collector v0.3.0 images remain on `v0.161.0` / pdata `v1.67.0`.
 
 Collector Contrib v0.162.0 changes Prometheus label sanitization: names starting
 with one underscore no longer receive a `key_` prefix by default. Check custom
-label names and matching queries before deploying a source build. The previous
+label names and matching queries before upgrading to v0.3.1 or a source build. The previous
 behavior can be selected with
 `--feature-gates=-pkg.translator.prometheus.PermissiveLabelSanitization`.
 See the [upstream release notes](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/tag/v0.162.0).
