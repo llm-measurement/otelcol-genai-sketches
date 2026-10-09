@@ -4,17 +4,18 @@
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/llm-measurement/otelcol-genai-sketches/badge)](https://scorecard.dev/viewer/?uri=github.com/llm-measurement/otelcol-genai-sketches)
 
-Our [investigation of one lab's Claude Code and Codex traces](examples/tracelab/derived/RESULTS.md)
-found **three sessions behind a 17% overnight token jump**, using no user or
-session metric labels.
-This OpenTelemetry Collector connector and distribution helps you find token-heavy
-users and sessions, check missing usage, and keep your existing trace backend
-across hosted or self-hosted models.
+An OpenTelemetry Collector connector, `genaisketch`, and a ready-to-run distribution for GenAI and agent traffic. The connector reads GenAI spans and produces bounded Prometheus metrics, keyed top-k rankings and mergeable window summaries. You can see where token usage accumulates, which users and sessions drive it, and how complete reported usage is, without putting user, session or prompt identities in metric labels. Your existing trace backend keeps receiving the original spans.
+
+| Status | |
+| --- | --- |
+| Stability | alpha: traces to metrics |
+| Distributions | this repository's collector image and Helm chart; the connector module for custom builds |
+| Issues | [open issues](https://github.com/llm-measurement/otelcol-genai-sketches/issues) |
+| Code owners | @kwisatzh |
 
 ![Running Grafana demo with request rates, reported tokens, and missing usage](docs/images/demo-dashboard.jpg)
 
-*The dashboard shows synthetic demo traffic; the linked investigation uses
-released coding-agent traces.*
+*Synthetic demo traffic.*
 
 ## Try It
 
@@ -61,7 +62,7 @@ queries for investigating your own traffic, including unexpected "token maxing."
 | LiteLLM | [Single-app before/after recipe](examples/integrations/litellm/README.md) | More requests or larger requests, missing usage, and an optional two-stack comparison |
 | agentgateway or Envoy AI Gateway | [agentgateway](examples/integrations/agentgateway/README.md) / [standalone Envoy](examples/integrations/envoy-ai-gateway/README.md) | Users and sessions taking over while totals stay flat; workflow rankings in snapshot logs |
 | Copilot CLI or Copilot Chat | [Coding-agent recipe](examples/integrations/coding-agents/README.md) | Session changes and separate device rankings, using source-specific field mappings |
-| Claude Code and Codex traces (TraceLab) | [Replay the recorded investigation](examples/tracelab/README.md) | The sessions behind the overnight token increase, checked against source totals |
+| Claude Code and Codex traces (TraceLab) | [Replay the recorded investigation](examples/tracelab/README.md) | Three sessions behind a 17% overnight token increase, checked against source totals |
 | Kubernetes summary files and alerts | [Export and readback](docs/SUMMARY_EXPORT_HELM.md) / [alerts](docs/ALERTING.md) | Local `investigate` and `scan`, plus optional Prometheus alerts |
 | Several teams or collectors | [Summary exchange](docs/SUMMARY_EXCHANGE.md) / [fleetdiff](https://github.com/llm-measurement/fleetdiff) | Combine compatible measurements and compare windows while each team keeps its backend |
 
@@ -114,7 +115,8 @@ connectors:
 ```
 
 Use `genaisketch` as a traces-pipeline exporter and a metrics-pipeline receiver;
-the [configuration guide](docs/CONFIGURATION.md) has the connector settings.
+the [component README](connector/genaisketchconnector/README.md) and
+[configuration guide](docs/CONFIGURATION.md) have the connector settings.
 Read [Sizing](docs/SIZING.md) for capacity planning and
 [Upgrading](docs/UPGRADING.md) for feature availability, restarts, and rollback.
 
