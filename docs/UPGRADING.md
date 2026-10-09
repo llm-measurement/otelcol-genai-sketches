@@ -31,11 +31,11 @@ but alerts should tolerate the restart interval. Use upstream buffering or a dur
 OTLP tier when uninterrupted receipt is required.
 
 The chart does not persist sketch state. A rollback starts empty state under the old
-binary. The same secret and hashing configuration preserve pseudonymous identities
-across a restart; they do not restore counters, sketch windows, or the optional
-deduplication filter. Replayed spans can therefore be counted again. Restart
-stability means replaying the same corpus into fresh state gives the same results,
-not that aggregate state survives a restart.
+binary. Within the same build, the same secret and hashing configuration preserve
+pseudonymous identities across a restart; they do not restore counters, sketch
+windows, or the optional deduplication filter. Replayed spans can therefore be
+counted again. Restart stability means replaying the same corpus into fresh state
+gives the same results, not that aggregate state survives a restart.
 
 With [summary file export](SUMMARY_EXCHANGE.md) configured from `0.1.0`,
 previously written files can survive on a persistent private volume. Each restart
@@ -118,6 +118,20 @@ Rollback to chart 0.3.1 removes the chart-managed export and reader, and returns
 to that chart's log configuration. An operator-owned PVC is not deleted, but
 `emptyDir` files disappear when the pod is replaced. Restore the old values and
 recorded image digest; remaining files are not restart checkpoints.
+
+### Text Identities In v0.3.1
+
+The v0.3.1 distribution updates `golang.org/x/text` from v0.41.0 to v0.42.0.
+Its upstream NFC composition fix changes `text_v1` canonical bytes and keyed
+identities for some supplementary-plane characters with combining marks,
+including U+11F41 followed by U+0300 or U+0301: the old normalizer could replace
+them with unrelated characters. Upgrade at a window boundary and keep affected
+pre-upgrade and post-upgrade windows separate for merges and comparisons, or
+rebuild them from original inputs using one normalizer version/build and the
+same hash secret. The accounting fingerprint does not identify this normalization
+change, so operators must keep affected windows separate explicitly. Custom builds
+follow their resolved `x/text` version; check the build's module graph, not just
+the connector module's declared minimum.
 
 ### Collector v0.162.0 In Source Builds
 
