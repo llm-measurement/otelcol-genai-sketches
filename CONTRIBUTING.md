@@ -73,9 +73,9 @@ See GitHub's [SSH signing setup](https://docs.github.com/en/authentication/manag
 [adding an SSH signing key](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account),
 and [signing commits](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits).
 
-## Local Checks
+## Development
 
-Use Go 1.26.6 or later and Make. Docker with Compose v2 is needed for the demo
+Use Go 1.26.9 or later and Make. Docker with Compose v2 is needed for the demo
 and container checks; Helm is needed for chart checks. Run from the repository
 root with parent Go workspaces disabled:
 
@@ -104,6 +104,19 @@ are opt-in, can cost money, and are not required for ordinary contributions.
 Run `GOWORK=off make tidy` only for dependency changes and inspect both modules'
 diffs. Do not include generated `dist/` or cache files.
 
+The integration suite covers OTLP-to-Prometheus behavior, gRPC and HTTP shadow-mode
+fan-out, bounded overflow, deterministic eviction, restart stability, tree locality,
+and sentinel scans across metric, label, and structured-log surfaces. The offline
+coding-agent replay has separate tagged checks:
+
+```sh
+GOWORK=off go -C connector/genaisketchconnector test -race -tags tracelab_replay ./...
+python3 -B -m unittest discover -s examples/tracelab -p 'test_*.py'
+```
+
+See [Sizing](docs/SIZING.md) and [Upgrading](docs/UPGRADING.md) before a production
+rollout, and [Benchmarks](docs/BENCHMARKS.md) for reproduction commands.
+
 ## Change Scope
 
 Prefer existing helpers and small compositions of standard libraries. Keep
@@ -111,6 +124,8 @@ accounting, configuration, privacy, and compatibility changes explicit. Add
 focused tests for the behavior changed and update the relevant public guide.
 Preserve default configuration and wire formats unless the change explains and
 tests a migration. Format Go with `gofmt` and retain existing license headers.
+
+A new recipe or example adds one row to the README's guide table; its detail lives in its own README.
 
 Separate static checks, synthetic execution, and real-provider observations in
 reports. Include commands, versions, expected results, actual results, and limits;

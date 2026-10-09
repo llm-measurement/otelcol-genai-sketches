@@ -20,7 +20,7 @@ low-cardinality and non-sensitive. `gen_ai_sketch_active_slices` has only its fi
 | `gen_ai_sketch_reasoning_output_tokens_total` | Reported reasoning subset of output tokens |
 | `gen_ai_sketch_missing_token_usage_total` | Matched request spans missing either aggregate token attribute |
 | `gen_ai_sketch_token_field_observations_total` | Fixed-field completeness and quality states |
-| `gen_ai_sketch_usage_provenance_total` | Instrumenter-declared input/output origin |
+| `gen_ai_sketch_usage_provenance_total` | Input/output field observations by declared source: provider-reported, inferred, unavailable, or unknown; not token counts |
 | `gen_ai_sketch_dedup_suppressed_total` | Probable duplicates suppressed when optional deduplication is enabled |
 | `gen_ai_sketch_dedup_key_missing_total` | Requests counted without a configured deduplication key |
 
@@ -77,7 +77,8 @@ Every five seconds, the connector can emit a structured `genaisketch topk snapsh
 log containing keyed prompt signatures by default, weighted estimates, and lower
 and upper bounds. See the [cardinality contract](#cardinality-contract) for label rules.
 
-Release v0.3.0 supports opt-in [user/session keys](TOPK_KEYS.md).
+Enable [user/session keys](TOPK_KEYS.md) for those rankings; see
+[Upgrading](UPGRADING.md#feature-availability) for supported releases.
 The existing snapshot's `field` selects `prompt_key`, `user_key`, or `session_key`.
 An absent `weight` means tokens for these fields; `weight: requests` marks request
 units explicitly. Do not compare or add token and request estimates. Each entry

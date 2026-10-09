@@ -4,369 +4,149 @@
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/llm-measurement/otelcol-genai-sketches/badge)](https://scorecard.dev/viewer/?uri=github.com/llm-measurement/otelcol-genai-sketches)
 
-An OpenTelemetry Collector distribution for continuous, bounded answers about
-high-cardinality agent traffic without exporting or indexing every underlying value.
-It turns GenAI traces into bounded Prometheus metrics and keyed top-k summaries.
-
-Rank prompt signatures by reported tokens, or enable
-[user and session ranking](docs/TOPK_KEYS.md) in v0.3.0.
-Distinct counts cover one window; merge compatible summary exports for a longer
-period.
-
-Use it alongside an existing trace backend for token accounting and "token maxing"
-investigations: find where reported token volume is accumulating, measure missing
-usage, and keep high-cardinality identities out of metric labels.
-
-It works with hosted model APIs, self-hosted models, or a mixture of both when
-instrumentation emits the supported GenAI span attributes. The same accounting
-rules apply regardless of where the model runs. See the
-[deployment FAQ](docs/FAQ.md#can-i-use-this-with-self-hosted-models-or-a-mix-of-providers)
-for input requirements.
+Our [investigation of one lab's Claude Code and Codex traces](examples/tracelab/derived/RESULTS.md)
+found **three sessions behind a 17% overnight token jump**, using no user or
+session metric labels.
+This OpenTelemetry Collector connector and distribution helps you find token-heavy
+users and sessions, check missing usage, and keep your existing trace backend
+across hosted or self-hosted models.
 
 ![Running Grafana demo with request rates, reported tokens, and missing usage](docs/images/demo-dashboard.jpg)
 
-Actual output from synthetic traffic. Start with the
-[90-second walkthrough](docs/media/README.md), or try two reproducible investigations:
-[more tool spans, the same model requests](docs/investigations/TOOL_SPANS.md) and
-[fewer reported tokens, unchanged synthetic consumption](docs/investigations/MISSING_USAGE.md).
+*The dashboard shows synthetic demo traffic; the linked investigation uses
+released coding-agent traces.*
 
-## Start With The Question
+## Try It
 
-| Question | Required span data | Result |
-| --- | --- | --- |
-| Where is token or request volume accumulating? | Model operations, reported token fields, and configured team, model, provider, or route attributes | Request and token rates by slice, plus heavy contributors with lower and upper bounds |
-| Which users or sessions account for most of the attributed usage? | Configured user/session fields and opt-in `topk_keys` | Keyed user/session rankings by tokens or model attempts |
-| How many users, prompts, or resources are active? | Supported identity fields configured for hashing | Distinct estimates as metrics, with identities kept out of labels |
-| Are agent or tool spans inflating model-request accounting? | `gen_ai.operation.name`, or the documented model fallback | Separate model-request and root-agent-run counters |
-| How complete is token accounting? | `gen_ai.usage.input_tokens` and `gen_ai.usage.output_tokens` when available | Missing usage counted separately from real zero-token values |
-| Can separate systems combine measurements? | Compatible [window summary files](docs/SUMMARY_EXCHANGE.md) from disjoint request streams | Combined counters, distinct estimates, and heavy items, with coverage reported |
+You need Docker with Compose v2, Git, and a POSIX shell (macOS, Linux, or WSL).
+The demo is synthetic and needs no model account or API key.
 
-Prometheus metrics describe each collector's observations. Summary exchange
-combines compatible sketch state across systems. Use these summaries to find
-where to look, then follow individual runs in your existing trace explorer.
+Clone the repository and start the stack:
 
-## Quick Start
-
-Requirements: Docker with Compose v2, Git, and a POSIX shell (macOS, Linux, or WSL).
-No host Go, Python, Make, or OpenSSL installation is needed.
-
-```bash
+```sh
 git clone https://github.com/llm-measurement/otelcol-genai-sketches.git
 cd otelcol-genai-sketches
 sh examples/demo.sh up
 ```
 
-This starts a sample application, the collector, a Prometheus metrics server, and a
-provisioned Grafana dashboard.
+You'll get a sample app, this collector, a Prometheus metrics server, and Grafana.
+Open the dashboard printed by the command to see request rate, reported token
+rate, distinct activity, and missing usage. The first build takes several minutes;
+allow one minute after startup for the first measurement window.
 
-The first run downloads pinned images and compiles the checked-out collector inside
-Docker. Allow several minutes; later runs reuse the build cache. `make example-up`
-is an equivalent convenience command.
+See the token-heavy prompt signatures and their bounds:
 
-The script generates a random demo secret without displaying it. Each `up` creates
-a fresh secret unless `GENAI_SKETCH_SECRET` is already set. Restarting with a new
-secret resets pseudonymous comparability. Everything is synthetic; no model account
-or API key is required. Published ports bind only to localhost.
-
-- Grafana: [GenAI Sketches dashboard](http://localhost:3000/d/genai-sketches)
-- Prometheus: [http://localhost:9090](http://localhost:9090)
-- Collector metrics: [http://localhost:8889/metrics](http://localhost:8889/metrics)
-
-The sample emits model, agent, tool, and retrieval spans. It also includes missing
-token fields and enough prompt variety to exercise bounded estimates.
-
-### Get A Useful Result
-
-Let the example run for at least one minute, then use the dashboard in this order:
-
-1. Compare **Requests/sec** with **Reported Token Rate**.
-2. Check **Reported Tokens / Request** to separate traffic growth from larger
-   requests or responses.
-3. Check **Missing Token Usage** before treating token totals as complete.
-4. Compare model and team/model slices to localize the change.
-
-Then inspect the high-cardinality surface:
-
-```bash
+```sh
 sh examples/demo.sh topk
 ```
 
-The snapshot contains keyed hashes, estimates, and lower and upper bounds. It does
-not contain prompt text, and its hashes never become Prometheus labels.
+Then run two controlled investigations:
 
-Run the two synthetic investigations against the running stack:
-
-```bash
+```sh
 sh examples/demo.sh investigate
 ```
 
-This reconciles known request and token counts, then demonstrates how extra tool
-spans and missing usage affect accounting. It makes no model or provider calls.
+You'll see why adding tool spans leaves model-request counts unchanged, and why
+missing usage can make reported tokens fall while consumption stays the same.
 
-Stop the example with:
+[Watch the walkthrough](docs/media/README.md), or open the
+[demo guide](examples/README.md) for ports, secret handling, dashboard reading
+order, and cleanup. The [token-consumption playbook](docs/TOKEN_USAGE.md) gives
+queries for investigating your own traffic, including unexpected "token maxing."
 
-```bash
-sh examples/demo.sh down
-```
+## Find Your Guide
 
-This removes the demo containers and their disposable data. If a port is occupied,
-set `GENAI_DEMO_GRAFANA_PORT`, `GENAI_DEMO_PROMETHEUS_PORT`,
-`GENAI_DEMO_METRICS_PORT`, or `GENAI_DEMO_OTLP_PORT` before starting; the defaults are
-3000, 9090, 8889, and 4317 respectively.
+| Your path | Start here | What you'll see |
+| --- | --- | --- |
+| LiteLLM | [Single-app before/after recipe](examples/integrations/litellm/README.md) | More requests or larger requests, missing usage, and an optional two-stack comparison |
+| agentgateway or Envoy AI Gateway | [agentgateway](examples/integrations/agentgateway/README.md) / [standalone Envoy](examples/integrations/envoy-ai-gateway/README.md) | Users and sessions taking over while totals stay flat; workflow rankings in snapshot logs |
+| Copilot CLI or Copilot Chat | [Coding-agent recipe](examples/integrations/coding-agents/README.md) | Session changes and separate device rankings, using source-specific field mappings |
+| Claude Code and Codex traces (TraceLab) | [Replay the recorded investigation](examples/tracelab/README.md) | The sessions behind the overnight token increase, checked against source totals |
+| Kubernetes summary files and alerts | [Export and readback](docs/SUMMARY_EXPORT_HELM.md) / [alerts](docs/ALERTING.md) | Local `investigate` and `scan`, plus optional Prometheus alerts |
+| Several teams or collectors | [Summary exchange](docs/SUMMARY_EXCHANGE.md) / [fleetdiff](https://github.com/llm-measurement/fleetdiff) | Combine compatible measurements and compare windows while each team keeps its backend |
 
-The [token-consumption playbook](docs/TOKEN_USAGE.md) contains the PromQL queries and
-an interpretation table for the same workflow.
-
-For a persistent environment, use the production image and Helm chart produced by a
-tagged release, as described in [Deployment](docs/DEPLOYMENT.md). Release images are
-signed for both supported architectures.
-
-## Keep Your Current Backend
-
-You can add the connector without replacing Datadog, Langfuse, Alloy, or another
-OTLP destination:
+## How It Works
 
 ```text
 applications -> Collector fan-out -> current trace backend
-                                  -> bounded sketch metrics
+                                  -> genaisketch -> Prometheus metrics
+                                                -> keyed top-k snapshot logs
+                                                -> optional summary files -> fleetdiff
 ```
 
-The distribution includes OTLP gRPC and HTTP exporters. CI verifies that one trace
-batch can be forwarded while the connector derives metrics from it. You can also let
-an existing Collector or Alloy deployment own the fan-out and run this distribution
-as a sidecar.
+Keep Datadog, Langfuse, Alloy, or another OTLP destination as your trace backend.
+The connector counts model attempts separately from agent, tool, retrieval, and
+MCP spans, and records missing token usage explicitly.
+It uses [llm-sketchkit](https://github.com/llm-measurement/llm-sketchkit) to hash
+configured identities, estimate distinct activity, and rank heavy contributors.
+Compatible summary files let [fleetdiff](https://github.com/llm-measurement/fleetdiff)
+compare windows across collectors without uploading raw traces.
+Fan-out preserves the original traces, so disable content capture or redact
+before fan-out when raw content must stay local.
 
-See [Keep Your Existing Telemetry Backend](docs/SHADOW_MODE.md) for tested generic
-OTLP configurations and coexistence paths for an ordinary Collector, Datadog,
-Langfuse, and Grafana Alloy.
+See [Shadow Mode](docs/SHADOW_MODE.md) for fan-out configurations and
+[Accounting](docs/ACCOUNTING.md) for request and token rules.
+The [metrics reference](docs/METRICS.md), [configuration guide](docs/CONFIGURATION.md),
+and [deployment FAQ](docs/FAQ.md#can-i-use-this-with-self-hosted-models-or-a-mix-of-providers)
+cover the available signals and required input fields.
 
-## Across Independent Systems
+## Install
 
-An agent fleet can use hosted APIs and internal model servers at the same time.
-Each team can keep its trace backend and exchange bounded window summaries
-for a shared view of an agent fleet. Export includes full sketch state and counters,
-not raw prompts or identities. A [local Go/Python API](https://github.com/llm-measurement/llm-sketchkit/tree/main/examples/summary-exchange)
-combines the files without needing the hashing secret. Replayed snapshots are not
-counted again, and missing producers and partial observation windows are reported.
+For a persistent deployment, use the signed release image or Helm chart.
+Follow [Deployment](docs/DEPLOYMENT.md) to verify signatures and attestations,
+pin immutable digests, configure the hashing secret, and start the collector.
 
-To investigate a single application's before/after change, start with the
-[LiteLLM recipe](examples/integrations/litellm/README.md). It includes synthetic,
-source-pinned fixtures, missing-usage checks, and an optional two-stack extension.
-The question-oriented `fleetdiff investigate` command is available in fleetdiff
-v0.2.0 and later. Source-provenance accounting requires collector v0.2.0 or later.
+| Artifact | Released version | Reference |
+| --- | --- | --- |
+| Collector image | `v0.3.1` | `ghcr.io/llm-measurement/otelcol-genai-sketches` |
+| Helm chart | `0.3.3` | `oci://ghcr.io/llm-measurement/charts/otelcol-genai-sketches` |
 
-To find which users and sessions took over while totals stayed flat, run the
-[agentgateway recipe](examples/integrations/agentgateway/README.md) or its
-[standalone Envoy AI Gateway variant](examples/integrations/envoy-ai-gateway/README.md).
-Both run on released builds with synthetic traffic, keep your existing backend,
-and add user and session summaries plus workflow rankings in snapshot logs.
+The image supports Linux amd64 and arm64. For Kubernetes, the deployment guide
+includes the verified chart install and an existing-Secret configuration.
 
-For coding-agent telemetry, the [Copilot CLI and Copilot Chat recipe](examples/integrations/coding-agents/README.md)
-finds a session taking over while totals stay flat, with separate device rankings
-in snapshot logs. It uses explicit source mappings and released binaries.
-
-For ongoing checks, chart **0.3.3** includes [optional Prometheus alerts](docs/ALERTING.md)
-for changes in attempts, tokens per attempt, and usage coverage. They are disabled
-by default. **fleetdiff v0.5.0** includes local `scan` over archived
-summary windows for user/session attribution, plus `diagnose` for a static config
-review. The chart's [summary export and read-only reader](docs/SUMMARY_EXPORT_HELM.md)
-provide the files for this workflow with collector v0.3.1; see
-[scan and history retention](https://github.com/llm-measurement/fleetdiff/blob/main/docs/SCAN.md).
-
-To compare two windows across operators, use [fleetdiff](https://github.com/llm-measurement/fleetdiff).
-It reads these exports locally and reports usage changes, distinct activity,
-tracked-item bounds, and missing coverage. Its [two-collector demo](https://github.com/llm-measurement/fleetdiff#run-it-through-real-collectors)
-shows one team's reported token usage falling while the fleet total rises, using
-synthetic traffic. Keep your existing trace backend; no raw-trace upload is needed.
-
-Agree on scopes, hashing keys, accounting rules, and disjoint request streams;
-exchange exports through an authenticated channel.
-See [Combine Measurements Across Independently Operated Systems](docs/SUMMARY_EXCHANGE.md)
-for configuration, a working example, and restart and key handling. This feature
-is available in collector images and the connector module from `0.1.0`.
-
-## When This Fits
-
-Use this collector when you need to:
-
-- keep metric cardinality bounded across a large GenAI or agent workload;
-- estimate distinct users, prompt signatures, or retrieval documents without
-  placing raw values in aggregate state;
-- separate real zero-token usage from requests that omitted token attributes;
-- investigate unexpected or runaway token consumption, sometimes called
-  "token maxing," by locating where reported tokens accumulate;
-- inspect token-heavy prompts, users, and sessions without turning them into labels; or
-- count model requests without including agent, tool, retrieval, workflow, and MCP
-  spans in the same denominator.
-
-Token accounting remains useful without a per-token invoice. Self-hosted workloads
-can consume shared serving capacity and delay other work. Use token concentration
-alongside your serving system's queue, latency, and utilization metrics.
-
-The connector provides always-on bounded measurements. Keep authorized raw records
-where you need per-request diagnosis, audit, or replay, and provider records for billing.
-
-## What It Produces
-
-| Signal | Meaning |
-| --- | --- |
-| `gen_ai_sketch_requests_total` | Model request spans matched by the operation filter |
-| `gen_ai_sketch_agent_runs_total` | Root `invoke_agent` spans |
-| `gen_ai_sketch_input_tokens_total` | Reported input tokens |
-| `gen_ai_sketch_output_tokens_total` | Reported output tokens |
-| `gen_ai_sketch_total_tokens_total` | Reported input plus output tokens |
-| `gen_ai_sketch_cache_read_input_tokens_total` | Reported cache-read input tokens; a subset of input |
-| `gen_ai_sketch_cache_write_input_tokens_total` | Reported cache-write input tokens; a subset of input |
-| `gen_ai_sketch_reasoning_output_tokens_total` | Reported reasoning output tokens; a subset of output |
-| `gen_ai_sketch_missing_token_usage_total` | Matched requests missing either aggregate token field |
-| `gen_ai_sketch_token_field_observations_total` | Fixed-state token completeness and quality observations |
-| `gen_ai_sketch_usage_provenance_total` | Input/output field observations by declared source: provider-reported, inferred, unavailable, or unknown; not token counts |
-| `gen_ai_sketch_active_slices` | Currently retained slice states |
-| `gen_ai_sketch_distinct_users` | Estimated distinct keyed user values in the current window |
-| `gen_ai_sketch_distinct_prompt_signatures` | Estimated distinct keyed prompt values |
-| `gen_ai_sketch_distinct_retrieval_docs` | Estimated distinct keyed document values |
-
-Optional MCP metrics estimate distinct sessions, methods, and resources. Weighted
-top-k prompt signatures are emitted by default as structured logs with estimates
-and lower and upper bounds. User/session keys are opt-in from v0.3.0;
-session ranking can use tokens or model-request counts. They never become
-Prometheus labels. Set `topk: 0` to disable the
-structured-log surface and its frequent-items state.
-
-See [Production Accounting Semantics](docs/ACCOUNTING.md) for the versioned
-accounting contract and [Metrics](docs/METRICS.md) for the exported surface.
-
-## How It Fits
-
-```text
-GenAI applications -> OTLP traces -> this collector -> Prometheus metrics
-                                      |              -> bounded structured logs
-                                      +--------------> optional existing OTLP backend
-```
-
-Use this distribution when source spans already flow through OpenTelemetry. If you
-own a custom streaming, batch, or warehouse pipeline and do not need OTLP-to-metrics
-conversion, use [llm-sketchkit](https://github.com/llm-measurement/llm-sketchkit)
-directly.
-
-The connector uses `llm-sketchkit v0.2.0` for canonicalization, keyed hashing,
-distinct counting, frequent-item estimates, and deduplication. Raw prompt text,
-user IDs, document IDs, and request IDs do not enter connector aggregate state or
-its derived metrics and snapshots.
-
-An optional forwarded trace remains the original trace. If instrumentation captured
-raw content, the existing trace backend still receives it. See the shadow-mode guide
-before enabling fan-out.
-
-## Use In An Existing Collector
-
-The connector is also published as a standalone Go module for the
-[OpenTelemetry Collector Builder](https://opentelemetry.io/docs/collector/extend/ocb/).
-Add it to a builder manifest:
+Already build your own collector? Add the standalone connector module to your
+[OpenTelemetry Collector Builder](https://opentelemetry.io/docs/collector/extend/ocb/)
+manifest:
 
 ```yaml
 connectors:
   - gomod: github.com/llm-measurement/otelcol-genai-sketches/connector/genaisketchconnector v0.3.1
 ```
 
-Configure `genaisketch` as an exporter from the traces pipeline and a receiver in the
-metrics pipeline. The `path:` override in this repository's builder manifest exists
-only for a local checkout.
+Use `genaisketch` as a traces-pipeline exporter and a metrics-pipeline receiver;
+the [configuration guide](docs/CONFIGURATION.md) has the connector settings.
+Read [Sizing](docs/SIZING.md) for capacity planning and
+[Upgrading](docs/UPGRADING.md) for feature availability, restarts, and rollback.
 
-## Configuration
+## Privacy And Limits
 
-Start with [the example configuration](examples/collector/config.yaml). The connector
-requires a secret of at least 16 bytes from `GENAI_SKETCH_SECRET` by default.
+- **Keyed hashes are pseudonymous.** Values are linkable under the same secret;
+  secret holders can test candidate values. Restrict access to snapshots and
+  summary files. Key rotation starts a new comparison period.
+- **Slice labels are bounded and cleartext.** Choose non-sensitive dimensions
+  such as model, team, or route. Excess slice values share an overflow bucket;
+  user/session hashes and top-k items stay out of metric labels.
+- **Estimates carry uncertainty.** Distinct counts are estimates; frequent-item
+  rankings include lower and upper bounds. Use compatible summary state to
+  combine measurements, rather than adding distinct-count gauges.
+- **Use exact records for billing and quota enforcement.** Reported usage and
+  coverage support investigation; optional Bloom deduplication can undercount.
+  Keep provider records and an exact ledger for financial or admission decisions.
 
-```yaml
-connectors:
-  genaisketch:
-    window_duration: 1m
-    retention_windows: 10
-    max_slices: 2000
-    topk: 20
-    slices:
-      - name: model
-        keys: [gen_ai.request.model]
-        from_resource_attributes: [gen_ai.request.model]
-```
+See [Security](SECURITY.md) for private vulnerability reporting and
+[Accounting](docs/ACCOUNTING.md) for measurement semantics.
 
-Slice values are exported in cleartext as Prometheus labels. Use only bounded,
-low-cardinality, non-sensitive attributes such as model, team, route, or provider.
-Configured slice capacity uses deterministic inactive-slice eviction and one
-`__overflow__` value. Excess traffic is counted rather than silently dropped, and it
-does not create new label values.
+## Project
 
-See [Configuration](docs/CONFIGURATION.md) for field mapping, operation filtering,
-resource fallback, MCP support, deduplication, and capacity limits.
+**Status: Alpha.** Signed images, a Helm chart, SBOMs, provenance, and upgrade
+guidance are available. Start with an evaluation deployment and representative
+traffic; configuration and metric semantics may change before 1.0.
+See the [changelog](CHANGELOG.md) and [release and support policy](SUPPORT.md).
 
-## Security And Privacy
+The [benchmark report](docs/BENCHMARKS.md) records reproduction commands, workloads,
+machine details, and all recorded accuracy, throughput, and soak runs.
 
-Keyed hashes are pseudonymous, not anonymous. Values remain linkable while the same
-secret is in use, and anyone holding the secret can test candidate values. Rotating
-the secret breaks comparison with earlier windows.
-
-The structured top-k surface contains keyed hashes and bounded estimates. Treat
-collector logs as sensitive operational data even though raw source values are not
-included, or set `topk: 0` to disable that surface. The connector rejects known
-high-cardinality MCP identifiers as slice keys and rejects overlap between plaintext
-slice keys and configured hashed fields.
-
-Token attributes are optional. Missing or invalid aggregate usage is counted
-explicitly; the connector does not invent token weights. Bloom-filter deduplication
-is bounded; its false-positive rate can cause undercounting. Use exact records for
-billing or quota enforcement.
-
-See [Security](SECURITY.md) to report a vulnerability privately.
-
-## Evidence
-
-**Why did recorded token use rise 17% on June 2, and which sessions should we
-inspect first?** A [comparison of one lab's Claude Code and Codex traces](examples/tracelab/README.md)
-finds 35% more model steps and 13% fewer tokens per step. Three session increases
-added 171m tokens, partly offset by other session changes. The connector's
-summaries are checked against the pinned public export.
-
-Recorded local measurements include:
-
-- 36 million spans accepted and exported over 60 minutes at 10,000 spans/second;
-- exact request filtering across a 36 million-span mixed tree workload: 10.8 million
-  emitted model spans and 10.8 million counted requests;
-- exact missing-usage accounting for 1.08 million planted missing-token model spans;
-- 528,924 spans/second in the mixed in-process benchmark; and
-- 1,386.8 MiB maximum collector RSS in the mixed fleet-shaped soak.
-
-Measured on an Apple M4 Max. Workloads, machine details, reproduction commands,
-and all recorded runs are in
-[Benchmarks](docs/BENCHMARKS.md).
-
-## Development
-
-```bash
-make tidy
-make check
-make dist
-make test-integration
-```
-
-Packaging checks are available with `make production-image` and `make helm-check`.
-See [Sizing](docs/SIZING.md) and [Upgrading](docs/UPGRADING.md) before a production
-rollout.
-
-See [Contributing](CONTRIBUTING.md) for focused checks and signed, signed-off commits.
-Questions or feedback: [open an issue](https://github.com/llm-measurement/otelcol-genai-sketches/issues/new/choose).
-
-The integration suite covers OTLP-to-Prometheus behavior, gRPC and HTTP shadow-mode
-fan-out, bounded overflow, deterministic eviction, restart stability, tree locality,
-and sentinel scans across metric, label, and structured-log surfaces.
-
-## Status
-
-**Current status: Alpha.** Signed multi-architecture images, a Helm chart, SBOMs,
-provenance, upgrade guidance, and production-shaped tests are provided.
-Start with an evaluation deployment, pin the release and image digest, and validate
-representative traffic. Configuration and metric semantics may change before 1.0. See the
-[changelog](CHANGELOG.md) for release notes and the
-[release and support policy](SUPPORT.md) for the supported release line.
+[Contributing](CONTRIBUTING.md) covers development and signed, signed-off commits.
+For questions or feedback, [open an issue](https://github.com/llm-measurement/otelcol-genai-sketches/issues/new/choose).
 
 Licensed under the [Apache License 2.0](LICENSE).

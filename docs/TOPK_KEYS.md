@@ -113,6 +113,6 @@ comparison. Upgrade the reader to compare across the addition of an optional key
 
 Session IDs, user IDs, and other key values are canonicalized and keyed-hashed
 before entering sketch state. An authorized operator with the secret can re-hash
-known identities for lookup. Follow the [privacy guidance](../README.md#security-and-privacy)
+known identities for lookup. Follow the [privacy guidance](../README.md#privacy-and-limits)
 and [metric cardinality contract](METRICS.md#cardinality-contract). Slice-label
 overlap validation applies to the configured session and user sources.
