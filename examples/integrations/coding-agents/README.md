@@ -5,7 +5,7 @@ the windows with fleetdiff, then query device rankings in snapshot logs. Your
 existing trace backend still receives the original spans.
 
 The synthetic example runs Copilot CLI and Copilot Chat mappings through released
-collector **v0.3.0**, then fleetdiff **v0.5.0**. No agent account or provider key is
+collector **v0.3.1**, then fleetdiff **v0.5.0**. No agent account or provider key is
 needed. The images are pinned by digest; nothing is built from local product code.
 
 `investigate`:
@@ -111,7 +111,7 @@ The Compose example publishes no host ports and runs only on its private network
 ## Device Rankings In Loki
 
 `device_key` reads **resource** `device.id` only. It is a token-weighted custom
-field, not `user_key`. On collector v0.3.0 it uses the registered `user:v1` hashing
+field, not `user_key`. On collector v0.3.1 it uses the registered `user:v1` hashing
 domain; its measurement name and extraction contract still identify it as a device.
 
 This uses Recipe A's snapshot-query pattern. The test pushes actual snapshot log

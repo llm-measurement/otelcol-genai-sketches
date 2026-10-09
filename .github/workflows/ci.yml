@@ -341,10 +341,10 @@ jobs:
         uses: Azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
           version: v4.2.4
-      - name: Render mappings with released chart 0.3.1
+      - name: Render mappings with released chart 0.3.3
         run: |
           helm template rankings \
-            oci://ghcr.io/llm-measurement/charts/otelcol-genai-sketches@sha256:65d513cbc0961ce9dd0bd2d7fd69fd6ddf9e5baf8253f8d8580a99dc50d488a9 \
+            oci://ghcr.io/llm-measurement/charts/otelcol-genai-sketches@sha256:0e7ea58a869f7e10e4d8389403bdbe3be436b49e5bcab60ee52226d58ad5b3b5 \
             -f examples/integrations/agentgateway/chart-values.yaml > /dev/null
       - name: Exercise released gateway, collector and fleetdiff
         run: |

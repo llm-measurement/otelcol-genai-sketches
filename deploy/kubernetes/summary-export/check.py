@@ -22,7 +22,7 @@ import loki_check  # noqa: E402
 
 NODE = "kindest/node:v1.35.8@sha256:07b2536e30b803ed61d1677a79df6115f798ce64c80f9e22f6ed45afd09323c0"
 UTILITY = "docker.io/library/busybox:1.37.0-musl@sha256:5cec3fc171c87218698e85a52af7087de727372aae264a787b8112901a5b0092"
-IMAGE = "ghcr.io/llm-measurement/otelcol-genai-sketches@sha256:c7fef29869ada99345725cf8504c8bd265357f570a23f1344769d362e595211c"
+IMAGE = "ghcr.io/llm-measurement/otelcol-genai-sketches@sha256:d1eb959970df82149512e47bbb6b1a699445f3e0e360a7a0f965fcd090a8aa7c"
 CODE = "def SENTINEL_CODE(): return 'private source'"
 FILE = "/synthetic/SENTINEL_PATH/private_source.py"
 SECURITY = {"runAsNonRoot": True, "runAsUser": 65532, "runAsGroup": 65532,
@@ -149,7 +149,7 @@ def run(args):
         k("delete", "deployment/trial", "--wait=true")
         print("PASS: emptyDir export, non-root write access and read-only reader", flush=True)
         pod = collector("persistent", pvc=True)
-        recipe.check(b"version 0.3.0" in k("exec", pod, "-c", "collector", "--", "/otelcol-genai-sketches", "--version"), "wrong collector release")
+        recipe.check(b"version 0.3.1" in k("exec", pod, "-c", "collector", "--", "/otelcol-genai-sketches", "--version"), "wrong collector release")
         ports = forward(pod, [4318, 8889])
         starts = []
         first = (int(time.time()) // 20 + 1) * 20
