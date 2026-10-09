@@ -39,6 +39,7 @@ jobs:
         with:
           path: otelcol-genai-sketches
           persist-credentials: false
+          fetch-depth: 0
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: "1.26.9"
@@ -51,6 +52,19 @@ jobs:
           make tidy
           git diff --exit-code
       - run: make check
+      - name: Pinned connector identity checks
+        run: |
+          go -C connector/genaisketchconnector test -run '^TestIdentityDrift' -count=1 -v
+          python3 -m unittest discover -s scripts -p 'test_check_identity_changes.py'
+      - name: Require migration notes for identity baseline changes
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python3 scripts/check_identity_changes.py --base "$BASE_SHA" --head "$HEAD_SHA" \
+            --golden connector/genaisketchconnector/testdata/identity/connector.json \
+            --golden connector/genaisketchconnector/testdata/identity/distribution.json
       - name: Offline inspection accounting contract
         run: |
           (cd connector/genaisketchconnector/testdata/inspect-contract/v1 && sha256sum -c SHA256SUMS)
@@ -76,6 +90,13 @@ jobs:
           go -C connector/genaisketchconnector test -run '^$' -fuzz '^FuzzSpanAttributes$' -fuzztime 1000x -timeout 2m
           go -C connector/genaisketchconnector test -run '^$' -fuzz '^FuzzIdentityExtraction$' -fuzztime 1000x -timeout 2m
       - run: make test-integration
+      - name: Pinned distribution identity checks
+        env:
+          GENAI_IDENTITY_BASELINE: distribution
+        run: |
+          go -C dist test -mod=readonly \
+            github.com/llm-measurement/otelcol-genai-sketches/connector/genaisketchconnector \
+            -run '^TestIdentityDrift' -count=1 -v
       - name: Verify replay is excluded from the default collector
         run: |
           go -C dist list -deps -f '{{.ImportPath}}' . > .cache/collector-default-packages.txt
