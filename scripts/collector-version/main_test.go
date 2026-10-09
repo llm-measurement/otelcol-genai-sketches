@@ -141,3 +141,21 @@ func TestUpdateRejectsInvalidInput(t *testing.T) {
 		}
 	}
 }
+
+func TestReleaseChartVersion(t *testing.T) {
+	data := []byte("version: 0.3.3\nappVersion: '0.3.1'\n")
+	version, err := releaseChartVersion(data, "v0.3.1")
+	if err != nil || version != "0.3.3" {
+		t.Fatalf("independent chart version: %q, %v", version, err)
+	}
+	for _, tag := range []string{"v0.3.0", "0.3.1", "v0.3.1-rc.1", "v0.3.1\n"} {
+		if _, err := releaseChartVersion(data, tag); err == nil {
+			t.Fatalf("accepted mismatched tag %q", tag)
+		}
+	}
+	for _, bad := range []string{"[", "{}", "version: latest\nappVersion: '0.3.1'", "version: '0.3.3\nINJECT=x'\nappVersion: '0.3.1'"} {
+		if _, err := releaseChartVersion([]byte(bad), "v0.3.1"); err == nil {
+			t.Fatalf("accepted invalid chart metadata %q", bad)
+		}
+	}
+}

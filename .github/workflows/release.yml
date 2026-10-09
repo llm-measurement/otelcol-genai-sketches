@@ -24,6 +24,8 @@ jobs:
     timeout-minutes: 30
     env:
       GOWORK: "off"
+    outputs:
+      chart_version: ${{ steps.versions.outputs.chart_version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -40,6 +42,29 @@ jobs:
           cache-dependency-path: |
             go.sum
             connector/genaisketchconnector/go.sum
+
+      - name: Validate independent chart and runtime versions
+        id: versions
+        run: |
+          go run ./scripts/collector-version --release-chart "${GITHUB_REF_NAME}" >> "${GITHUB_OUTPUT}"
+          test -f "docs/releases/${GITHUB_REF_NAME}.md"
+
+      - name: Refuse an existing OCI chart version
+        env:
+          VERSION: ${{ steps.versions.outputs.chart_version }}
+        run: |
+          pull_token="$(curl --fail --silent --show-error \
+            'https://ghcr.io/token?service=ghcr.io&scope=repository:llm-measurement/charts/otelcol-genai-sketches:pull' \
+            | jq -er '.token')"
+          status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+            --header "Authorization: Bearer ${pull_token}" \
+            --header 'Accept: application/vnd.oci.image.manifest.v1+json' \
+            "https://ghcr.io/v2/${CHART_NAME#ghcr.io/}/manifests/${VERSION}")"
+          case "${status}" in
+            404) ;;
+            200) echo "Chart ${VERSION} already exists; refusing to overwrite it" >&2; exit 1 ;;
+            *) echo "Cannot establish chart availability (HTTP ${status})" >&2; exit 1 ;;
+          esac
 
       - name: Verify source and module files
         run: |
@@ -80,6 +105,8 @@ jobs:
     needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      CHART_VERSION: ${{ needs.verify.outputs.chart_version }}
     permissions:
       actions: read
       artifact-metadata: write
@@ -200,12 +227,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          version="${GITHUB_REF_NAME#v}"
           helm package deploy/helm/otelcol-genai-sketches \
-            --version "${version}" --app-version "${version}" --destination release
+            --destination release
           printf '%s' "${GH_TOKEN}" | helm registry login ghcr.io \
             --username "${GITHUB_ACTOR}" --password-stdin
-          push_output="$(helm push "release/otelcol-genai-sketches-${version}.tgz" \
+          push_output="$(helm push "release/otelcol-genai-sketches-${CHART_VERSION}.tgz" \
             oci://ghcr.io/llm-measurement/charts 2>&1)"
           printf '%s\n' "${push_output}"
           chart_digest="$(printf '%s\n' "${push_output}" | awk '$1 == "Digest:" {print $2}' | tail -n 1)"
@@ -245,7 +271,7 @@ jobs:
             flags+=(--prerelease)
           fi
           if ! gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
-            gh release create "${GITHUB_REF_NAME}" --generate-notes "${flags[@]}"
+            gh release create "${GITHUB_REF_NAME}" --verify-tag --notes-file "docs/releases/${GITHUB_REF_NAME}.md" "${flags[@]}"
           fi
           gh release upload "${GITHUB_REF_NAME}" release/* --clobber
 
@@ -263,13 +289,12 @@ jobs:
               sleep 10
             done
           }
-          version="${GITHUB_REF_NAME#v}"
           docker logout ghcr.io >/dev/null
           helm registry logout ghcr.io >/dev/null
           retry docker buildx imagetools inspect "${IMAGE_NAME}@${IMAGE_DIGEST}"
           mkdir -p /tmp/public-chart
           retry helm pull "oci://${CHART_NAME}" \
-            --version "${version}" --destination /tmp/public-chart
+            --version "${CHART_VERSION}" --destination /tmp/public-chart
           retry curl --fail --silent --show-error --location \
             --output /tmp/public-image-digest.txt \
             "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/image-digest.txt"

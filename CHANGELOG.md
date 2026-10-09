@@ -4,6 +4,9 @@ Notable user-visible changes are recorded here.
 
 ## Unreleased
 
+- Prepare collector v0.3.1 and chart 0.3.3 with Go 1.26.9, x/net v0.60.0,
+  and x/mod v0.41.0. See the [security release notes](docs/releases/v0.3.1.md)
+  for advisory IDs and upgrade checks. Existing release artifacts are unchanged.
 - Update source builds to OpenTelemetry Collector `v0.162.0` / pdata `v1.68.0`.
   Preserve the gRPC and crypto security pins. Review the upstream change to
   single-underscore Prometheus label names in [Upgrading](docs/UPGRADING.md).
