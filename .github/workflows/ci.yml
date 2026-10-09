@@ -57,6 +57,12 @@ jobs:
           go -C connector/genaisketchconnector test -run '^TestInspectAccountingContract$' -count=1
       - name: Usage provenance source-boundary fixtures
         run: python3 -m unittest discover -s examples/integrations/litellm -p 'test_*.py'
+      - name: Coding-agent trace checksum and regression checks (synthetic data only)
+        run: |
+          python3 -m unittest discover -s examples/tracelab -p 'test_*.py'
+          go -C connector/genaisketchconnector test -race -tags tracelab_replay ./...
+          go -C connector/genaisketchconnector vet -tags tracelab_replay ./...
+          go -C connector/genaisketchconnector build -tags tracelab_replay -o ../../.cache/tracelab-replay ./cmd/tracelab-replay
       - name: Provider trial offline checks (no credentials or paid calls)
         run: python3 -m unittest discover -s examples/integrations/litellm/provider-trial -p 'test_*.py'
       - name: Race detector
@@ -70,6 +76,23 @@ jobs:
           go -C connector/genaisketchconnector test -run '^$' -fuzz '^FuzzSpanAttributes$' -fuzztime 1000x -timeout 2m
           go -C connector/genaisketchconnector test -run '^$' -fuzz '^FuzzIdentityExtraction$' -fuzztime 1000x -timeout 2m
       - run: make test-integration
+      - name: Verify replay is excluded from the default collector
+        run: |
+          go -C dist list -deps -f '{{.ImportPath}}' . > .cache/collector-default-packages.txt
+          if grep -E '/genaisketchconnector/(cmd/tracelab-replay|internal/(replay|tracelab|normalization))$' .cache/collector-default-packages.txt; then
+            echo 'Replay packages entered the default collector dependency graph'
+            exit 1
+          fi
+          # Keep symbols: the normal builder strips them, which cannot prove absence.
+          go -C dist build -o ../.cache/collector-default-symbols .
+          go tool nm .cache/collector-default-symbols > .cache/collector-default-symbols.txt
+          grep -F 'genaisketchconnector.(*tracesConnector).ConsumeTraces' .cache/collector-default-symbols.txt
+          if grep -E 'genaisketchconnector.*([Rr]eplay|/internal/(normalization|tracelab)/)' .cache/collector-default-symbols.txt; then
+            echo 'Replay symbols entered the default collector binary'
+            exit 1
+          fi
+          go tool nm .cache/tracelab-replay > .cache/tracelab-replay-symbols.txt
+          grep -E 'genaisketchconnector.*([Rr]eplay|/internal/(normalization|tracelab)/)' .cache/tracelab-replay-symbols.txt
       - name: Verify generated gRPC version
         run: |
           expected="$(go list -m -f '{{.Version}}' google.golang.org/grpc)"

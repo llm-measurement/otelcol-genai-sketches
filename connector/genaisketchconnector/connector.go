@@ -65,6 +65,10 @@ func newTracesConnector(set component.TelemetrySettings, cfg *Config, next consu
 }
 
 func (c *tracesConnector) Start(context.Context, component.Host) error {
+	return c.start(true)
+}
+
+func (c *tracesConnector) start(background bool) error {
 	secret, err := sketchhash.SecretFromEnv(c.cfg.Hashing.SecretEnv)
 	if err != nil {
 		return err
@@ -84,7 +88,7 @@ func (c *tracesConnector) Start(context.Context, component.Host) error {
 	c.mu.Lock()
 	c.state = state
 	c.exporter = exporter
-	if c.cfg.TopK > 0 || exporter != nil {
+	if background && (c.cfg.TopK > 0 || exporter != nil) {
 		debugCtx, c.debugCancel = context.WithCancel(context.Background())
 		c.debugDone = make(chan struct{})
 		debugDone = c.debugDone
