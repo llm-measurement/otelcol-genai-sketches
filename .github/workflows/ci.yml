@@ -65,6 +65,10 @@ jobs:
           go -C connector/genaisketchconnector test -race ./...
       - name: Check dependency licenses
         run: make license-check
+      - name: Fuzz span and identity extraction
+        run: |
+          go -C connector/genaisketchconnector test -run '^$' -fuzz '^FuzzSpanAttributes$' -fuzztime 1000x -timeout 2m
+          go -C connector/genaisketchconnector test -run '^$' -fuzz '^FuzzIdentityExtraction$' -fuzztime 1000x -timeout 2m
       - run: make test-integration
       - name: Verify generated gRPC version
         run: |
