@@ -20,6 +20,18 @@ func main() {
 }
 
 func run() error {
+	if len(os.Args) == 3 && os.Args[1] == "--release-chart" {
+		data, err := os.ReadFile("deploy/helm/otelcol-genai-sketches/Chart.yaml")
+		if err != nil {
+			return err
+		}
+		version, err := releaseChartVersion(data, os.Args[2])
+		if err != nil {
+			return err
+		}
+		fmt.Println("chart_version=" + version)
+		return nil
+	}
 	if len(os.Args) == 4 && os.Args[1] == "--distribution" {
 		data, err := os.ReadFile("builder.yaml")
 		if err != nil {
@@ -36,7 +48,7 @@ func run() error {
 		return os.WriteFile(os.Args[3], updated, 0644)
 	}
 	if len(os.Args) != 2 {
-		return fmt.Errorf("usage: go run ./scripts/collector-version v0.MINOR.PATCH | --distribution VERSION OUTPUT")
+		return fmt.Errorf("usage: go run ./scripts/collector-version v0.MINOR.PATCH | --distribution VERSION OUTPUT | --release-chart TAG")
 	}
 	target := os.Args[1]
 	data, err := os.ReadFile("builder.yaml")
@@ -51,6 +63,22 @@ func run() error {
 		return err
 	}
 	return os.WriteFile("otel.version", []byte(target+"\n"), 0644)
+}
+
+// Chart versions advance independently; appVersion must match the runtime tag.
+func releaseChartVersion(data []byte, tag string) (string, error) {
+	var chart struct {
+		Version    string `yaml:"version"`
+		AppVersion string `yaml:"appVersion"`
+	}
+	if err := yaml.Unmarshal(data, &chart); err != nil {
+		return "", err
+	}
+	valid := regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$`)
+	if !valid.MatchString(chart.Version) || !valid.MatchString(chart.AppVersion) || tag != "v"+chart.AppVersion {
+		return "", fmt.Errorf("release tag must match chart appVersion; both chart versions must be valid release versions")
+	}
+	return chart.Version, nil
 }
 
 // Generate build-only metadata without changing the checked-in source manifest.

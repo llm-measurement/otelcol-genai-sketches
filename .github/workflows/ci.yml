@@ -41,7 +41,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26.6"
+          go-version: "1.26.9"
           cache: true
           cache-dependency-path: |
             otelcol-genai-sketches/go.sum
@@ -126,7 +126,7 @@ jobs:
             otelcol-genai-sketches:ci validate --config=/etc/otelcol-genai-sketches/config.yaml
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26.6"
+          go-version: "1.26.9"
           cache-dependency-path: otelcol-genai-sketches/go.sum
       - name: Verify production-image summaries and private top-k
         env:

@@ -31,7 +31,7 @@ func TestChartReleaseMetadata(t *testing.T) {
 	if err := yaml.Unmarshal(data, &chart); err != nil {
 		t.Fatal(err)
 	}
-	if chart.Version != "0.3.2" || chart.AppVersion != "0.3.0" {
+	if chart.Version != "0.3.3" || chart.AppVersion != "0.3.1" {
 		t.Fatalf("chart-only release metadata changed: %+v", chart)
 	}
 	if tag := os.Getenv("CHART_RELEASE_TAG"); tag != "" && tag != "chart-v"+chart.Version {
@@ -90,7 +90,7 @@ func TestChartReleasePackage(t *testing.T) {
 		if doc.Kind == "Deployment" {
 			found = true
 			containers := doc.Spec.Template.Spec.Containers
-			if len(containers) != 1 || containers[0].Image != "ghcr.io/llm-measurement/otelcol-genai-sketches:0.3.0" {
+			if len(containers) != 1 || containers[0].Image != "ghcr.io/llm-measurement/otelcol-genai-sketches:0.3.1" {
 				t.Fatalf("default runtime image changed: %+v", containers)
 			}
 		}
@@ -107,7 +107,7 @@ func TestChartReleasePackage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("package: %v\n%s", err, output)
 	}
-	file, err := os.Open(filepath.Join(dir, "otelcol-genai-sketches-0.3.2.tgz"))
+	file, err := os.Open(filepath.Join(dir, "otelcol-genai-sketches-0.3.3.tgz"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +131,7 @@ func TestChartReleasePackage(t *testing.T) {
 			if err := yaml.NewDecoder(archive).Decode(&chart); err != nil {
 				t.Fatal(err)
 			}
-			if chart.Version != "0.3.2" || chart.AppVersion != "0.3.0" {
+			if chart.Version != "0.3.3" || chart.AppVersion != "0.3.1" {
 				t.Fatalf("packaging changed chart or runtime version: %+v", chart)
 			}
 			break
@@ -282,5 +282,70 @@ jq() { cat >/dev/null; printf '%s' 'test-token'; }
 				t.Fatalf("preflight HTTP %s: %v\n%s", status, err, output)
 			}
 		})
+	}
+}
+
+func TestRuntimeReleaseUsesIndependentChartVersion(t *testing.T) {
+	data, err := os.ReadFile("../../../.github/workflows/release.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var workflow struct {
+		Jobs map[string]struct {
+			Env     map[string]string `yaml:"env"`
+			Outputs map[string]string `yaml:"outputs"`
+			Steps   []struct {
+				Name string `yaml:"name"`
+				Run  string `yaml:"run"`
+			} `yaml:"steps"`
+		} `yaml:"jobs"`
+	}
+	if err := yaml.Unmarshal(data, &workflow); err != nil {
+		t.Fatal(err)
+	}
+	if workflow.Jobs["verify"].Outputs["chart_version"] != "${{ steps.versions.outputs.chart_version }}" ||
+		workflow.Jobs["image"].Env["CHART_VERSION"] != "${{ needs.verify.outputs.chart_version }}" {
+		t.Fatal("chart version must come from validated checked-in metadata")
+	}
+	var preflight string
+	for _, step := range workflow.Jobs["image"].Steps {
+		if step.Name == "Refuse an existing OCI chart version" {
+			preflight = step.Run
+		}
+		if (strings.Contains(step.Name, "Build and push") || strings.Contains(step.Run, "helm push")) && preflight == "" {
+			t.Fatal("publishing job retries must run the overwrite guard before publication")
+		}
+	}
+	if preflight == "" {
+		t.Fatal("runtime release is missing the chart overwrite guard")
+	}
+	for _, step := range workflow.Jobs["image"].Steps {
+		if strings.Contains(step.Run, "helm package") && (strings.Contains(step.Run, "--app-version") || strings.Contains(step.Run, "--version")) {
+			t.Fatal("runtime release must package checked-in chart metadata unchanged")
+		}
+		if strings.Contains(step.Run, "helm pull") && !strings.Contains(step.Run, `--version "${CHART_VERSION}"`) {
+			t.Fatal("public verification must use the independent chart version")
+		}
+	}
+	stub := `
+curl() {
+  if [[ "$*" == *"https://ghcr.io/token?"* ]]; then
+    printf '%s' '{"token":"test-token"}'
+  elif [[ "$*" == *"/manifests/0.3.3"* ]]; then
+    printf '%s' "$TEST_HTTP_STATUS"
+  else
+    return 22
+  fi
+}
+jq() { cat >/dev/null; printf '%s' 'test-token'; }
+`
+	for _, status := range []string{"404", "200", "401", "429", "500"} {
+		cmd := exec.Command("bash", "-euo", "pipefail", "-c", stub+preflight)
+		cmd.Env = append(os.Environ(), "TEST_HTTP_STATUS="+status, "VERSION=0.3.3",
+			"CHART_NAME=ghcr.io/llm-measurement/charts/otelcol-genai-sketches")
+		output, err := cmd.CombinedOutput()
+		if (err == nil) != (status == "404") {
+			t.Fatalf("runtime preflight HTTP %s: %v\n%s", status, err, output)
+		}
 	}
 }
