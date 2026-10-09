@@ -1,3 +1,5 @@
+//go:build tracelab_replay
+
 // SPDX-License-Identifier: Apache-2.0
 // Code authors: Vijay and Codex
 
@@ -11,7 +13,6 @@ import (
 	"io"
 	"time"
 
-	replaytool "github.com/llm-measurement/otelcol-genai-sketches/connector/genaisketchconnector/internal/replay"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/pdata/pmetric"
@@ -19,10 +20,11 @@ import (
 	"go.uber.org/zap"
 )
 
-var _ replaytool.Runner = (*tracesConnector)(nil)
-
-func (c *tracesConnector) Replay(ctx context.Context, options replaytool.Options) error {
-	return replay(ctx, c.cfg, options.Start, options.End, options.Epoch, options.Next, options.Save)
+// Keep this entry point free of tool-package imports: the production builder's
+// go mod tidy resolves tagged imports even though the tool is not compiled.
+func (c *tracesConnector) Replay(ctx context.Context, start, end time.Time, epoch string,
+	next func() (time.Time, ptrace.Traces, error), save func(time.Time, []byte) error) error {
+	return replay(ctx, c.cfg, start, end, epoch, next, save)
 }
 
 // replay closes windows on an explicit event clock. next must supply batches in

@@ -152,7 +152,8 @@ def run(args):
     oracle = source_oracle(data, secret)
     save_json(out / "source-oracle.json", oracle)
     binary = out / "tracelab-replay"
-    execute(["go", "-C", "connector/genaisketchconnector", "build", "-o", str(binary), "./cmd/tracelab-replay"])
+    execute(["go", "-C", "connector/genaisketchconnector", "build", "-tags", "tracelab_replay",
+             "-o", str(binary), "./cmd/tracelab-replay"])
     replay, _ = execute([str(binary), "--input", str(data), "--out", str(out / "windows")])
     save(out / "replay.txt", replay)
     print(replay.strip(), flush=True)

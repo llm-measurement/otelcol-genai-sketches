@@ -110,6 +110,8 @@ class ExampleTests(unittest.TestCase):
 
             def execute(cmd, **kwargs):
                 if cmd[0] == "go":
+                    self.assertEqual(cmd[:6], ["go", "-C", "connector/genaisketchconnector",
+                                               "build", "-tags", "tracelab_replay"])
                     Path(cmd[cmd.index("-o") + 1]).write_bytes(b"test replay; never executed")
                     output = ""
                 elif Path(cmd[0]).name == "tracelab-replay":

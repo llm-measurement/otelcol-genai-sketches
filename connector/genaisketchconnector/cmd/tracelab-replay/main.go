@@ -1,3 +1,5 @@
+//go:build tracelab_replay
+
 // SPDX-License-Identifier: Apache-2.0
 // Code authors: Vijay and Codex
 
@@ -104,9 +106,8 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	err = runner.Replay(ctx, replay.Options{
-		Start: start, End: end, Epoch: hex.EncodeToString(epoch[:16]),
-		Next: func() (time.Time, ptrace.Traces, error) {
+	err = runner.Replay(ctx, start, end, hex.EncodeToString(epoch[:16]),
+		func() (time.Time, ptrace.Traces, error) {
 			if i == len(rows) || !rows[i].At.Before(end) {
 				return time.Time{}, ptrace.Traces{}, io.EOF
 			}
@@ -114,7 +115,7 @@ func run() error {
 			i++
 			consumed++
 			return r.At, r.Traces(), nil
-		}, Save: func(at time.Time, data []byte) error {
+		}, func(at time.Time, data []byte) error {
 			f, err := root.OpenFile(at.Format("2006-01-02")+".json", os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 			if err != nil {
 				return err
@@ -125,8 +126,7 @@ func run() error {
 				windows++
 			}
 			return err
-		},
-	})
+		})
 	if err != nil {
 		return err
 	}

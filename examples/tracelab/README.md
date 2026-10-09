@@ -42,7 +42,9 @@ Open the worked comparison separately:
   --after .cache/tracelab-v0.0.2/run/windows/2026-06-02.json --expected tracelab
 ```
 
-The replay tool runs from source; the released collector image is unchanged.
+The runner builds the source tool with `-tags tracelab_replay`. Replay code and
+its internal helpers are excluded from default collector builds; the production
+Dockerfile is unchanged.
 
 ## One Accounting Path
 
