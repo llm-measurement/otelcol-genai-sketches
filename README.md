@@ -321,6 +321,12 @@ See [Security](SECURITY.md) to report a vulnerability privately.
 
 ## Evidence
 
+**Why did recorded token use rise 17% on June 2, and which sessions should we
+inspect first?** A [comparison of one lab's Claude Code and Codex traces](examples/tracelab/README.md)
+finds 35% more model steps and 13% fewer tokens per step. Three session increases
+added 171m tokens, partly offset by other session changes. The connector's
+summaries are checked against the pinned public export.
+
 Recorded local measurements include:
 
 - 36 million spans accepted and exported over 60 minutes at 10,000 spans/second;

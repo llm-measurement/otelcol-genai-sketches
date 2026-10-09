@@ -57,6 +57,8 @@ jobs:
           go -C connector/genaisketchconnector test -run '^TestInspectAccountingContract$' -count=1
       - name: Usage provenance source-boundary fixtures
         run: python3 -m unittest discover -s examples/integrations/litellm -p 'test_*.py'
+      - name: Coding-agent trace checksum and regression checks (synthetic data only)
+        run: python3 -m unittest discover -s examples/tracelab -p 'test_*.py'
       - name: Provider trial offline checks (no credentials or paid calls)
         run: python3 -m unittest discover -s examples/integrations/litellm/provider-trial -p 'test_*.py'
       - name: Race detector

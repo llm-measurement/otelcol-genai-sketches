@@ -15,6 +15,7 @@ COPY go.mod go.sum builder.yaml otel.version LICENSE ./
 COPY scripts/collector-version/*.go ./scripts/collector-version/
 COPY connector/genaisketchconnector/go.mod connector/genaisketchconnector/go.sum ./connector/genaisketchconnector/
 COPY connector/genaisketchconnector/*.go ./connector/genaisketchconnector/
+COPY connector/genaisketchconnector/internal/ ./connector/genaisketchconnector/internal/
 COPY connector/genaisketchconnector/LICENSE ./connector/genaisketchconnector/LICENSE
 
 RUN --mount=type=cache,target=/go/pkg/mod \
