@@ -4,7 +4,16 @@
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/llm-measurement/otelcol-genai-sketches/badge)](https://scorecard.dev/viewer/?uri=github.com/llm-measurement/otelcol-genai-sketches)
 
-An OpenTelemetry Collector connector, `genaisketch`, and a ready-to-run distribution for GenAI and agent traffic. The connector reads GenAI spans and produces bounded Prometheus metrics, keyed top-k rankings and mergeable window summaries. You can see where token usage accumulates, which users and sessions drive it, and how complete reported usage is, without putting user, session or prompt identities in metric labels. Your existing trace backend keeps receiving the original spans.
+**How do you track LLM token usage by user and session without a Prometheus
+cardinality explosion?**
+
+`genaisketch` is an OpenTelemetry Collector connector and ready-to-run
+distribution that turns GenAI spans into Prometheus metrics, keyed contributor
+rankings and summary files, while keeping user, session and prompt identities
+out of metric labels.
+
+See where reported tokens accumulate and where usage data is missing, while
+your existing trace backend keeps receiving the original spans.
 
 | Status | |
 | --- | --- |
