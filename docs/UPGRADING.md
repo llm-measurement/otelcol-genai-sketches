@@ -57,8 +57,8 @@ known window boundary, record the event, and allow old windows to expire.
 
 ### Sketchkit Hardening In Source Builds
 
-Collector v0.3.2 and its connector module use llm-sketchkit v0.2.3 for parser allocation limits, summary
-combination improvements and safer diagnostics. This backport preserves the
+Collector v0.3.2 and its connector module use llm-sketchkit v0.2.3 for parser
+allocation limits, summary combination improvements and safer diagnostics. This backport preserves the
 existing summary wire format, hashing and accounting contract. It retains each
 build's normalization dependency: x/text v0.41.0 in the standalone connector
 module, and v0.42.0 in the distribution. Their pinned identity tests remain
@@ -74,8 +74,8 @@ sketchkit v0.3.0 is a separate upgrade requiring the
 
 ### Feature Availability
 
-Use collector v0.3.1 and chart 0.3.3 for the current security fixes; see the
-[release notes](releases/v0.3.1.md) and [verified installation](DEPLOYMENT.md).
+Use collector v0.3.2 and chart 0.3.4 for the current hardening fixes; see the
+[release notes](releases/v0.3.2.md) and [verified installation](DEPLOYMENT.md).
 The table records when each capability first became available, not a
 recommendation to deploy an older release.
 
