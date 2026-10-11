@@ -4,6 +4,12 @@ Notable user-visible changes are recorded here.
 
 ## Unreleased
 
+- Upgrade the connector and distribution to llm-sketchkit v0.2.3 for parser
+  allocation limits, more efficient summary combination and safer secret/error
+  diagnostics. Preserve each build's existing normalization dependency and
+  pinned identities. The v0.3.0 identity migration remains separate; see
+  [Upgrading](docs/UPGRADING.md#sketchkit-hardening-in-source-builds).
+
 - Check canonical bytes and keyed hashes against a pinned identity corpus in
   both the connector and distribution dependency graphs. Changes to an existing
   baseline require a new identity-migration entry in this changelog.

@@ -3,7 +3,7 @@ module github.com/llm-measurement/otelcol-genai-sketches
 go 1.26.6
 
 require (
-	github.com/llm-measurement/llm-sketchkit v0.2.2
+	github.com/llm-measurement/llm-sketchkit v0.2.3
 	github.com/prometheus/common v0.72.0
 	go.opentelemetry.io/proto/otlp v1.11.1
 	go.yaml.in/yaml/v3 v3.0.5
