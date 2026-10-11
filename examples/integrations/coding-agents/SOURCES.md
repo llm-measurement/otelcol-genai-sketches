@@ -46,7 +46,7 @@ The [official configuration reference](https://developers.openai.com/codex/confi
 documents `otel.trace_exporter`; the [telemetry guide](https://developers.openai.com/codex/config-advanced/)
 describes token-bearing events separately. No synthetic identity or model marker
 is added to `fixtures/codex-handle-responses.json`. Token attributes alone do not
-make this span a model attempt in collector v0.3.0 or fleetdiff v0.5.0.
+make this span a model attempt in collector v0.3.2 or fleetdiff v0.5.0.
 
 The recipe sends this fixture through the released collector and verifies that
 the shadow backend receives it unchanged. It also runs the released `inspect`:

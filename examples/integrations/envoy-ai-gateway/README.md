@@ -2,7 +2,8 @@
 
 On **Envoy AI Gateway v1.1.0**, one user grows from **1,200 to 10,920 tokens** and
 one session reaches **91% of model attempts**, while total tokens stay unchanged.
-Released fleetdiff v0.5.0 identifies both from the collector's summary files.
+Released collector v0.3.2 exports the summary files; fleetdiff v0.5.0 identifies
+both changes from them.
 The quiet control raises no flags.
 
 This uses the gateway's **standalone `aigw run`** image. No Kubernetes cluster or

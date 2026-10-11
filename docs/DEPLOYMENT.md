@@ -163,7 +163,7 @@ It exports complete state for local combination across independent collectors;
 it does not make Prometheus able to merge sketches. Chart **0.3.2** adds opt-in
 summary storage, a read-only reader sidecar, and independent JSON logging.
 [Summary Export With Helm](SUMMARY_EXPORT_HELM.md) walks through copy,
-investigate, and scan with the v0.3.1 collector image.
+investigate, and scan with the v0.3.2 collector image.
 
 The chart's `connector.topKKeys` passes through the optional
 key list; its default `[]` omits `topk_keys` and preserves prompt-only ranking.

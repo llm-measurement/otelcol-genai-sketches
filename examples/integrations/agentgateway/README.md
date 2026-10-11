@@ -5,7 +5,7 @@ of model attempts**. The application total stays at 12,000 tokens per window, so
 a totals chart alone would miss the change.
 
 This recipe sends synthetic requests through **agentgateway v1.6.0**, then uses
-**collector v0.3.1** and **fleetdiff v0.5.0** to find the change:
+**collector v0.3.2** and **fleetdiff v0.5.0** to find the change:
 
 `fleetdiff investigate`, opening lines:
 
@@ -28,6 +28,9 @@ without usage. A custom workflow ranking appears in the collector's snapshot log
 The same recipe also runs through [standalone Envoy AI Gateway](../envoy-ai-gateway/README.md).
 
 ## Run It
+
+Verify the pinned collector v0.3.2 image's signature and provenance using
+[Deployment](../../../docs/DEPLOYMENT.md#verify-an-image) before running the recipe.
 
 From the repository root, with Docker Compose, Python 3.10+, OpenSSL, curl and
 [GitHub CLI](https://cli.github.com/) installed. Install the released fleetdiff
@@ -140,11 +143,12 @@ query, and checks that the only stored label is the fixed service name.
 ## Helm Mapping
 
 [chart-values.yaml](chart-values.yaml) applies the same field mappings and shadow
-destination to **chart 0.3.3**, using the collector v0.3.1 image digest:
+destination to **chart 0.3.4**, using the collector v0.3.2 image digest.
+Chart and collector versions advance independently:
 
 ```sh
 helm template rankings oci://ghcr.io/llm-measurement/charts/otelcol-genai-sketches \
-  --version 0.3.3 -f examples/integrations/agentgateway/chart-values.yaml
+  --version 0.3.4 -f examples/integrations/agentgateway/chart-values.yaml
 ```
 
 Set up the hashing secret and receiver security using the
