@@ -4,6 +4,11 @@ Notable user-visible changes are recorded here.
 
 ## Unreleased
 
+## v0.3.2 / Helm chart 0.3.4 - 2026-10-11
+
+See the [release notes](docs/releases/v0.3.2.md). Chart 0.3.4 selects
+collector v0.3.2; the connector module is released at v0.3.2 as well.
+
 - Upgrade the connector and distribution to llm-sketchkit v0.2.3 for parser
   allocation limits, more efficient summary combination and safer secret/error
   diagnostics. Preserve each build's existing normalization dependency and
@@ -14,9 +19,16 @@ Notable user-visible changes are recorded here.
   both the connector and distribution dependency graphs. Changes to an existing
   baseline require a new identity-migration entry in this changelog.
 
-- Prepare collector v0.3.1 and chart 0.3.3 with Go 1.26.9, x/net v0.60.0,
+- Include reviewed Go dependency updates, including gRPC v1.84.0, and the
+  source-only event-time replay example for released coding-agent records.
+  Replay requires the `tracelab_replay` build tag and is excluded from the
+  default collector image.
+
+## v0.3.1 / Helm chart 0.3.3 - 2026-10-09
+
+- Release collector v0.3.1 and chart 0.3.3 with Go 1.26.9, x/net v0.60.0,
   and x/mod v0.41.0. See the [security release notes](docs/releases/v0.3.1.md)
-  for advisory IDs and upgrade checks. Existing release artifacts are unchanged.
+  for advisory IDs and upgrade checks.
 - Update source builds to OpenTelemetry Collector `v0.162.0` / pdata `v1.68.0`.
   Preserve the gRPC and crypto security pins. Review the upstream change to
   single-underscore Prometheus label names in [Upgrading](docs/UPGRADING.md).
