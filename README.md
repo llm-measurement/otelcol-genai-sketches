@@ -4,9 +4,6 @@
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/llm-measurement/otelcol-genai-sketches/badge)](https://scorecard.dev/viewer/?uri=github.com/llm-measurement/otelcol-genai-sketches)
 
-**How do you track LLM token usage by user and session without a Prometheus
-cardinality explosion?**
-
 `genaisketch` is an OpenTelemetry Collector connector and ready-to-run
 distribution that turns GenAI spans into Prometheus metrics, keyed contributor
 rankings and summary files, while keeping user, session and prompt identities
@@ -21,6 +18,9 @@ your existing trace backend keeps receiving the original spans.
 | Distributions | this repository's collector image and Helm chart; the connector module for custom builds |
 | Issues | [open issues](https://github.com/llm-measurement/otelcol-genai-sketches/issues) |
 | Code owners | @kwisatzh |
+
+Use it to track LLM token usage by user, session and model without a metric label
+for every user, in Prometheus or any OTLP metrics backend.
 
 ![Running Grafana demo with request rates, reported tokens, and missing usage](docs/images/demo-dashboard.jpg)
 
