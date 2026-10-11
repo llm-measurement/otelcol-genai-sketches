@@ -55,6 +55,23 @@ known window boundary, record the event, and allow old windows to expire.
 
 ## Compatibility
 
+### Sketchkit Hardening In Source Builds
+
+Source builds use llm-sketchkit v0.2.3 for parser allocation limits, summary
+combination improvements and safer diagnostics. This backport preserves the
+existing summary wire format, hashing and accounting contract. It retains each
+build's normalization dependency: x/text v0.41.0 in the standalone connector
+module, and v0.42.0 in the distribution. Their pinned identity tests remain
+unchanged. No additional identity migration or window reset is introduced by
+this dependency update; the distribution's earlier normalization change is
+covered below.
+
+The stricter readers reject encodings that exceed sketchkit's documented
+[resource limits](https://github.com/llm-measurement/llm-sketchkit/blob/v0.2.3/docs/OPERATIONS.md).
+Published collector images and connector tags are unchanged. Adoption of
+sketchkit v0.3.0 is a separate upgrade requiring the
+[identity migration checks](https://github.com/llm-measurement/llm-sketchkit/blob/v0.3.0/docs/IDENTITY_MIGRATION.md).
+
 ### Feature Availability
 
 Use collector v0.3.1 and chart 0.3.3 for the current security fixes; see the
