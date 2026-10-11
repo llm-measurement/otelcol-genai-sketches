@@ -105,8 +105,8 @@ pin immutable digests, configure the hashing secret, and start the collector.
 
 | Artifact | Released version | Reference |
 | --- | --- | --- |
-| Collector image | `v0.3.1` | `ghcr.io/llm-measurement/otelcol-genai-sketches` |
-| Helm chart | `0.3.3` | `oci://ghcr.io/llm-measurement/charts/otelcol-genai-sketches` |
+| Collector image | `v0.3.2` | `ghcr.io/llm-measurement/otelcol-genai-sketches` |
+| Helm chart | `0.3.4` | `oci://ghcr.io/llm-measurement/charts/otelcol-genai-sketches` |
 
 The image supports Linux amd64 and arm64. For Kubernetes, the deployment guide
 includes the verified chart install and an existing-Secret configuration.
@@ -117,7 +117,7 @@ manifest:
 
 ```yaml
 connectors:
-  - gomod: github.com/llm-measurement/otelcol-genai-sketches/connector/genaisketchconnector v0.3.1
+  - gomod: github.com/llm-measurement/otelcol-genai-sketches/connector/genaisketchconnector v0.3.2
 ```
 
 Use `genaisketch` as a traces-pipeline exporter and a metrics-pipeline receiver;

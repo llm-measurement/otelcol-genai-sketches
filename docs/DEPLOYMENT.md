@@ -21,7 +21,7 @@ Use an immutable digest from the GitHub release, not a mutable tag:
 Fetch the references from that release's published metadata:
 
 ```bash
-RELEASE=v0.3.1
+RELEASE=v0.3.2
 IMAGE_REF="$(curl -fsSL \
   "https://github.com/llm-measurement/otelcol-genai-sketches/releases/download/${RELEASE}/image-digest.txt")"
 IMAGE="${IMAGE_REF%@*}"
@@ -39,13 +39,13 @@ gh attestation verify "oci://$IMAGE@$DIGEST" \
   --source-ref "refs/tags/${RELEASE}" --deny-self-hosted-runners
 ```
 
-Chart 0.3.3 includes summary storage and readback alongside opt-in warning rules,
-and defaults to collector image 0.3.1. Both artifacts were published, signed and
-attested by the v0.3.1 release workflow. Verify the chart's immutable reference too:
+Chart 0.3.4 includes summary storage and readback alongside opt-in warning rules,
+and defaults to collector image 0.3.2. Both artifacts were published, signed and
+attested by the v0.3.2 release workflow. Verify the chart's immutable reference too:
 
 ```bash
-CHART_RELEASE=v0.3.1
-CHART_VERSION=0.3.3
+CHART_RELEASE=v0.3.2
+CHART_VERSION=0.3.4
 CHART_REF="$(curl -fsSL \
   "https://github.com/llm-measurement/otelcol-genai-sketches/releases/download/${CHART_RELEASE}/chart-digest.txt")"
 CHART="${CHART_REF%@*}"
