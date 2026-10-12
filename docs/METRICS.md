@@ -156,3 +156,14 @@ The connector does not derive labels from prompt text, user IDs, document IDs,
 request IDs, hashes, top-k entries, or arbitrary span attributes. Capacity excess is
 routed to one `__overflow__` label value for each configured slice. It is never
 silently dropped and does not mint additional label values.
+
+The collector's `slice_value="__overflow__"` groups excess configured slice
+values; it is distinct from the OpenTelemetry SDK's
+[`otel.metric.overflow=true`](https://opentelemetry.io/docs/specs/otel/metrics/sdk/#overflow-attribute),
+which identifies an aggregate with only that attribute after an SDK cardinality
+limit is reached. Both retain aggregate measurements while losing the excess
+label detail, at different stages and with different grouping rules. Keep the
+markers distinct in queries; this connector does not translate one into the
+other. [Cardinality Guardian](https://github.com/YElayyat/otel-cardinality-processor)
+is a related generic metric-label processor; GenAI accounting and keyed rankings
+are separate from that label-control task.

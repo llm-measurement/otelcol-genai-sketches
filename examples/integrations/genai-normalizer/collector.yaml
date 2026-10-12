@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: Apache-2.0
+# Code authors: Vijay and Codex
+receivers:
+  otlp:
+    protocols:
+      grpc: {endpoint: '0.0.0.0:4317'}
+connectors:
+  genaisketch:
+    window_duration: 5s
+    retention_windows: 12
+    max_slices: 10
+    topk: 10
+    hashing: {algo: hmac_sha256_64, secret_env: GENAI_SKETCH_SECRET}
+    operation_filter:
+      llm_operations: [chat]
+    topk_keys:
+      - {field: user_key, weight: tokens}
+      - {field: session_key, weight: tokens}
+    slices:
+      - {name: by_model, keys: [gen_ai.request.model]}
+exporters:
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    translation_strategy: UnderscoreEscapingWithoutSuffixes
+service:
+  telemetry:
+    logs: {encoding: json}
+    metrics: {level: none}
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [genaisketch]
+    metrics:
+      receivers: [genaisketch]
+      exporters: [prometheus]

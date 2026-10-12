@@ -124,6 +124,8 @@ User rankings read `enduser.id` or `user.id`; session rankings read
 `gen_ai.conversation.id` or `session.id` on each model span. Map these fields to
 your instrumentation using the [field mapping guide](../../docs/CONFIGURATION.md#field-mapping).
 See [shadow mode](../../docs/SHADOW_MODE.md) for deployment-ready fan-out recipes.
+Feed the sketch branch [before trace sampling](../../docs/SHADOW_MODE.md#before-sampling);
+sampling can remain on the separate backend branch.
 
 ## Measurement Semantics
 
