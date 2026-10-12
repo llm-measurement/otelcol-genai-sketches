@@ -31,6 +31,20 @@ This external component ships in this repository's
 module for custom Collector Builder distributions. Snapshot logs and summary
 files are additional outputs, not separate supported pipeline types.
 
+## Custom Collector Builds
+
+Add the standalone connector module to your
+[OpenTelemetry Collector Builder](https://opentelemetry.io/docs/collector/extend/ocb/)
+manifest:
+
+```yaml
+connectors:
+  - gomod: github.com/llm-measurement/otelcol-genai-sketches/connector/genaisketchconnector v0.3.2
+```
+
+Use `genaisketch` as a traces-pipeline exporter and a metrics-pipeline receiver,
+as shown below.
+
 ## Configuration
 
 Place `genaisketch` in `connectors`, then use it as an exporter in a traces pipeline
