@@ -66,6 +66,7 @@ queries for investigating your own traffic, including unexpected "token maxing."
 | Your path | Start here | What you'll see |
 | --- | --- | --- |
 | LiteLLM | [Single-app before/after recipe](examples/integrations/litellm/README.md) | More requests or larger requests, missing usage, and an optional two-stack comparison |
+| OpenInference or OpenLLMetry | [Normalize the sketch branch](examples/integrations/genai-normalizer/README.md) | Model attempts and token totals from vendor attributes, with the original trace branch preserved |
 | agentgateway or Envoy AI Gateway | [agentgateway](examples/integrations/agentgateway/README.md) / [standalone Envoy](examples/integrations/envoy-ai-gateway/README.md) | Users and sessions taking over while totals stay flat; workflow rankings in snapshot logs |
 | Copilot CLI or Copilot Chat | [Coding-agent recipe](examples/integrations/coding-agents/README.md) | Session changes and separate device rankings, using source-specific field mappings |
 | Claude Code and Codex traces (TraceLab) | [Replay the recorded investigation](examples/tracelab/README.md) | Three sessions behind a 17% overnight token increase, checked against source totals |

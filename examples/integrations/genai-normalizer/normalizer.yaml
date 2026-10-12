@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: Apache-2.0
+# Code authors: Vijay and Codex
+receivers:
+  otlp:
+    protocols:
+      http: {endpoint: '0.0.0.0:4318'}
+processors:
+  gen_ai_normalizer:
+    sources:
+      - {name: openinference}
+      - {name: openllmetry}
+exporters:
+  otlp_grpc/sketches:
+    endpoint: sketches:4317
+    tls: {insecure: true}
+    sending_queue: {enabled: false}
+    retry_on_failure: {enabled: false}
+  # Test-only evidence sinks. Replace file/raw with your existing backend exporter;
+  # remove file/normalized for real traffic. Both contain original identities.
+  file/raw:
+    path: /tmp/raw.json
+    flush_interval: 100ms
+  file/normalized:
+    path: /tmp/normalized.json
+    flush_interval: 100ms
+service:
+  telemetry:
+    logs: {encoding: json}
+    metrics: {level: none}
+  pipelines:
+    traces/existing:
+      receivers: [otlp]
+      exporters: [file/raw]
+    traces/sketches:
+      receivers: [otlp]
+      processors: [gen_ai_normalizer]
+      exporters: [otlp_grpc/sketches, file/normalized]

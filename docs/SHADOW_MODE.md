@@ -10,6 +10,17 @@ OpenTelemetry destination to try the connector.
 
 ## Choose Where To Copy Traces
 
+### Before Sampling
+
+Feed the sketch branch before any probabilistic, tail, or dynamic trace sampler.
+Split the pipelines at the receiver (or an unsampled upstream export), and keep
+sampling on the existing-backend branch. Adding a second exporter after a sampler
+would give both destinations only the retained spans. `genaisketch` reports the
+spans it receives: it does not reconstruct SDK/head-sampled or dropped attempts,
+or extrapolate their tokens. Apply your required redaction on both branches, while
+preserving the accounting and keyed-identity input attributes you intend to use.
+See [accounting](ACCOUNTING.md) for the observation boundary.
+
 ### Let This Distribution Copy Them
 
 ```text

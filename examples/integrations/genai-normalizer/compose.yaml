@@ -1,0 +1,45 @@
+# SPDX-License-Identifier: Apache-2.0
+# Code authors: Vijay and Codex
+x-runtime: &runtime
+  read_only: true
+  user: '65532:65532'
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  pids_limit: 128
+  mem_limit: 512m
+  networks: [recipe]
+services:
+  init-evidence:
+    <<: *runtime
+    image: python@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c
+    # Only initializes the synthetic evidence volume; collectors run as 65532.
+    user: '0:0'
+    command: [python, -c, 'import os; os.chmod("/evidence", 0o1777)']
+    volumes: ['evidence:/evidence']
+  normalizer:
+    <<: *runtime
+    # Contrib v0.162.0, multi-platform digest.
+    image: otel/opentelemetry-collector-contrib@sha256:39923a8e431bd1f57be82411999d389fcfe40857492e4365456d97a4c1f74be6
+    command: ['--config=/etc/recipe.yaml']
+    depends_on:
+      init-evidence: {condition: service_completed_successfully}
+    volumes:
+      - ./normalizer.yaml:/etc/recipe.yaml:ro
+      - evidence:/tmp
+  sketches:
+    <<: *runtime
+    # otelcol-genai-sketches v0.3.2, multi-platform digest.
+    image: ghcr.io/llm-measurement/otelcol-genai-sketches@sha256:f30001c845e4da7c14f97357eb0dcfa615e267cf84cbc18794808ac7c98ad933
+    command: ['--config=/etc/recipe.yaml']
+    environment:
+      GENAI_SKETCH_SECRET: '${GENAI_SKETCH_SECRET:?set a hash secret}'
+    volumes: ['./collector.yaml:/etc/recipe.yaml:ro']
+  client:
+    <<: *runtime
+    image: python@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c
+    command: [python, -c, 'import time; time.sleep(300)']
+networks:
+  recipe:
+    internal: true
+volumes:
+  evidence:

@@ -12,6 +12,18 @@ permissions:
   contents: read
 
 jobs:
+  normalizer-recipe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check synthetic normalization assertions
+        run: python3 -m unittest discover -s examples/integrations/genai-normalizer -p 'test_*.py'
+      - name: Normalize OpenInference and OpenLLMetry through released collectors
+        run: python3 examples/integrations/genai-normalizer/check.py
+
   dependency-review:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
