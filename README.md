@@ -19,11 +19,27 @@ data is missing, in Prometheus or any OTLP metrics backend.
 | Issues | [open issues](https://github.com/llm-measurement/otelcol-genai-sketches/issues) |
 | Code owners | @kwisatzh |
 
+## Run it on your traffic
+
+Choose the path matching your source; keep your existing trace backend.
+
+- **[Standard GenAI spans](docs/SHADOW_MODE.md):** model-call spans using `gen_ai.operation.name` (or `gen_ai.request.model` when absent) and `gen_ai.usage.input_tokens` / `gen_ai.usage.output_tokens`; add `genaisketch` beside your existing trace exporter.
+- **[LiteLLM](examples/integrations/litellm/README.md#connect-an-existing-proxy):** an existing proxy exporting model spans through its OpenTelemetry callback.
+- **[agentgateway](examples/integrations/agentgateway/README.md#use-it-with-your-gateway):** model spans with token usage, a verified user identity and your application's session header.
+- **[Envoy AI Gateway](examples/integrations/envoy-ai-gateway/README.md#mapping-your-traffic):** the standalone AI gateway's GenAI spans, with trusted user and session headers mapped to span attributes.
+- **[Copilot CLI](examples/integrations/coding-agents/README.md#source-settings-and-mappings):** OpenTelemetry model spans with token usage and `gen_ai.conversation.id` for sessions.
+- **[Copilot Chat](examples/integrations/coding-agents/README.md#source-settings-and-mappings):** OpenTelemetry model spans with token usage and `copilot_chat.session_id`, or resource `session.id`.
+- **[OpenInference / OpenLLMetry](examples/integrations/genai-normalizer/README.md#put-it-in-your-pipeline):** vendor-shaped model spans, normalized on the sketch branch by a separate contrib collector before reaching v0.3.2.
+
+The guides start with your own data: [check a trace capture](https://llm-measurement.github.io/traces-usage.html),
+[review your collector configuration](https://llm-measurement.github.io/cardinality.html),
+or [compare LiteLLM spend exports directly](https://llm-measurement.github.io/litellm-spend.html).
+
+## Try It
+
 ![Running Grafana demo with request rates, reported tokens, and missing usage](docs/images/demo-dashboard.jpg)
 
 *Synthetic demo traffic.*
-
-## Try It
 
 You need Docker with Compose v2, Git, and a POSIX shell (macOS, Linux, or WSL).
 The demo is synthetic and needs no model account or API key.
@@ -41,34 +57,15 @@ Open the dashboard printed by the command to see request rate, reported token
 rate, distinct activity, and missing usage. The first build takes several minutes;
 allow one minute after startup for the first measurement window.
 
-See the token-heavy prompt signatures and their bounds:
-
-```sh
-sh examples/demo.sh topk
-```
-
-Then run two controlled investigations:
-
-```sh
-sh examples/demo.sh investigate
-```
-
-You'll see why adding tool spans leaves model-request counts unchanged, and why
-missing usage can make reported tokens fall while consumption stays the same.
-
 [Watch the walkthrough](docs/media/README.md), or open the
-[demo guide](examples/README.md) for ports, secret handling, dashboard reading
-order, and cleanup. The [token-consumption playbook](docs/TOKEN_USAGE.md) gives
+[demo guide](examples/README.md) for top-k rankings, controlled investigations,
+ports, secret handling, dashboard reading order, and cleanup. The [token-consumption playbook](docs/TOKEN_USAGE.md) gives
 queries for investigating your own traffic, including unexpected "token maxing."
 
 ## Find Your Guide
 
 | Your path | Start here | What you'll see |
 | --- | --- | --- |
-| LiteLLM | [Single-app before/after recipe](examples/integrations/litellm/README.md) | More requests or larger requests, missing usage, and an optional two-stack comparison |
-| OpenInference or OpenLLMetry | [Normalize the sketch branch](examples/integrations/genai-normalizer/README.md) | Model attempts and token totals from vendor attributes, with the original trace branch preserved |
-| agentgateway or Envoy AI Gateway | [agentgateway](examples/integrations/agentgateway/README.md) / [standalone Envoy](examples/integrations/envoy-ai-gateway/README.md) | Users and sessions taking over while totals stay flat; workflow rankings in snapshot logs |
-| Copilot CLI or Copilot Chat | [Coding-agent recipe](examples/integrations/coding-agents/README.md) | Session changes and separate device rankings, using source-specific field mappings |
 | Claude Code and Codex traces (TraceLab) | [Replay the recorded investigation](examples/tracelab/README.md) | Three sessions behind a 17% overnight token increase, checked against source totals |
 | Kubernetes summary files and alerts | [Export and readback](docs/SUMMARY_EXPORT_HELM.md) / [alerts](docs/ALERTING.md) | Local `investigate` and `scan`, plus optional Prometheus alerts |
 | Several teams or collectors | [Summary exchange](docs/SUMMARY_EXCHANGE.md) / [fleetdiff](https://github.com/llm-measurement/fleetdiff) | Combine compatible measurements and compare windows while each team keeps its backend |
@@ -92,11 +89,7 @@ compare windows across collectors without uploading raw traces.
 Fan-out preserves the original traces, so disable content capture or redact
 before fan-out when raw content must stay local.
 
-See [Shadow Mode](docs/SHADOW_MODE.md) for fan-out configurations and
-[Accounting](docs/ACCOUNTING.md) for request and token rules.
-The [metrics reference](docs/METRICS.md), [configuration guide](docs/CONFIGURATION.md),
-and [deployment FAQ](docs/FAQ.md#can-i-use-this-with-self-hosted-models-or-a-mix-of-providers)
-cover the available signals and required input fields.
+Read [Shadow Mode](docs/SHADOW_MODE.md), [Accounting](docs/ACCOUNTING.md), [Metrics](docs/METRICS.md), [Configuration](docs/CONFIGURATION.md), and the [deployment FAQ](docs/FAQ.md#can-i-use-this-with-self-hosted-models-or-a-mix-of-providers) for fan-out, accounting rules, signals, and input fields.
 
 ## Install
 
@@ -112,18 +105,7 @@ pin immutable digests, configure the hashing secret, and start the collector.
 The image supports Linux amd64 and arm64. For Kubernetes, the deployment guide
 includes the verified chart install and an existing-Secret configuration.
 
-Already build your own collector? Add the standalone connector module to your
-[OpenTelemetry Collector Builder](https://opentelemetry.io/docs/collector/extend/ocb/)
-manifest:
-
-```yaml
-connectors:
-  - gomod: github.com/llm-measurement/otelcol-genai-sketches/connector/genaisketchconnector v0.3.2
-```
-
-Use `genaisketch` as a traces-pipeline exporter and a metrics-pipeline receiver;
-the [component README](connector/genaisketchconnector/README.md) and
-[configuration guide](docs/CONFIGURATION.md) have the connector settings.
+For a custom collector build, add the standalone module using the [component README](connector/genaisketchconnector/README.md#custom-collector-builds).
 Read [Sizing](docs/SIZING.md) for capacity planning and
 [Upgrading](docs/UPGRADING.md) for feature availability, restarts, and rollback.
 
@@ -147,10 +129,7 @@ See [Security](SECURITY.md) for private vulnerability reporting and
 
 ## Project
 
-**Status: Alpha.** Signed images, a Helm chart, SBOMs, provenance, and upgrade
-guidance are available. Start with an evaluation deployment and representative
-traffic; configuration and metric semantics may change before 1.0.
-See the [changelog](CHANGELOG.md) and [release and support policy](SUPPORT.md).
+Evaluate with representative traffic; see the [changelog](CHANGELOG.md) and [release and support policy](SUPPORT.md) for pre-1.0 changes, signed artifacts, SBOMs, provenance, and upgrades.
 
 The [benchmark report](docs/BENCHMARKS.md) records reproduction commands, workloads,
 machine details, and all recorded accuracy, throughput, and soak runs.
