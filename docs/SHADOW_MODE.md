@@ -66,6 +66,7 @@ applications -> existing Collector or Alloy -> current backend
 This layout changes the existing path less. Run the sketch distribution with
 [`sketches-only.yaml`](../examples/shadow-mode/sketches-only.yaml), then add a second
 OTLP exporter to the trace pipeline that already feeds your backend.
+If that pipeline samples, split before its sampler as described above instead.
 
 The complete upstream Collector example is
 [`upstream-collector.yaml`](../examples/shadow-mode/upstream-collector.yaml). Its
@@ -75,8 +76,8 @@ important line is:
 exporters: [otlp_grpc/existing, otlp_grpc/genai_sketches]
 ```
 
-Keep your current exporter and processors. Add only the exporter that points to the
-sketch sidecar. Do not create a path from the sidecar back to the upstream collector;
+For an unsampled pipeline, keep your current exporter and processors and add only
+the exporter that points to the sketch sidecar. Do not create a path from the sidecar back to the upstream collector;
 that would create a trace loop.
 
 ## Existing OpenTelemetry Collector
