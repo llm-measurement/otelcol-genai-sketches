@@ -14,8 +14,10 @@
     "explicit_cases": 62,
     "case_count": 8254,
     "go_version": "go1.26.9",
-    "x_text_version": "v0.41.0",
-    "release_commit": "ca5d39babbca6b018032eef826f85cdc736f44f5"
+    "x_text_version": "v0.42.0",
+    "migration": "Reviewed x/text v0.41.0 to v0.42.0; eight U+11F41 cases now match the frozen distribution baseline",
+    "historical_baseline": "connector-xtext-0.41.json",
+    "historical_sha256": "690eb6e6493e2e3a82a9e4dd882c59beac3bce338628fde3ecb43ee9adadba75"
   },
   "cases": [
     {
@@ -49497,50 +49499,50 @@
     {
       "id": "explicit_kawi_11f41_acute",
       "input_utf8_hex": "f091bd81cc81",
-      "canonical_hex": "e1bd85",
-      "digest_hex": "3b726aaf5527e4f6"
+      "canonical_hex": "f091bd81cc81",
+      "digest_hex": "d6d90ae87a2e7092"
     },
     {
       "id": "explicit_kawi_11f41_deprecated_acute",
       "input_utf8_hex": "f091bd81cd81",
-      "canonical_hex": "e1bd85",
-      "digest_hex": "3b726aaf5527e4f6"
+      "canonical_hex": "f091bd81cc81",
+      "digest_hex": "d6d90ae87a2e7092"
     },
     {
       "id": "explicit_kawi_11f41_reorder",
       "input_utf8_hex": "f091bd81cc81cca3",
-      "canonical_hex": "e1bd85cca3",
-      "digest_hex": "953c92db0ae9bbcf"
+      "canonical_hex": "f091bd81cca3cc81",
+      "digest_hex": "21019bc4498b3513"
     },
     {
       "id": "explicit_kawi_11f41_ordered",
       "input_utf8_hex": "f091bd81cca3cc81",
-      "canonical_hex": "e1bd85cca3",
-      "digest_hex": "953c92db0ae9bbcf"
+      "canonical_hex": "f091bd81cca3cc81",
+      "digest_hex": "21019bc4498b3513"
     },
     {
       "id": "explicit_kawi_11f41_grave_reorder",
       "input_utf8_hex": "f091bd81cc95cc80",
-      "canonical_hex": "e1bd83cc95",
-      "digest_hex": "4a0f139d4ae09495"
+      "canonical_hex": "f091bd81cc80cc95",
+      "digest_hex": "1719d9969f42c520"
     },
     {
       "id": "explicit_kawi_11f41_grave_ordered",
       "input_utf8_hex": "f091bd81cc80cc95",
-      "canonical_hex": "e1bd83cc95",
-      "digest_hex": "4a0f139d4ae09495"
+      "canonical_hex": "f091bd81cc80cc95",
+      "digest_hex": "1719d9969f42c520"
     },
     {
       "id": "explicit_kawi_11f41_leading_29",
       "input_utf8_hex": "cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80f091bd81cc95cc95",
-      "canonical_hex": "e1bd83cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cd8fcc95cc95",
-      "digest_hex": "c5a6a91e289ba0b2"
+      "canonical_hex": "f091bd81cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cd8fcc95cc95",
+      "digest_hex": "345bc98ceaba8240"
     },
     {
       "id": "explicit_kawi_11f41_trailing_31",
       "input_utf8_hex": "f091bd81cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80",
-      "canonical_hex": "e1bd83cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cd8fcc80cc80",
-      "digest_hex": "06e3d616c334bdfa"
+      "canonical_hex": "f091bd81cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cc80cd8fcc80cc80",
+      "digest_hex": "63f48b1c77a1b554"
     }
   ]
 }

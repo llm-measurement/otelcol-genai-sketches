@@ -4,6 +4,20 @@ Notable user-visible changes are recorded here.
 
 ## Unreleased
 
+- Identity change: standalone connector builds move from x/text v0.41.0 to
+  v0.42.0 with llm-sketchkit v0.3.0. Eight pinned U+11F41 combining-mark cases
+  change canonical bytes and hashes; the historical corpus is preserved.
+  The distribution moves from v0.42.0 to v0.43.0 with no change in its 8,254
+  pinned identities. Upgrade affected standalone producers at a window boundary;
+  keep old/new summaries separate or rebuild from legitimate original inputs
+  using one normalizer and the original key. Wire formats and accounting IDs
+  do not detect the identity boundary. See [Upgrading](docs/UPGRADING.md#sketchkit-030-in-this-source-candidate).
+- Adopt the combined runtime dependency updates, including Prometheus common
+  v0.72.1. Sketchkit v0.3.0 rejects nonempty zero-length observation intervals
+  and protobuf groups without changing canonical wire encodings. Fixed-clock
+  export tests cover explicit rejection, preserved valid files and retry after
+  time advances. No runtime version or release date is assigned here.
+
 ## v0.3.3 / Helm chart 0.3.5 - TAGDAY (pending)
 
 Unreleased review candidate; see the [draft release notes](docs/releases/v0.3.3.md).

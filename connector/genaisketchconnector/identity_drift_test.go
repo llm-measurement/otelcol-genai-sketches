@@ -4,6 +4,7 @@
 package genaisketchconnector
 
 import (
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -39,7 +40,7 @@ type identityDriftCorpus struct {
 
 func loadIdentityDriftCorpus(t *testing.T, baseline string) identityDriftCorpus {
 	t.Helper()
-	if baseline != "connector" && baseline != "distribution" {
+	if baseline != "connector" && baseline != "distribution" && baseline != "connector-xtext-0.41" {
 		t.Fatalf("unknown identity baseline %q", baseline)
 	}
 	data, err := os.ReadFile(filepath.Join("testdata", "identity", baseline+".json"))
@@ -99,6 +100,9 @@ func TestIdentityDrift(t *testing.T) {
 	if baseline == "" {
 		baseline = "connector"
 	}
+	if baseline != "connector" && baseline != "distribution" {
+		t.Fatalf("unknown runtime identity baseline %q", baseline)
+	}
 	corpus := loadIdentityDriftCorpus(t, baseline)
 	t.Setenv("GENAI_IDENTITY_TEST_KEY", corpus.Key)
 	secret, err := sketchhash.SecretFromEnv("GENAI_IDENTITY_TEST_KEY")
@@ -137,6 +141,9 @@ func TestIdentityDriftInputsMatch(t *testing.T) {
 		if c.ID != other.ID || c.Input != other.Input {
 			t.Fatalf("identity baselines have different inputs at %d", i)
 		}
+		if c.Canonical != other.Canonical || c.Digest != other.Digest {
+			t.Fatalf("connector and distribution identities differ: %s", c.ID)
+		}
 		inputs[c.ID] = c.Input
 	}
 	for id, input := range map[string]string{
@@ -154,5 +161,44 @@ func TestIdentityDriftInputsMatch(t *testing.T) {
 		if err != nil || !strings.ContainsRune(string(input), r) {
 			t.Fatalf("missing required identity regression: %s", id)
 		}
+	}
+}
+
+func TestIdentityDriftReviewedMigration(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("testdata", "identity", "connector-xtext-0.41.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := fmt.Sprintf("%x", sha256.Sum256(data)); got != "690eb6e6493e2e3a82a9e4dd882c59beac3bce338628fde3ecb43ee9adadba75" {
+		t.Fatal("released connector identity baseline was changed")
+	}
+	historical := loadIdentityDriftCorpus(t, "connector-xtext-0.41")
+	current := loadIdentityDriftCorpus(t, "connector")
+	if len(historical.Cases) != len(current.Cases) {
+		t.Fatal("migration changed the pinned corpus size")
+	}
+	reviewed := map[string]bool{
+		"explicit_kawi_11f41_acute":            true,
+		"explicit_kawi_11f41_deprecated_acute": true,
+		"explicit_kawi_11f41_reorder":          true,
+		"explicit_kawi_11f41_ordered":          true,
+		"explicit_kawi_11f41_grave_reorder":    true,
+		"explicit_kawi_11f41_grave_ordered":    true,
+		"explicit_kawi_11f41_leading_29":       true,
+		"explicit_kawi_11f41_trailing_31":      true,
+	}
+	for i, old := range historical.Cases {
+		next := current.Cases[i]
+		if old.ID != next.ID || old.Input != next.Input {
+			t.Fatalf("migration changed case input at %d", i)
+		}
+		wantChange := reviewed[old.ID]
+		if (old.Canonical != next.Canonical) != wantChange || (old.Digest != next.Digest) != wantChange {
+			t.Fatalf("unreviewed canonical/hash migration for %s", old.ID)
+		}
+		delete(reviewed, old.ID)
+	}
+	if len(reviewed) != 0 {
+		t.Fatalf("missing reviewed migration cases: %v", reviewed)
 	}
 }

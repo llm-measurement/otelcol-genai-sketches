@@ -14,6 +14,7 @@ import (
 	"github.com/llm-measurement/llm-sketchkit/go/sketchkit/frequentitems"
 	"github.com/llm-measurement/llm-sketchkit/go/sketchkit/hllpp"
 	"github.com/llm-measurement/llm-sketchkit/go/sketchkit/summary"
+	"go.uber.org/zap"
 )
 
 func exportFixture(t *testing.T, producer string, now time.Time) (*collectorState, *summaryExporter, *fixedClock) {
@@ -267,5 +268,86 @@ func TestSummaryDiskBudgetAndBackwardClock(t *testing.T) {
 	}
 	if err := e.write(docs, 0); err == nil {
 		t.Fatal("disk budget exceeded silently")
+	}
+}
+
+func TestSummaryZeroLengthObservationAcceptance(t *testing.T) {
+	for _, kind := range []string{"empty", "counters_only", "sketches_only", "counters_and_sketches"} {
+		t.Run(kind, func(t *testing.T) {
+			start := time.Unix(120, 0)
+			s, e, clk := exportFixture(t, "a", start)
+			if kind != "empty" {
+				mustConsume(t, s, testSpan{Model: "model", Prompt: "prompt", User: "user"})
+			}
+			docs, err := s.summaryDocuments(e, clk.Now())
+			if err != nil || len(docs) != 1 {
+				t.Fatalf("documents: %v, count=%d", err, len(docs))
+			}
+			doc := docs[0]
+			if doc.ObservedStart != start.UnixNano() || doc.ObservedEnd != start.UnixNano() {
+				t.Fatal("exporter fabricated a positive observation interval")
+			}
+			if kind == "counters_only" {
+				doc.Sketches = map[string]summary.Payload{}
+			} else if kind == "sketches_only" {
+				doc.Counters = map[string]uint64{}
+			}
+			if err := doc.Validate(); (err == nil) != (kind == "empty") {
+				t.Fatalf("zero-length acceptance for %s: %v", kind, err)
+			}
+			if err := e.write([]summary.Envelope{doc}, 0); (err == nil) != (kind == "empty") {
+				t.Fatalf("zero-length write for %s: %v", kind, err)
+			}
+			// Positive intervals must still accept the same retained measurements.
+			doc.ObservedEnd++
+			doc.EmittedAt++
+			encoded, err := doc.MarshalBinary()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := summary.Parse(encoded); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestSummaryFixedClockExportRetry(t *testing.T) {
+	start := time.Unix(120, 0)
+	s, e, clk := exportFixture(t, "a", start)
+	c := &tracesConnector{state: s, exporter: e, clock: clk, logger: zap.NewNop()}
+	if err := c.emitSummary(true); err != nil {
+		t.Fatal("empty startup export rejected:", err)
+	}
+	name := filepath.Join(e.cfg.Directory, fmt.Sprintf("%020d-%s.json", start.UnixNano(), e.epoch))
+	before, err := os.ReadFile(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustConsume(t, s, testSpan{Model: "model", Prompt: "prompt", InputTokens: ptr(int64(3)), OutputTokens: ptr(int64(2))})
+	for i := 0; i < 2; i++ {
+		if err := c.emitSummary(true); err == nil || !strings.Contains(err.Error(), "nonempty zero-length") {
+			t.Fatalf("nonempty fixed-clock export must fail explicitly: %v", err)
+		}
+		after, err := os.ReadFile(name)
+		if err != nil || !bytes.Equal(before, after) || !e.lastExport.Equal(start) {
+			t.Fatal("failed export replaced the last valid file or advanced lastExport")
+		}
+	}
+	clk.Set(start.Add(time.Nanosecond))
+	if err := c.emitSummary(true); err != nil {
+		t.Fatal("positive-interval retry failed:", err)
+	}
+	data, err := os.ReadFile(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, err := summary.Parse(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if doc.Counters["requests"] != 1 || doc.Counters["input_tokens"] != 3 || doc.Counters["output_tokens"] != 2 ||
+		doc.ObservedEnd-doc.ObservedStart != 1 || !e.lastExport.Equal(clk.Now()) {
+		t.Fatal("retry lost measurements or misstated the observed interval")
 	}
 }

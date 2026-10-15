@@ -55,6 +55,51 @@ known window boundary, record the event, and allow old windows to expire.
 
 ## Compatibility
 
+### Sketchkit 0.3.0 In This Source Candidate
+
+This unreleased dependency candidate adopts llm-sketchkit v0.3.0 in both modules.
+It does not change published v0.3.2 artifacts, assign a release date or create a
+tag. The normalization transitions differ by build:
+
+| Build | Previous x/text | Candidate x/text | Pinned identity result |
+| --- | --- | --- | --- |
+| Standalone connector | v0.41.0 | v0.42.0 | Eight of 8,254 cases change canonical bytes and hashes |
+| Root tests and built distribution | v0.42.0 | v0.43.0 | All 8,254 distribution identities remain unchanged |
+
+The eight cases involve U+11F41 with acute/grave accents, deprecated acute,
+combining-mark reordering and long combining runs. Their exact IDs and old/new
+hashes are recorded in the [identity corpus notes](../connector/genaisketchconnector/testdata/identity/README.md#reviewed-standalone-migration).
+The released standalone corpus is retained byte-for-byte as
+`connector-xtext-0.41.json`; the distribution corpus is untouched. The active
+corpora now agree. These sampled checks do not exhaust every Unicode string.
+Downloaded x/text v0.42.0 and v0.43.0 normalization sources are identical;
+the correction occurred between v0.41.0 and v0.42.0, not in Go's sketchkit
+canonicalizer or hash function.
+
+Standalone/custom builds previously resolving v0.41.0 must assess retained
+windows for this identity migration. Upgrade affected producers together at a
+new window boundary, record resolved dependency versions, and keep affected
+old/new windows separate for merges and comparisons. Rebuild only from
+legitimately available original inputs using one corrected build and the original
+hash key; otherwise retain a separate historical series. Do not rewrite old
+summaries or rotate keys as a substitute. Wire formats, profile names and the
+accounting fingerprint are unchanged and cannot detect this boundary. The
+released distribution already using v0.42.0 needs no additional identity rebuild
+for this update within the tested corpus. Mixed Python producers must separately
+follow sketchkit's [identity migration guide](https://github.com/llm-measurement/llm-sketchkit/blob/v0.3.0/docs/IDENTITY_MIGRATION.md).
+
+Acceptance is stricter even where identities are unchanged: nonzero counters or
+nonempty sketches require a positive observation interval. Configured empty
+sketches remain valid at zero length. With a fixed clock, nonempty export at
+startup or an exact new-window boundary fails explicitly; the exporter does not
+invent elapsed time. An existing valid file remains intact, and retained counts
+can be exported after time advances. A shutdown before time advances can fail
+its final export; preserve that failure rather than claiming the window was
+exported. The existing backward-clock rejection remains. Readers also reject
+protobuf groups, which the wire schema never defined. Validate retained/external
+inputs before adoption; do not alter interval timestamps or payloads just to
+make them pass. Canonical summary/sketch encodings are unchanged.
+
 ### Sketchkit Hardening In Source Builds
 
 Collector v0.3.2 and its connector module use llm-sketchkit v0.2.3 for parser
