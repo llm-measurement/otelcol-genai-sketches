@@ -8,6 +8,9 @@ filesystem, contains no shell, and uses pinned build and runtime base images.
 The example Compose stack remains a demonstration. Use the production image or Helm
 chart for a persistent environment.
 
+The commands below select the released collector **v0.3.2** and chart **0.3.4**.
+Chart and collector versions advance independently.
+
 ## Verify An Image
 
 Prerequisites: Docker with Buildx, curl, [cosign](https://docs.sigstore.dev/cosign/system_config/installation/),
@@ -89,6 +92,10 @@ gh release download "$CHART_RELEASE" \
 
 Verification checks the digest's signature and provenance against this repository's
 release workflow and tag. Review runtime configuration and workload sizing separately.
+The v0.3.2 checksums check file integrity; they are not independent authentication
+of `SHA256SUMS` or `sbom-index.json`. That release has no detached
+`provenance.jsonl` bundle for those two files. Keep the image and chart verification
+steps above when using its metadata.
 The image includes the project license and collected third-party notices under
 `/licenses`.
 
