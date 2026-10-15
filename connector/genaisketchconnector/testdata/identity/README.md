@@ -10,14 +10,13 @@ The public key `sketchkit-identity-vector-secret-v1` is test data only.
 
 ## Two Dependency Baselines
 
-- `connector.json` pins the standalone connector module with x/text v0.41.0.
-- `distribution.json` pins the distribution with x/text v0.42.0. Its bytes match
-  sketchkit's `vectors/identity_guard/text_v1.json`.
+- `connector.json` pins the standalone connector module with x/text v0.42.0.
+- `distribution.json` retains the distribution baseline captured with x/text
+  v0.42.0, now checked unchanged against the v0.43.0 distribution.
 
-The case IDs and input bytes are identical. The expected canonical bytes and
-hashes differ for the upstream NFC correction described in
-[Upgrading](../../../../docs/UPGRADING.md). This difference already exists in the
-two build graphs; these tests change no runtime behavior.
+The case IDs, inputs, expected canonical bytes and hashes now agree. The
+standalone migration below accounts for the upstream NFC correction described
+in [Upgrading](../../../../docs/UPGRADING.md#sketchkit-030-in-this-source-candidate).
 
 CI explicitly selects the distribution baseline when testing from `dist`, which
 uses the dependencies selected by the real collector build. Tests never select
@@ -50,3 +49,30 @@ make a dependency update pass.
 
 This is sampled regression coverage. The tests also deliberately perturb expected
 canonical bytes and hashes to confirm that identity changes fail the check.
+
+## Reviewed Standalone Migration
+
+The v0.41.0 standalone baseline is preserved byte-for-byte in
+`connector-xtext-0.41.json`, SHA-256
+`690eb6e6493e2e3a82a9e4dd882c59beac3bce338628fde3ecb43ee9adadba75`.
+The test pins that digest and requires exactly the following eight canonical
+and hash changes, with every input and other output unchanged. Corrected outputs
+are taken from the already-frozen distribution corpus, not regenerated to hide
+failures. Full input and canonical hex are retained in the two JSON files.
+
+| Case ID (after `explicit_kawi_11f41_`) | Old digest | Corrected digest |
+| --- | --- | --- |
+| `acute` | `3b726aaf5527e4f6` | `d6d90ae87a2e7092` |
+| `deprecated_acute` | `3b726aaf5527e4f6` | `d6d90ae87a2e7092` |
+| `reorder` | `953c92db0ae9bbcf` | `21019bc4498b3513` |
+| `ordered` | `953c92db0ae9bbcf` | `21019bc4498b3513` |
+| `grave_reorder` | `4a0f139d4ae09495` | `1719d9969f42c520` |
+| `grave_ordered` | `4a0f139d4ae09495` | `1719d9969f42c520` |
+| `leading_29` | `c5a6a91e289ba0b2` | `345bc98ceaba8240` |
+| `trailing_31` | `06e3d616c334bdfa` | `63f48b1c77a1b554` |
+
+The older normalizer could collapse U+11F41 plus acute/grave to unrelated Greek
+U+1F45/U+1F43. The corrected outputs preserve U+11F41 with the canonically ordered
+marks and stream-safe joiners. Edge controls U+001C..U+001F and the separate
+31-combining-mark cases remain unchanged in Go. This sampled list is not an
+exhaustive characterization of the upstream normalization fixes.

@@ -3,8 +3,8 @@ module github.com/llm-measurement/otelcol-genai-sketches
 go 1.26.6
 
 require (
-	github.com/llm-measurement/llm-sketchkit v0.2.3
-	github.com/prometheus/common v0.72.0
+	github.com/llm-measurement/llm-sketchkit v0.3.0
+	github.com/prometheus/common v0.72.1
 	go.opentelemetry.io/proto/otlp v1.11.1
 	go.yaml.in/yaml/v3 v3.0.5
 	google.golang.org/grpc v1.84.0
@@ -28,11 +28,11 @@ require (
 	github.com/spf13/pflag v1.0.10 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	golang.org/x/mod v0.41.0 // indirect
-	golang.org/x/net v0.60.0 // indirect
-	golang.org/x/sync v0.23.0 // indirect
-	golang.org/x/sys v0.48.0 // indirect
-	golang.org/x/text v0.42.0 // indirect
-	golang.org/x/tools v0.50.0 // indirect
+	golang.org/x/net v0.61.0 // indirect
+	golang.org/x/sync v0.24.0 // indirect
+	golang.org/x/sys v0.49.0 // indirect
+	golang.org/x/text v0.43.0 // indirect
+	golang.org/x/tools v0.51.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260928230214-8a89bd6388cc // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260928230214-8a89bd6388cc // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect

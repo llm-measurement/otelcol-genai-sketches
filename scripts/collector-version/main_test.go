@@ -3,13 +3,65 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"os"
+	"os/exec"
 	"reflect"
 	"strings"
 	"testing"
 
 	"go.yaml.in/yaml/v3"
 )
+
+func TestDistributionRuntimeDependencyPins(t *testing.T) {
+	data, err := os.ReadFile("../../builder.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := distributionManifest(data, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := distributionManifest(data, "")
+	if err != nil || !bytes.Equal(first, second) {
+		t.Fatal("distribution metadata is not reproducible")
+	}
+	var manifest struct {
+		Replaces []string `yaml:"replaces"`
+	}
+	if err := yaml.Unmarshal(first, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	version := func(dir, module string) string {
+		t.Helper()
+		cmd := exec.Command("go", "list", "-mod=readonly", "-m", "-json", module)
+		cmd.Dir = dir
+		data, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("resolved dependency %s in %s: %v: %s", module, dir, err, data)
+		}
+		var resolved struct{ Version string }
+		if err := json.Unmarshal(data, &resolved); err != nil || resolved.Version == "" {
+			t.Fatalf("invalid resolved dependency %s: %v", module, err)
+		}
+		return resolved.Version
+	}
+	for _, module := range []string{"github.com/prometheus/common", "google.golang.org/grpc", "golang.org/x/crypto", "golang.org/x/net"} {
+		want := module + " => " + module + " " + version("../..", module)
+		found := false
+		for _, replace := range manifest.Replaces {
+			found = found || replace == want
+		}
+		if !found {
+			t.Errorf("distribution must pin the root dependency: %s", want)
+		}
+	}
+	const sketchkit = "github.com/llm-measurement/llm-sketchkit"
+	if version("../..", sketchkit) != version("../../connector/genaisketchconnector", sketchkit) {
+		t.Errorf("root and connector dependency differs: %s", sketchkit)
+	}
+}
 
 func TestUpdateAllCollectorComponents(t *testing.T) {
 	data, err := os.ReadFile("../../builder.yaml")

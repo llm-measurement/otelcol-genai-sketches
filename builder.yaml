@@ -21,6 +21,7 @@ exporters:
   - gomod: go.opentelemetry.io/collector/exporter/otlphttpexporter v0.162.0
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusexporter v0.162.0
 replaces:
+  - github.com/prometheus/common => github.com/prometheus/common v0.72.1
   - google.golang.org/grpc => google.golang.org/grpc v1.84.0
-  - golang.org/x/crypto => golang.org/x/crypto v0.56.0
-  - golang.org/x/net => golang.org/x/net v0.60.0
+  - golang.org/x/crypto => golang.org/x/crypto v0.58.0
+  - golang.org/x/net => golang.org/x/net v0.61.0
