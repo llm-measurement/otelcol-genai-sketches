@@ -4,6 +4,26 @@ Notable user-visible changes are recorded here.
 
 ## Unreleased
 
+## v0.3.3 / Helm chart 0.3.5 - TAGDAY (pending)
+
+Unreleased review candidate; see the [draft release notes](docs/releases/v0.3.3.md).
+Before tagging, replace `TAGDAY (pending)` with the actual tag-day date in
+`YYYY-MM-DD` format and resolve the prerequisites listed in those notes.
+Collector v0.3.2 / chart 0.3.4 remains the released install pair.
+
+- Pending [PR #85](https://github.com/llm-measurement/otelcol-genai-sketches/pull/85):
+  verify `SHA256SUMS` and `sbom-index.json` with build-provenance attestations
+  and a downloadable `provenance.jsonl` bundle. Check both subjects against the
+  release workflow and exact tag before metadata upload.
+- Pending the separate documentation change: follow deployment, summary export,
+  and LiteLLM guides aligned with fleetdiff v0.8.0; retain 32 example windows
+  for a 24-window baseline and two recent windows.
+- Include the merged OpenInference / OpenLLMetry normalization recipe and
+  source-specific own-traffic guidance. See the draft release notes for the
+  recipe's tested scope and release prerequisites.
+- Prepare collector and connector build metadata for v0.3.3 and chart 0.3.5,
+  whose appVersion selects collector 0.3.3.
+
 ## v0.3.2 / Helm chart 0.3.4 - 2026-10-11
 
 See the [release notes](docs/releases/v0.3.2.md). Chart 0.3.4 selects
