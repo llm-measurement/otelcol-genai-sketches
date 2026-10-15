@@ -9,14 +9,14 @@ summary exports with fleetdiff.
 
 ### Prerequisites
 
-Use a checkout of this repository, Go 1.26.6 or later, Make, OpenSSL, and an
+Use a checkout of this repository, Go 1.26.9 or later, Make, OpenSSL, and an
 existing LiteLLM proxy matching the [tested scope](#compatibility-scope). Run from the
 repository root. Install fleetdiff and prepare a private summary directory before
 starting the collector:
 
 ```sh
 make dist
-go install github.com/llm-measurement/fleetdiff/cmd/fleetdiff@v0.3.0
+GOWORK=off go install github.com/llm-measurement/fleetdiff/cmd/fleetdiff@v0.8.0
 export PATH="$(go env GOPATH)/bin:$PATH"
 umask 077
 export SUMMARY_DIRECTORY="$PWD/private-summaries/litellm"
@@ -25,6 +25,12 @@ chmod 700 "$SUMMARY_DIRECTORY"
 export GENAI_SKETCH_SECRET="$(openssl rand -hex 32)"
 export SUMMARY_KEY_ID=local-comparison-v1
 ```
+
+`make dist` builds the current source checkout; it is not a released binary.
+For the released collector v0.3.2, use the [Docker path](#collector-in-docker)
+below. The fleetdiff command builds the pinned v0.8.0 source; a
+[verified release binary](https://github.com/llm-measurement/fleetdiff/blob/v0.8.0/docs/OPERATIONS.md#install-and-verify)
+is also available.
 
 Keep that secret and key ID unchanged across the comparison windows. Re-running
 the secret-generation line breaks comparability. Do not put secrets, summary
