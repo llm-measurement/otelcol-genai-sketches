@@ -12,14 +12,16 @@ versions advance independently.
 ## Install
 
 Use Helm, kubectl with pod-exec permission, local Python **3.10+**, and
-[verified fleetdiff v0.5.0](../examples/integrations/agentgateway/README.md#run-it).
+[verified fleetdiff v0.8.0](https://github.com/llm-measurement/fleetdiff/blob/v0.8.0/docs/OPERATIONS.md#install-and-verify).
 Clone this repository for the example values and copy helper. Follow
 [Deployment](DEPLOYMENT.md) to verify the chart and collector image, obtain
 `DIGEST`, and create the `observability` namespace and hashing Secret.
 
 Provision a filesystem PVC named `genai-sketch-summaries` in that namespace.
 The [example values](../deploy/kubernetes/central/summary-values.yaml) select it,
-enable export and the reader, and retain **16 one-minute windows**. They rank
+enable export and the reader, and retain **32 one-minute windows**. This covers
+the scan's default 24-window baseline and two recent windows, with room for the
+open window and copy timing. They rank
 prompts and users by tokens, and sessions by model attempts. Adapt producer `app`,
 scope `app-observations`, and key version `app-key-v1` to your inventory.
 
@@ -70,7 +72,8 @@ operation with the configured non-root UID/GID.
 
 ## Copy, Investigate, Scan
 
-Wait for at least seven complete windows: six baseline plus one judged window.
+Wait for at least **26 complete windows**: 24 baseline plus two judged windows.
+Keep the hash key and accounting configuration consistent across that history.
 Confirm one ready pod in the listing, then select it:
 
 ```sh
@@ -96,7 +99,7 @@ fleetdiff investigate \
   --after "${AFTER:?run the copy helper first}" --expected app
 
 scan_status=0
-fleetdiff scan ./summaries-NEW --expected app --baseline 6 \
+fleetdiff scan ./summaries-NEW --expected app --recent 2 \
   --as-of "${AS_OF:?run the copy helper first}" || scan_status=$?
 printf 'scan exit: %s\n' "$scan_status"
 ```
@@ -106,7 +109,10 @@ exits 0 for a report; `scan` exits **3** for unusual findings, **0** for a quiet
 evaluated window, **4** for insufficient history or coverage, and **1/2** for
 input/option errors. Keep `--as-of` for the copied snapshot; omit it for live
 freshness checks. Add `--format json` to save structured reports outside the
-summary directory.
+summary directory. This uses the default 24-window baseline, matching the
+[anomaly guide](https://llm-measurement.github.io/anomalies.html).
+See the [scan guide](https://github.com/llm-measurement/fleetdiff/blob/v0.8.0/docs/SCAN.md#baseline-and-thresholds)
+before changing baseline or persistence settings; increase retained history as needed.
 
 ## JSON Logs And Workflow Rankings
 
@@ -129,7 +135,7 @@ telemetry: {logs: {encoding: json}}
 
 Keep your summary/storage, shadow, and TLS settings. Forward JSON stdout with the
 fixed Loki label `service_name="otelcol-genai-sketches"`; hashes stay in log bodies.
-Fleetdiff v0.5.0 reads user/session rankings; custom workflows stay in snapshots.
+Fleetdiff v0.8.0 reads user/session rankings; custom workflows stay in snapshots.
 
 ## Settings And Limits
 
@@ -150,7 +156,7 @@ Fleetdiff v0.5.0 reads user/session rankings; custom workflows stay in snapshots
   behavior on your storage driver; resolve ownership failures with its administrator.
 - Retention expires files even on a PVC. Export limits remain 512 files / 64 MiB
   plus an 8 MiB temporary file. For longer history, use a private
-  [archive](https://github.com/llm-measurement/fleetdiff/blob/v0.5.0/docs/SUMMARY_ARCHIVE.md).
+  [archive](https://github.com/llm-measurement/fleetdiff/blob/v0.8.0/docs/SUMMARY_ARCHIVE.md).
   Fleetdiff accepts up to 512 files, 1,024 entries, and 32 MiB per input. Size memory
   for retained windows and ranking keys using [Sizing](SIZING.md).
 - Summaries are pseudonymous. Keep copies private; complete collector windows
@@ -159,8 +165,10 @@ Fleetdiff v0.5.0 reads user/session rankings; custom workflows stay in snapshots
 
 ## Validation
 
-The checked-in Kubernetes test uses collector v0.3.2 and fleetdiff v0.5.0 with
-800 synthetic spans. It checks private storage and PVC remounts, finds the planted
+The earlier Kubernetes validation used collector v0.3.2 and fleetdiff v0.5.0 with
+800 synthetic spans. The checked-in test overrides retention to 16 windows of
+20 seconds and scans with `--baseline 6`; it does not exercise the 26-window
+history above. It checks private storage and PVC remounts, finds the planted
 91% user/session shares, verifies scan exits 3/0 for changed/quiet cases, and scans
 metrics, logs, summaries, decoded sketches, reports, and Loki for planted identities,
 code, and file paths. Metric cardinality stays at 17 series with one fixed Loki label.

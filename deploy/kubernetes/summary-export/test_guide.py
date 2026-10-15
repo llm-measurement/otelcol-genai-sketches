@@ -19,7 +19,7 @@ fleetdiff() {
     scan)
       [[ "$#" == 8 && "$2" == ./summaries-NEW &&
          "$3" == --expected && "$4" == app &&
-         "$5" == --baseline && "$6" == 6 &&
+         "$5" == --recent && "$6" == 2 &&
          "$7" == --as-of && "$8" == "$AS_OF" ]] || return 97
       ;;
     *) return 97 ;;
