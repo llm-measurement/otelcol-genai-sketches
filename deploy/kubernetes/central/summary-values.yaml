@@ -24,7 +24,7 @@ summaryExport:
 
 connector:
   windowDuration: 60s
-  retentionWindows: 16
+  retentionWindows: 32
   topK: 20
   # These replace the default prompt-only list; size per-key, per-window state first.
   topKKeys:
