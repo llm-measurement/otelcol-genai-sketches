@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: Apache-2.0
+# Code authors: Vijay and Codex
+name: security
+
+on:
+  schedule:
+    - cron: '23 7 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GOWORK: "off"
+      GOTOOLCHAIN: local
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.26.9"
+          cache-dependency-path: |
+            go.sum
+            connector/genaisketchconnector/go.sum
+      - name: Build the collector
+        run: |
+          make dist
+          # Preserve symbols so binary scanning can distinguish imported code.
+          go -C dist build -o ../.cache/collector-security .
+      - name: Scan source modules and built collector
+        run: |
+          go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./...
+          go -C connector/genaisketchconnector run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./...
+          go -C dist run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./...
+          go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 -mode=binary .cache/collector-security
