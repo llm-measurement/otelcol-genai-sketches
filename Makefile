@@ -118,3 +118,15 @@ prometheus-rule-check:
 	mkdir -p .cache
 	$(HELM) template genai-sketches deploy/helm/otelcol-genai-sketches --namespace observability --set prometheusRule.enabled=true --set connector.dedup.enabled=true --show-only templates/prometheusrule.yaml | awk 'BEGIN{emit=0} /^  groups:/{emit=1} emit{sub(/^  /, ""); print}' > .cache/accounting-rules.yaml
 	docker run --rm --network=none --read-only --cap-drop=ALL --security-opt=no-new-privileges --user=65534:65534 --entrypoint=/bin/promtool -v $(CURDIR)/.cache/accounting-rules.yaml:/rules.yaml:ro $(PROMETHEUS_IMAGE) check rules /rules.yaml
+
+TOKEN_BUDGET_PROMTOOL = docker run --rm --network=none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=256m --cap-drop=ALL --security-opt=no-new-privileges --user=$(shell id -u):$(shell id -g) --entrypoint=/bin/promtool -v "$(CURDIR):/repo:ro" -w /repo $(PROMETHEUS_IMAGE)
+
+.PHONY: token-budget-check
+token-budget-check:
+	$(TOKEN_BUDGET_PROMTOOL) check rules examples/prometheus/token-budget/budgets.example.yml examples/prometheus/token-budget/rules.yml
+	$(TOKEN_BUDGET_PROMTOOL) test rules examples/prometheus/token-budget/rules.test.yml
+
+.PHONY: token-budget-replay
+token-budget-replay: token-budget-check dist
+	GOCACHE=$(GOCACHE) GOMODCACHE=$(GOMODCACHE) go test -tags integration ./integration -run '^TestTokenBudgetRecipeReplay$$' -count=1 -v
+	$(TOKEN_BUDGET_PROMTOOL) test rules .cache/token-budget/replay.test.yml

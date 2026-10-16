@@ -1,0 +1,1336 @@
+# SPDX-License-Identifier: Apache-2.0
+# Code authors: Vijay and Codex
+# Deterministic one-minute counter timelines, not provider or billing data.
+rule_files:
+  - "rules.yml"
+evaluation_interval: "1m"
+fuzzy_compare: true
+tests:
+  -
+    name: "20x fast burn; 1x peer stays quiet"
+    interval: "1m"
+    input_series:
+      -
+        series: "gen_ai_token_budget_tokens{slice=\"by_team\",slice_value=\"team.id=platform\"}"
+        values: "2592000+0x360"
+      -
+        series: "gen_ai_token_budget_tokens{slice=\"by_team\",slice_value=\"team.id=inference\"}"
+        values: "2592000+0x360"
+      -
+        series: "gen_ai_sketch_total_tokens_total{job=\"otelcol-genai-sketches\",slice=\"by_team\",slice_value=\"team.id=platform\",overflow=\"false\",instance=\"one\"}"
+        values: "0+1200x360"
+      -
+        series: "gen_ai_sketch_total_tokens_total{job=\"otelcol-genai-sketches\",slice=\"by_team\",slice_value=\"team.id=inference\",overflow=\"false\",instance=\"one\"}"
+        values: "0+60x360"
+    alert_rule_test:
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetFastBurn"
+        exp_alerts:
+          -
+            exp_labels:
+              slice: "by_team"
+              slice_value: "team.id=platform"
+              severity: "critical"
+            exp_annotations:
+              summary: "Fast token-budget burn for team.id=platform"
+              description: "Reported token rate exceeds 14.4 times the 30-day allowance in both the 1h and 5m windows."
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetSlowBurn"
+        exp_alerts:
+          -
+            exp_labels:
+              slice: "by_team"
+              slice_value: "team.id=platform"
+              severity: "warning"
+            exp_annotations:
+              summary: "Slow token-budget burn for team.id=platform"
+              description: "Reported token rate exceeds 6 times the 30-day allowance in both the 6h and 30m windows."
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetMissing"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetUnattributed"
+        exp_alerts: []
+    promql_expr_test:
+      -
+        expr: "gen_ai_token_budget:burn_rate5m"
+        eval_time: "6h"
+        exp_samples:
+          -
+            labels: "{__name__=\"gen_ai_token_budget:burn_rate5m\",slice=\"by_team\",slice_value=\"team.id=platform\"}"
+            value: 20
+          -
+            labels: "{__name__=\"gen_ai_token_budget:burn_rate5m\",slice=\"by_team\",slice_value=\"team.id=inference\"}"
+            value: 1
+      -
+        expr: "gen_ai_token_budget:burn_rate1h"
+        eval_time: "6h"
+        exp_samples:
+          -
+            labels: "{__name__=\"gen_ai_token_budget:burn_rate1h\",slice=\"by_team\",slice_value=\"team.id=platform\"}"
+            value: 20
+          -
+            labels: "{__name__=\"gen_ai_token_budget:burn_rate1h\",slice=\"by_team\",slice_value=\"team.id=inference\"}"
+            value: 1
+      -
+        expr: "gen_ai_token_budget:burn_rate30m"
+        eval_time: "6h"
+        exp_samples:
+          -
+            labels: "{__name__=\"gen_ai_token_budget:burn_rate30m\",slice=\"by_team\",slice_value=\"team.id=platform\"}"
+            value: 20
+          -
+            labels: "{__name__=\"gen_ai_token_budget:burn_rate30m\",slice=\"by_team\",slice_value=\"team.id=inference\"}"
+            value: 1
+      -
+        expr: "gen_ai_token_budget:burn_rate6h"
+        eval_time: "6h"
+        exp_samples:
+          -
+            labels: "{__name__=\"gen_ai_token_budget:burn_rate6h\",slice=\"by_team\",slice_value=\"team.id=platform\"}"
+            value: 20
+          -
+            labels: "{__name__=\"gen_ai_token_budget:burn_rate6h\",slice=\"by_team\",slice_value=\"team.id=inference\"}"
+            value: 1
+  -
+    name: "8x slow burn only"
+    interval: "1m"
+    input_series:
+      -
+        series: "gen_ai_token_budget_tokens{slice=\"by_team\",slice_value=\"team.id=platform\"}"
+        values: "2592000+0x360"
+      -
+        series: "gen_ai_sketch_total_tokens_total{job=\"otelcol-genai-sketches\",slice=\"by_team\",slice_value=\"team.id=platform\",overflow=\"false\",instance=\"one\"}"
+        values: "0+480x360"
+    alert_rule_test:
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetFastBurn"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetSlowBurn"
+        exp_alerts:
+          -
+            exp_labels:
+              slice: "by_team"
+              slice_value: "team.id=platform"
+              severity: "warning"
+            exp_annotations:
+              summary: "Slow token-budget burn for team.id=platform"
+              description: "Reported token rate exceeds 6 times the 30-day allowance in both the 6h and 30m windows."
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetMissing"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetUnattributed"
+        exp_alerts: []
+    promql_expr_test:
+      -
+        expr: "gen_ai_token_budget:burn_rate5m"
+        eval_time: "6h"
+        exp_samples:
+          -
+            labels: "{__name__=\"gen_ai_token_budget:burn_rate5m\",slice=\"by_team\",slice_value=\"team.id=platform\"}"
+            value: 8
+      -
+        expr: "gen_ai_token_budget:burn_rate1h"
+        eval_time: "6h"
+        exp_samples:
+          -
+            labels: "{__name__=\"gen_ai_token_budget:burn_rate1h\",slice=\"by_team\",slice_value=\"team.id=platform\"}"
+            value: 8
+      -
+        expr: "gen_ai_token_budget:burn_rate30m"
+        eval_time: "6h"
+        exp_samples:
+          -
+            labels: "{__name__=\"gen_ai_token_budget:burn_rate30m\",slice=\"by_team\",slice_value=\"team.id=platform\"}"
+            value: 8
+      -
+        expr: "gen_ai_token_budget:burn_rate6h"
+        eval_time: "6h"
+        exp_samples:
+          -
+            labels: "{__name__=\"gen_ai_token_budget:burn_rate6h\",slice=\"by_team\",slice_value=\"team.id=platform\"}"
+            value: 8
+  -
+    name: "1x and idle do not alert"
+    interval: "1m"
+    input_series:
+      -
+        series: "gen_ai_token_budget_tokens{slice=\"by_team\",slice_value=\"team.id=platform\"}"
+        values: "2592000+0x360"
+      -
+        series: "gen_ai_token_budget_tokens{slice=\"by_team\",slice_value=\"team.id=inference\"}"
+        values: "2592000+0x360"
+      -
+        series: "gen_ai_sketch_total_tokens_total{job=\"otelcol-genai-sketches\",slice=\"by_team\",slice_value=\"team.id=platform\",overflow=\"false\",instance=\"one\"}"
+        values: "0+60x360"
+      -
+        series: "gen_ai_sketch_total_tokens_total{job=\"otelcol-genai-sketches\",slice=\"by_team\",slice_value=\"team.id=inference\",overflow=\"false\",instance=\"one\"}"
+        values: "0+0x360"
+    alert_rule_test:
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetFastBurn"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetSlowBurn"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetMissing"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetUnattributed"
+        exp_alerts: []
+    promql_expr_test:
+      -
+        expr: "gen_ai_token_budget:burn_rate5m"
+        eval_time: "6h"
+        exp_samples:
+          -
+            labels: "{__name__=\"gen_ai_token_budget:burn_rate5m\",slice=\"by_team\",slice_value=\"team.id=platform\"}"
+            value: 1
+          -
+            labels: "{__name__=\"gen_ai_token_budget:burn_rate5m\",slice=\"by_team\",slice_value=\"team.id=inference\"}"
+            value: 0
+      -
+        expr: "gen_ai_token_budget:burn_rate1h"
+        eval_time: "6h"
+        exp_samples:
+          -
+            labels: "{__name__=\"gen_ai_token_budget:burn_rate1h\",slice=\"by_team\",slice_value=\"team.id=platform\"}"
+            value: 1
+          -
+            labels: "{__name__=\"gen_ai_token_budget:burn_rate1h\",slice=\"by_team\",slice_value=\"team.id=inference\"}"
+            value: 0
+      -
+        expr: "gen_ai_token_budget:burn_rate30m"
+        eval_time: "6h"
+        exp_samples:
+          -
+            labels: "{__name__=\"gen_ai_token_budget:burn_rate30m\",slice=\"by_team\",slice_value=\"team.id=platform\"}"
+            value: 1
+          -
+            labels: "{__name__=\"gen_ai_token_budget:burn_rate30m\",slice=\"by_team\",slice_value=\"team.id=inference\"}"
+            value: 0
+      -
+        expr: "gen_ai_token_budget:burn_rate6h"
+        eval_time: "6h"
+        exp_samples:
+          -
+            labels: "{__name__=\"gen_ai_token_budget:burn_rate6h\",slice=\"by_team\",slice_value=\"team.id=platform\"}"
+            value: 1
+          -
+            labels: "{__name__=\"gen_ai_token_budget:burn_rate6h\",slice=\"by_team\",slice_value=\"team.id=inference\"}"
+            value: 0
+  -
+    name: "short 100x burst does not pass long windows"
+    interval: "1m"
+    input_series:
+      -
+        series: "gen_ai_token_budget_tokens{slice=\"by_team\",slice_value=\"team.id=platform\"}"
+        values: "2592000+0x360"
+      -
+        series: "gen_ai_sketch_total_tokens_total{job=\"otelcol-genai-sketches\",slice=\"by_team\",slice_value=\"team.id=platform\",overflow=\"false\",instance=\"one\"}"
+        values: "0+0x355 6000+6000x4"
+    alert_rule_test:
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetFastBurn"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetSlowBurn"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetMissing"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetUnattributed"
+        exp_alerts: []
+  -
+    name: "recovered traffic fails both short windows"
+    interval: "1m"
+    input_series:
+      -
+        series: "gen_ai_token_budget_tokens{slice=\"by_team\",slice_value=\"team.id=platform\"}"
+        values: "2592000+0x360"
+      -
+        series: "gen_ai_sketch_total_tokens_total{job=\"otelcol-genai-sketches\",slice=\"by_team\",slice_value=\"team.id=platform\",overflow=\"false\",instance=\"one\"}"
+        values: "0+1200x330 396000+0x29"
+    alert_rule_test:
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetFastBurn"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetSlowBurn"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetMissing"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetUnattributed"
+        exp_alerts: []
+  -
+    name: "counter reset preserves burn"
+    interval: "1m"
+    input_series:
+      -
+        series: "gen_ai_token_budget_tokens{slice=\"by_team\",slice_value=\"team.id=platform\"}"
+        values: "2592000+0x360"
+      -
+        series: "gen_ai_sketch_total_tokens_total{job=\"otelcol-genai-sketches\",slice=\"by_team\",slice_value=\"team.id=platform\",overflow=\"false\",instance=\"one\"}"
+        values: "0+1200x179 0+1200x180"
+    alert_rule_test:
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetFastBurn"
+        exp_alerts:
+          -
+            exp_labels:
+              slice: "by_team"
+              slice_value: "team.id=platform"
+              severity: "critical"
+            exp_annotations:
+              summary: "Fast token-budget burn for team.id=platform"
+              description: "Reported token rate exceeds 14.4 times the 30-day allowance in both the 1h and 5m windows."
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetSlowBurn"
+        exp_alerts:
+          -
+            exp_labels:
+              slice: "by_team"
+              slice_value: "team.id=platform"
+              severity: "warning"
+            exp_annotations:
+              summary: "Slow token-budget burn for team.id=platform"
+              description: "Reported token rate exceeds 6 times the 30-day allowance in both the 6h and 30m windows."
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetMissing"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetUnattributed"
+        exp_alerts: []
+    promql_expr_test:
+      -
+        expr: "gen_ai_token_budget:burn_rate5m"
+        eval_time: "6h"
+        exp_samples:
+          -
+            labels: "{__name__=\"gen_ai_token_budget:burn_rate5m\",slice=\"by_team\",slice_value=\"team.id=platform\"}"
+            value: 20
+  -
+    name: "disjoint collector instances sum after rate"
+    interval: "1m"
+    input_series:
+      -
+        series: "gen_ai_token_budget_tokens{slice=\"by_team\",slice_value=\"team.id=platform\"}"
+        values: "2592000+0x360"
+      -
+        series: "gen_ai_sketch_total_tokens_total{job=\"otelcol-genai-sketches\",slice=\"by_team\",slice_value=\"team.id=platform\",overflow=\"false\",instance=\"one\"}"
+        values: "0+600x360"
+      -
+        series: "gen_ai_sketch_total_tokens_total{job=\"otelcol-genai-sketches\",slice=\"by_team\",slice_value=\"team.id=platform\",overflow=\"false\",instance=\"two\"}"
+        values: "0+600x360"
+    alert_rule_test:
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetFastBurn"
+        exp_alerts:
+          -
+            exp_labels:
+              slice: "by_team"
+              slice_value: "team.id=platform"
+              severity: "critical"
+            exp_annotations:
+              summary: "Fast token-budget burn for team.id=platform"
+              description: "Reported token rate exceeds 14.4 times the 30-day allowance in both the 1h and 5m windows."
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetSlowBurn"
+        exp_alerts:
+          -
+            exp_labels:
+              slice: "by_team"
+              slice_value: "team.id=platform"
+              severity: "warning"
+            exp_annotations:
+              summary: "Slow token-budget burn for team.id=platform"
+              description: "Reported token rate exceeds 6 times the 30-day allowance in both the 6h and 30m windows."
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetMissing"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetUnattributed"
+        exp_alerts: []
+    promql_expr_test:
+      -
+        expr: "gen_ai_token_budget:burn_rate5m"
+        eval_time: "6h"
+        exp_samples:
+          -
+            labels: "{__name__=\"gen_ai_token_budget:burn_rate5m\",slice=\"by_team\",slice_value=\"team.id=platform\"}"
+            value: 20
+      -
+        expr: "gen_ai_token_budget:burn_rate1h"
+        eval_time: "6h"
+        exp_samples:
+          -
+            labels: "{__name__=\"gen_ai_token_budget:burn_rate1h\",slice=\"by_team\",slice_value=\"team.id=platform\"}"
+            value: 20
+      -
+        expr: "gen_ai_token_budget:burn_rate30m"
+        eval_time: "6h"
+        exp_samples:
+          -
+            labels: "{__name__=\"gen_ai_token_budget:burn_rate30m\",slice=\"by_team\",slice_value=\"team.id=platform\"}"
+            value: 20
+      -
+        expr: "gen_ai_token_budget:burn_rate6h"
+        eval_time: "6h"
+        exp_samples:
+          -
+            labels: "{__name__=\"gen_ai_token_budget:burn_rate6h\",slice=\"by_team\",slice_value=\"team.id=platform\"}"
+            value: 20
+  -
+    name: "each team uses its own user supplied budget"
+    interval: "1m"
+    input_series:
+      -
+        series: "gen_ai_token_budget_tokens{slice=\"by_team\",slice_value=\"team.id=platform\"}"
+        values: "2592000+0x360"
+      -
+        series: "gen_ai_token_budget_tokens{slice=\"by_team\",slice_value=\"team.id=inference\"}"
+        values: "5184000+0x360"
+      -
+        series: "gen_ai_sketch_total_tokens_total{job=\"otelcol-genai-sketches\",slice=\"by_team\",slice_value=\"team.id=platform\",overflow=\"false\",instance=\"one\"}"
+        values: "0+1200x360"
+      -
+        series: "gen_ai_sketch_total_tokens_total{job=\"otelcol-genai-sketches\",slice=\"by_team\",slice_value=\"team.id=inference\",overflow=\"false\",instance=\"one\"}"
+        values: "0+1200x360"
+    alert_rule_test:
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetFastBurn"
+        exp_alerts:
+          -
+            exp_labels:
+              slice: "by_team"
+              slice_value: "team.id=platform"
+              severity: "critical"
+            exp_annotations:
+              summary: "Fast token-budget burn for team.id=platform"
+              description: "Reported token rate exceeds 14.4 times the 30-day allowance in both the 1h and 5m windows."
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetSlowBurn"
+        exp_alerts:
+          -
+            exp_labels:
+              slice: "by_team"
+              slice_value: "team.id=platform"
+              severity: "warning"
+            exp_annotations:
+              summary: "Slow token-budget burn for team.id=platform"
+              description: "Reported token rate exceeds 6 times the 30-day allowance in both the 6h and 30m windows."
+          -
+            exp_labels:
+              slice: "by_team"
+              slice_value: "team.id=inference"
+              severity: "warning"
+            exp_annotations:
+              summary: "Slow token-budget burn for team.id=inference"
+              description: "Reported token rate exceeds 6 times the 30-day allowance in both the 6h and 30m windows."
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetMissing"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetUnattributed"
+        exp_alerts: []
+    promql_expr_test:
+      -
+        expr: "gen_ai_token_budget:burn_rate5m"
+        eval_time: "6h"
+        exp_samples:
+          -
+            labels: "{__name__=\"gen_ai_token_budget:burn_rate5m\",slice=\"by_team\",slice_value=\"team.id=platform\"}"
+            value: 20
+          -
+            labels: "{__name__=\"gen_ai_token_budget:burn_rate5m\",slice=\"by_team\",slice_value=\"team.id=inference\"}"
+            value: 10
+      -
+        expr: "gen_ai_token_budget:burn_rate1h"
+        eval_time: "6h"
+        exp_samples:
+          -
+            labels: "{__name__=\"gen_ai_token_budget:burn_rate1h\",slice=\"by_team\",slice_value=\"team.id=platform\"}"
+            value: 20
+          -
+            labels: "{__name__=\"gen_ai_token_budget:burn_rate1h\",slice=\"by_team\",slice_value=\"team.id=inference\"}"
+            value: 10
+      -
+        expr: "gen_ai_token_budget:burn_rate30m"
+        eval_time: "6h"
+        exp_samples:
+          -
+            labels: "{__name__=\"gen_ai_token_budget:burn_rate30m\",slice=\"by_team\",slice_value=\"team.id=platform\"}"
+            value: 20
+          -
+            labels: "{__name__=\"gen_ai_token_budget:burn_rate30m\",slice=\"by_team\",slice_value=\"team.id=inference\"}"
+            value: 10
+      -
+        expr: "gen_ai_token_budget:burn_rate6h"
+        eval_time: "6h"
+        exp_samples:
+          -
+            labels: "{__name__=\"gen_ai_token_budget:burn_rate6h\",slice=\"by_team\",slice_value=\"team.id=platform\"}"
+            value: 20
+          -
+            labels: "{__name__=\"gen_ai_token_budget:burn_rate6h\",slice=\"by_team\",slice_value=\"team.id=inference\"}"
+            value: 10
+  -
+    name: "6x boundary is not above slow threshold"
+    interval: "1m"
+    input_series:
+      -
+        series: "gen_ai_token_budget_tokens{slice=\"by_team\",slice_value=\"team.id=platform\"}"
+        values: "2592000+0x360"
+      -
+        series: "gen_ai_sketch_total_tokens_total{job=\"otelcol-genai-sketches\",slice=\"by_team\",slice_value=\"team.id=platform\",overflow=\"false\",instance=\"one\"}"
+        values: "0+360x360"
+    alert_rule_test:
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetFastBurn"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetSlowBurn"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetMissing"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetUnattributed"
+        exp_alerts: []
+    promql_expr_test:
+      -
+        expr: "gen_ai_token_budget:burn_rate5m"
+        eval_time: "6h"
+        exp_samples:
+          -
+            labels: "{__name__=\"gen_ai_token_budget:burn_rate5m\",slice=\"by_team\",slice_value=\"team.id=platform\"}"
+            value: 6
+      -
+        expr: "gen_ai_token_budget:burn_rate1h"
+        eval_time: "6h"
+        exp_samples:
+          -
+            labels: "{__name__=\"gen_ai_token_budget:burn_rate1h\",slice=\"by_team\",slice_value=\"team.id=platform\"}"
+            value: 6
+      -
+        expr: "gen_ai_token_budget:burn_rate30m"
+        eval_time: "6h"
+        exp_samples:
+          -
+            labels: "{__name__=\"gen_ai_token_budget:burn_rate30m\",slice=\"by_team\",slice_value=\"team.id=platform\"}"
+            value: 6
+      -
+        expr: "gen_ai_token_budget:burn_rate6h"
+        eval_time: "6h"
+        exp_samples:
+          -
+            labels: "{__name__=\"gen_ai_token_budget:burn_rate6h\",slice=\"by_team\",slice_value=\"team.id=platform\"}"
+            value: 6
+  -
+    name: "14.4x boundary is not above fast threshold"
+    interval: "1m"
+    input_series:
+      -
+        series: "gen_ai_token_budget_tokens{slice=\"by_team\",slice_value=\"team.id=platform\"}"
+        values: "2592000+0x360"
+      -
+        series: "gen_ai_sketch_total_tokens_total{job=\"otelcol-genai-sketches\",slice=\"by_team\",slice_value=\"team.id=platform\",overflow=\"false\",instance=\"one\"}"
+        values: "0+864x360"
+    alert_rule_test:
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetFastBurn"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetSlowBurn"
+        exp_alerts:
+          -
+            exp_labels:
+              slice: "by_team"
+              slice_value: "team.id=platform"
+              severity: "warning"
+            exp_annotations:
+              summary: "Slow token-budget burn for team.id=platform"
+              description: "Reported token rate exceeds 6 times the 30-day allowance in both the 6h and 30m windows."
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetMissing"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetUnattributed"
+        exp_alerts: []
+    promql_expr_test:
+      -
+        expr: "gen_ai_token_budget:burn_rate5m"
+        eval_time: "6h"
+        exp_samples:
+          -
+            labels: "{__name__=\"gen_ai_token_budget:burn_rate5m\",slice=\"by_team\",slice_value=\"team.id=platform\"}"
+            value: 14.4
+      -
+        expr: "gen_ai_token_budget:burn_rate1h"
+        eval_time: "6h"
+        exp_samples:
+          -
+            labels: "{__name__=\"gen_ai_token_budget:burn_rate1h\",slice=\"by_team\",slice_value=\"team.id=platform\"}"
+            value: 14.4
+      -
+        expr: "gen_ai_token_budget:burn_rate30m"
+        eval_time: "6h"
+        exp_samples:
+          -
+            labels: "{__name__=\"gen_ai_token_budget:burn_rate30m\",slice=\"by_team\",slice_value=\"team.id=platform\"}"
+            value: 14.4
+      -
+        expr: "gen_ai_token_budget:burn_rate6h"
+        eval_time: "6h"
+        exp_samples:
+          -
+            labels: "{__name__=\"gen_ai_token_budget:burn_rate6h\",slice=\"by_team\",slice_value=\"team.id=platform\"}"
+            value: 14.4
+  -
+    name: "missing budget is observable, not infinite burn"
+    interval: "1m"
+    input_series:
+      -
+        series: "gen_ai_sketch_total_tokens_total{job=\"otelcol-genai-sketches\",slice=\"by_team\",slice_value=\"team.id=platform\",overflow=\"false\",instance=\"one\"}"
+        values: "0+1200x360"
+      -
+        series: "gen_ai_sketch_requests_total{job=\"otelcol-genai-sketches\",slice=\"by_team\",slice_value=\"team.id=platform\",overflow=\"false\",instance=\"one\"}"
+        values: "0+1x360"
+    alert_rule_test:
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetFastBurn"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetSlowBurn"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetMissing"
+        exp_alerts:
+          -
+            exp_labels:
+              slice: "by_team"
+              slice_value: "team.id=platform"
+              severity: "warning"
+            exp_annotations:
+              summary: "Missing or invalid token budget for team.id=platform"
+              description: "Active team traffic has no unique finite positive 30-day token budget."
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetUnattributed"
+        exp_alerts: []
+    promql_expr_test:
+      -
+        expr: "gen_ai_token_budget:burn_rate5m"
+        eval_time: "6h"
+        exp_samples: []
+      -
+        expr: "gen_ai_token_budget:burn_rate1h"
+        eval_time: "6h"
+        exp_samples: []
+      -
+        expr: "gen_ai_token_budget:burn_rate30m"
+        eval_time: "6h"
+        exp_samples: []
+      -
+        expr: "gen_ai_token_budget:burn_rate6h"
+        eval_time: "6h"
+        exp_samples: []
+  -
+    name: "zero budget cannot generate burn"
+    interval: "1m"
+    input_series:
+      -
+        series: "gen_ai_token_budget_tokens{slice=\"by_team\",slice_value=\"team.id=platform\"}"
+        values: "0+0x360"
+      -
+        series: "gen_ai_sketch_total_tokens_total{job=\"otelcol-genai-sketches\",slice=\"by_team\",slice_value=\"team.id=platform\",overflow=\"false\",instance=\"one\"}"
+        values: "0+1200x360"
+      -
+        series: "gen_ai_sketch_requests_total{job=\"otelcol-genai-sketches\",slice=\"by_team\",slice_value=\"team.id=platform\",overflow=\"false\",instance=\"one\"}"
+        values: "0+1x360"
+    alert_rule_test:
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetFastBurn"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetSlowBurn"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetMissing"
+        exp_alerts:
+          -
+            exp_labels:
+              slice: "by_team"
+              slice_value: "team.id=platform"
+              severity: "warning"
+            exp_annotations:
+              summary: "Missing or invalid token budget for team.id=platform"
+              description: "Active team traffic has no unique finite positive 30-day token budget."
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetUnattributed"
+        exp_alerts: []
+    promql_expr_test:
+      -
+        expr: "gen_ai_token_budget:burn_rate5m"
+        eval_time: "6h"
+        exp_samples: []
+      -
+        expr: "gen_ai_token_budget:burn_rate1h"
+        eval_time: "6h"
+        exp_samples: []
+      -
+        expr: "gen_ai_token_budget:burn_rate30m"
+        eval_time: "6h"
+        exp_samples: []
+      -
+        expr: "gen_ai_token_budget:burn_rate6h"
+        eval_time: "6h"
+        exp_samples: []
+  -
+    name: "negative budget cannot generate burn"
+    interval: "1m"
+    input_series:
+      -
+        series: "gen_ai_token_budget_tokens{slice=\"by_team\",slice_value=\"team.id=platform\"}"
+        values: "-1+0x360"
+      -
+        series: "gen_ai_sketch_total_tokens_total{job=\"otelcol-genai-sketches\",slice=\"by_team\",slice_value=\"team.id=platform\",overflow=\"false\",instance=\"one\"}"
+        values: "0+1200x360"
+      -
+        series: "gen_ai_sketch_requests_total{job=\"otelcol-genai-sketches\",slice=\"by_team\",slice_value=\"team.id=platform\",overflow=\"false\",instance=\"one\"}"
+        values: "0+1x360"
+    alert_rule_test:
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetFastBurn"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetSlowBurn"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetMissing"
+        exp_alerts:
+          -
+            exp_labels:
+              slice: "by_team"
+              slice_value: "team.id=platform"
+              severity: "warning"
+            exp_annotations:
+              summary: "Missing or invalid token budget for team.id=platform"
+              description: "Active team traffic has no unique finite positive 30-day token budget."
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetUnattributed"
+        exp_alerts: []
+    promql_expr_test:
+      -
+        expr: "gen_ai_token_budget:burn_rate5m"
+        eval_time: "6h"
+        exp_samples: []
+      -
+        expr: "gen_ai_token_budget:burn_rate1h"
+        eval_time: "6h"
+        exp_samples: []
+      -
+        expr: "gen_ai_token_budget:burn_rate30m"
+        eval_time: "6h"
+        exp_samples: []
+      -
+        expr: "gen_ai_token_budget:burn_rate6h"
+        eval_time: "6h"
+        exp_samples: []
+  -
+    name: "infinite budget cannot generate burn"
+    interval: "1m"
+    input_series:
+      -
+        series: "gen_ai_token_budget_tokens{slice=\"by_team\",slice_value=\"team.id=platform\"}"
+        values: "Inf+0x360"
+      -
+        series: "gen_ai_sketch_total_tokens_total{job=\"otelcol-genai-sketches\",slice=\"by_team\",slice_value=\"team.id=platform\",overflow=\"false\",instance=\"one\"}"
+        values: "0+1200x360"
+      -
+        series: "gen_ai_sketch_requests_total{job=\"otelcol-genai-sketches\",slice=\"by_team\",slice_value=\"team.id=platform\",overflow=\"false\",instance=\"one\"}"
+        values: "0+1x360"
+    alert_rule_test:
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetFastBurn"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetSlowBurn"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetMissing"
+        exp_alerts:
+          -
+            exp_labels:
+              slice: "by_team"
+              slice_value: "team.id=platform"
+              severity: "warning"
+            exp_annotations:
+              summary: "Missing or invalid token budget for team.id=platform"
+              description: "Active team traffic has no unique finite positive 30-day token budget."
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetUnattributed"
+        exp_alerts: []
+    promql_expr_test:
+      -
+        expr: "gen_ai_token_budget:burn_rate5m"
+        eval_time: "6h"
+        exp_samples: []
+      -
+        expr: "gen_ai_token_budget:burn_rate1h"
+        eval_time: "6h"
+        exp_samples: []
+      -
+        expr: "gen_ai_token_budget:burn_rate30m"
+        eval_time: "6h"
+        exp_samples: []
+      -
+        expr: "gen_ai_token_budget:burn_rate6h"
+        eval_time: "6h"
+        exp_samples: []
+  -
+    name: "NaN budget cannot generate burn"
+    interval: "1m"
+    input_series:
+      -
+        series: "gen_ai_token_budget_tokens{slice=\"by_team\",slice_value=\"team.id=platform\"}"
+        values: "NaN+0x360"
+      -
+        series: "gen_ai_sketch_total_tokens_total{job=\"otelcol-genai-sketches\",slice=\"by_team\",slice_value=\"team.id=platform\",overflow=\"false\",instance=\"one\"}"
+        values: "0+1200x360"
+      -
+        series: "gen_ai_sketch_requests_total{job=\"otelcol-genai-sketches\",slice=\"by_team\",slice_value=\"team.id=platform\",overflow=\"false\",instance=\"one\"}"
+        values: "0+1x360"
+    alert_rule_test:
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetFastBurn"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetSlowBurn"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetMissing"
+        exp_alerts:
+          -
+            exp_labels:
+              slice: "by_team"
+              slice_value: "team.id=platform"
+              severity: "warning"
+            exp_annotations:
+              summary: "Missing or invalid token budget for team.id=platform"
+              description: "Active team traffic has no unique finite positive 30-day token budget."
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetUnattributed"
+        exp_alerts: []
+    promql_expr_test:
+      -
+        expr: "gen_ai_token_budget:burn_rate5m"
+        eval_time: "6h"
+        exp_samples: []
+      -
+        expr: "gen_ai_token_budget:burn_rate1h"
+        eval_time: "6h"
+        exp_samples: []
+      -
+        expr: "gen_ai_token_budget:burn_rate30m"
+        eval_time: "6h"
+        exp_samples: []
+      -
+        expr: "gen_ai_token_budget:burn_rate6h"
+        eval_time: "6h"
+        exp_samples: []
+  -
+    name: "duplicate budget sources are rejected"
+    interval: "1m"
+    input_series:
+      -
+        series: "gen_ai_token_budget_tokens{slice=\"by_team\",slice_value=\"team.id=platform\",source=\"one\"}"
+        values: "2592000+0x360"
+      -
+        series: "gen_ai_token_budget_tokens{slice=\"by_team\",slice_value=\"team.id=platform\",source=\"two\"}"
+        values: "2592000+0x360"
+      -
+        series: "gen_ai_sketch_total_tokens_total{job=\"otelcol-genai-sketches\",slice=\"by_team\",slice_value=\"team.id=platform\",overflow=\"false\",instance=\"one\"}"
+        values: "0+1200x360"
+      -
+        series: "gen_ai_sketch_requests_total{job=\"otelcol-genai-sketches\",slice=\"by_team\",slice_value=\"team.id=platform\",overflow=\"false\",instance=\"one\"}"
+        values: "0+1x360"
+    alert_rule_test:
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetFastBurn"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetSlowBurn"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetMissing"
+        exp_alerts:
+          -
+            exp_labels:
+              slice: "by_team"
+              slice_value: "team.id=platform"
+              severity: "warning"
+            exp_annotations:
+              summary: "Missing or invalid token budget for team.id=platform"
+              description: "Active team traffic has no unique finite positive 30-day token budget."
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetUnattributed"
+        exp_alerts: []
+    promql_expr_test:
+      -
+        expr: "gen_ai_token_budget:burn_rate5m"
+        eval_time: "6h"
+        exp_samples: []
+      -
+        expr: "gen_ai_token_budget:burn_rate1h"
+        eval_time: "6h"
+        exp_samples: []
+      -
+        expr: "gen_ai_token_budget:burn_rate30m"
+        eval_time: "6h"
+        exp_samples: []
+      -
+        expr: "gen_ai_token_budget:burn_rate6h"
+        eval_time: "6h"
+        exp_samples: []
+  -
+    name: "other slices and jobs cannot double count"
+    interval: "1m"
+    input_series:
+      -
+        series: "gen_ai_token_budget_tokens{slice=\"by_team\",slice_value=\"team.id=platform\"}"
+        values: "2592000+0x360"
+      -
+        series: "gen_ai_sketch_total_tokens_total{job=\"otelcol-genai-sketches\",slice=\"by_team\",slice_value=\"team.id=platform\",overflow=\"false\",instance=\"one\"}"
+        values: "0+60x360"
+      -
+        series: "gen_ai_sketch_total_tokens_total{job=\"otelcol-genai-sketches\",slice=\"by_team_model\",slice_value=\"team.id=platform|gen_ai.request.model=example\",overflow=\"false\",instance=\"one\"}"
+        values: "0+120000x360"
+      -
+        series: "gen_ai_sketch_total_tokens_total{job=\"otelcol-genai-sketches\",slice=\"by_model\",slice_value=\"team.id=platform\",overflow=\"false\",instance=\"one\"}"
+        values: "0+120000x360"
+      -
+        series: "gen_ai_sketch_total_tokens_total{job=\"another-environment\",slice=\"by_team\",slice_value=\"team.id=platform\",overflow=\"false\",instance=\"one\"}"
+        values: "0+120000x360"
+    alert_rule_test:
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetFastBurn"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetSlowBurn"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetMissing"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetUnattributed"
+        exp_alerts: []
+    promql_expr_test:
+      -
+        expr: "gen_ai_token_budget:burn_rate5m"
+        eval_time: "6h"
+        exp_samples:
+          -
+            labels: "{__name__=\"gen_ai_token_budget:burn_rate5m\",slice=\"by_team\",slice_value=\"team.id=platform\"}"
+            value: 1
+      -
+        expr: "gen_ai_token_budget:burn_rate1h"
+        eval_time: "6h"
+        exp_samples:
+          -
+            labels: "{__name__=\"gen_ai_token_budget:burn_rate1h\",slice=\"by_team\",slice_value=\"team.id=platform\"}"
+            value: 1
+      -
+        expr: "gen_ai_token_budget:burn_rate30m"
+        eval_time: "6h"
+        exp_samples:
+          -
+            labels: "{__name__=\"gen_ai_token_budget:burn_rate30m\",slice=\"by_team\",slice_value=\"team.id=platform\"}"
+            value: 1
+      -
+        expr: "gen_ai_token_budget:burn_rate6h"
+        eval_time: "6h"
+        exp_samples:
+          -
+            labels: "{__name__=\"gen_ai_token_budget:burn_rate6h\",slice=\"by_team\",slice_value=\"team.id=platform\"}"
+            value: 1
+  -
+    name: "overflow is not charged to a named team"
+    interval: "1m"
+    input_series:
+      -
+        series: "gen_ai_token_budget_tokens{slice=\"by_team\",slice_value=\"team.id=platform\"}"
+        values: "2592000+0x360"
+      -
+        series: "gen_ai_sketch_total_tokens_total{job=\"otelcol-genai-sketches\",slice=\"by_team\",slice_value=\"__overflow__\",overflow=\"true\",instance=\"one\"}"
+        values: "0+120000x360"
+      -
+        series: "gen_ai_sketch_requests_total{job=\"otelcol-genai-sketches\",slice=\"by_team\",slice_value=\"__overflow__\",overflow=\"true\",instance=\"one\"}"
+        values: "0+1x360"
+    alert_rule_test:
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetFastBurn"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetSlowBurn"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetMissing"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetUnattributed"
+        exp_alerts:
+          -
+            exp_labels:
+              slice: "by_team"
+              severity: "warning"
+            exp_annotations:
+              summary: "Token-budget traffic is not attributable to a team"
+              description: "Resolve slice overflow or missing/oversized team IDs before treating team budgets as complete."
+    promql_expr_test:
+      -
+        expr: "gen_ai_token_budget:burn_rate5m"
+        eval_time: "6h"
+        exp_samples: []
+      -
+        expr: "gen_ai_token_budget:burn_rate1h"
+        eval_time: "6h"
+        exp_samples: []
+      -
+        expr: "gen_ai_token_budget:burn_rate30m"
+        eval_time: "6h"
+        exp_samples: []
+      -
+        expr: "gen_ai_token_budget:burn_rate6h"
+        eval_time: "6h"
+        exp_samples: []
+  -
+    name: "missing team is not charged to a named team"
+    interval: "1m"
+    input_series:
+      -
+        series: "gen_ai_token_budget_tokens{slice=\"by_team\",slice_value=\"team.id=platform\"}"
+        values: "2592000+0x360"
+      -
+        series: "gen_ai_sketch_total_tokens_total{job=\"otelcol-genai-sketches\",slice=\"by_team\",slice_value=\"team.id=<missing>\",overflow=\"false\",instance=\"one\"}"
+        values: "0+120000x360"
+      -
+        series: "gen_ai_sketch_requests_total{job=\"otelcol-genai-sketches\",slice=\"by_team\",slice_value=\"team.id=<missing>\",overflow=\"false\",instance=\"one\"}"
+        values: "0+1x360"
+    alert_rule_test:
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetFastBurn"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetSlowBurn"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetMissing"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetUnattributed"
+        exp_alerts:
+          -
+            exp_labels:
+              slice: "by_team"
+              severity: "warning"
+            exp_annotations:
+              summary: "Token-budget traffic is not attributable to a team"
+              description: "Resolve slice overflow or missing/oversized team IDs before treating team budgets as complete."
+    promql_expr_test:
+      -
+        expr: "gen_ai_token_budget:burn_rate5m"
+        eval_time: "6h"
+        exp_samples: []
+      -
+        expr: "gen_ai_token_budget:burn_rate1h"
+        eval_time: "6h"
+        exp_samples: []
+      -
+        expr: "gen_ai_token_budget:burn_rate30m"
+        eval_time: "6h"
+        exp_samples: []
+      -
+        expr: "gen_ai_token_budget:burn_rate6h"
+        eval_time: "6h"
+        exp_samples: []
+  -
+    name: "oversized team is not charged to a named team"
+    interval: "1m"
+    input_series:
+      -
+        series: "gen_ai_token_budget_tokens{slice=\"by_team\",slice_value=\"team.id=platform\"}"
+        values: "2592000+0x360"
+      -
+        series: "gen_ai_sketch_total_tokens_total{job=\"otelcol-genai-sketches\",slice=\"by_team\",slice_value=\"team.id=<too_long>\",overflow=\"false\",instance=\"one\"}"
+        values: "0+120000x360"
+      -
+        series: "gen_ai_sketch_requests_total{job=\"otelcol-genai-sketches\",slice=\"by_team\",slice_value=\"team.id=<too_long>\",overflow=\"false\",instance=\"one\"}"
+        values: "0+1x360"
+    alert_rule_test:
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetFastBurn"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetSlowBurn"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetMissing"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetUnattributed"
+        exp_alerts:
+          -
+            exp_labels:
+              slice: "by_team"
+              severity: "warning"
+            exp_annotations:
+              summary: "Token-budget traffic is not attributable to a team"
+              description: "Resolve slice overflow or missing/oversized team IDs before treating team budgets as complete."
+    promql_expr_test:
+      -
+        expr: "gen_ai_token_budget:burn_rate5m"
+        eval_time: "6h"
+        exp_samples: []
+      -
+        expr: "gen_ai_token_budget:burn_rate1h"
+        eval_time: "6h"
+        exp_samples: []
+      -
+        expr: "gen_ai_token_budget:burn_rate30m"
+        eval_time: "6h"
+        exp_samples: []
+      -
+        expr: "gen_ai_token_budget:burn_rate6h"
+        eval_time: "6h"
+        exp_samples: []
+  -
+    name: "no telemetry is not synthesized into zero burn"
+    interval: "1m"
+    input_series:
+      -
+        series: "gen_ai_token_budget_tokens{slice=\"by_team\",slice_value=\"team.id=platform\"}"
+        values: "2592000+0x360"
+    alert_rule_test:
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetFastBurn"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetSlowBurn"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetMissing"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetUnattributed"
+        exp_alerts: []
+    promql_expr_test:
+      -
+        expr: "gen_ai_token_budget:burn_rate5m"
+        eval_time: "6h"
+        exp_samples: []
+      -
+        expr: "gen_ai_token_budget:burn_rate1h"
+        eval_time: "6h"
+        exp_samples: []
+      -
+        expr: "gen_ai_token_budget:burn_rate30m"
+        eval_time: "6h"
+        exp_samples: []
+      -
+        expr: "gen_ai_token_budget:burn_rate6h"
+        eval_time: "6h"
+        exp_samples: []
+  -
+    name: "stale peers are excluded before team aggregation"
+    interval: "1m"
+    input_series:
+      - series: 'gen_ai_token_budget_tokens{slice="by_team",slice_value="team.id=platform"}'
+        values: "2592000+0x360"
+      - series: 'gen_ai_sketch_total_tokens_total{job="otelcol-genai-sketches",slice="by_team",slice_value="team.id=platform",overflow="false",instance="stale-peer"}'
+        values: "0+1200x350 stale _x9"
+      # The same instance with a different exporter identity must not match either.
+      - series: 'gen_ai_sketch_total_tokens_total{job="otelcol-genai-sketches",slice="by_team",slice_value="team.id=platform",overflow="false",instance="live-peer",service_instance_id="old"}'
+        values: "0+1200x350 stale _x9"
+      - series: 'gen_ai_sketch_total_tokens_total{job="otelcol-genai-sketches",slice="by_team",slice_value="team.id=platform",overflow="false",instance="live-peer",service_instance_id="new"}'
+        values: "0+60x360"
+    promql_expr_test:
+      - expr: "gen_ai_token_budget:burn_rate5m"
+        eval_time: "352m"
+        exp_samples:
+          - labels: '{__name__="gen_ai_token_budget:burn_rate5m",slice="by_team",slice_value="team.id=platform"}'
+            value: 1
+      - expr: "gen_ai_token_budget:burn_rate1h"
+        eval_time: "352m"
+        exp_samples:
+          - labels: '{__name__="gen_ai_token_budget:burn_rate1h",slice="by_team",slice_value="team.id=platform"}'
+            value: 1
+      - expr: "gen_ai_token_budget:burn_rate30m"
+        eval_time: "352m"
+        exp_samples:
+          - labels: '{__name__="gen_ai_token_budget:burn_rate30m",slice="by_team",slice_value="team.id=platform"}'
+            value: 1
+      - expr: "gen_ai_token_budget:burn_rate6h"
+        eval_time: "352m"
+        exp_samples:
+          - labels: '{__name__="gen_ai_token_budget:burn_rate6h",slice="by_team",slice_value="team.id=platform"}'
+            # Only 352 of the 360 minutes have elapsed in this first check.
+            value: 0.9777777777777777
+      - expr: "gen_ai_token_budget:burn_rate5m"
+        eval_time: "6h"
+        exp_samples:
+          - labels: '{__name__="gen_ai_token_budget:burn_rate5m",slice="by_team",slice_value="team.id=platform"}'
+            value: 1
+      - expr: "gen_ai_token_budget:burn_rate1h"
+        eval_time: "6h"
+        exp_samples:
+          - labels: '{__name__="gen_ai_token_budget:burn_rate1h",slice="by_team",slice_value="team.id=platform"}'
+            value: 1
+      - expr: "gen_ai_token_budget:burn_rate30m"
+        eval_time: "6h"
+        exp_samples:
+          - labels: '{__name__="gen_ai_token_budget:burn_rate30m",slice="by_team",slice_value="team.id=platform"}'
+            value: 1
+      - expr: "gen_ai_token_budget:burn_rate6h"
+        eval_time: "6h"
+        exp_samples:
+          - labels: '{__name__="gen_ai_token_budget:burn_rate6h",slice="by_team",slice_value="team.id=platform"}'
+            value: 1
+    alert_rule_test:
+      - {eval_time: "352m", alertname: "GenAITokenBudgetFastBurn", exp_alerts: []}
+      - {eval_time: "352m", alertname: "GenAITokenBudgetSlowBurn", exp_alerts: []}
+      - {eval_time: "6h", alertname: "GenAITokenBudgetFastBurn", exp_alerts: []}
+      - {eval_time: "6h", alertname: "GenAITokenBudgetSlowBurn", exp_alerts: []}
+  -
+    name: "stale counters cannot keep burn alerts firing"
+    interval: "1m"
+    input_series:
+      -
+        series: "gen_ai_token_budget_tokens{slice=\"by_team\",slice_value=\"team.id=platform\"}"
+        values: "2592000+0x360"
+      -
+        series: "gen_ai_sketch_total_tokens_total{job=\"otelcol-genai-sketches\",slice=\"by_team\",slice_value=\"team.id=platform\",overflow=\"false\",instance=\"one\"}"
+        values: "0+1200x350 stale _x9"
+    alert_rule_test:
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetFastBurn"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetSlowBurn"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetMissing"
+        exp_alerts: []
+      -
+        eval_time: "6h"
+        alertname: "GenAITokenBudgetUnattributed"
+        exp_alerts: []
+    promql_expr_test:
+      -
+        expr: "gen_ai_token_budget:burn_rate5m"
+        eval_time: "6h"
+        exp_samples: []
+      -
+        expr: "gen_ai_token_budget:burn_rate1h"
+        eval_time: "6h"
+        exp_samples: []
+      -
+        expr: "gen_ai_token_budget:burn_rate30m"
+        eval_time: "6h"
+        exp_samples: []
+      -
+        expr: "gen_ai_token_budget:burn_rate6h"
+        eval_time: "6h"
+        exp_samples: []

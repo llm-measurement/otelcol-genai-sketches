@@ -164,6 +164,9 @@ dashboard or log index.
 
 ## Acting On Results
 
+For a tested rule set over existing bounded team slices, see
+[Per-Team Token-Budget Burn Alerts](../examples/prometheus/token-budget/README.md).
+
 Prometheus-compatible backends can alert on token rate, tokens per request,
 missing-usage fraction, or overflow. Structured-log tooling can route top-k snapshots
 to a restricted investigation surface. Budget enforcement, loop termination, model
