@@ -54,8 +54,8 @@ github.com/inconshreveable/mousetrap v1.1.0/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLf
 github.com/kr/pretty v0.1.0/go.mod h1:dAy3ld7l9f0ibDNOQOHHMYYIIbhfbHSm3C4ZsoJORNo=
 github.com/kr/pty v1.1.1/go.mod h1:pFQYn66WHrOpPYNljwOMqo10TkYh1fy3cYio2l3bCsQ=
 github.com/kr/text v0.1.0/go.mod h1:4Jbv+DJW3UT/LiOwJeYQe1efqtUx/iVham/4vfdArNI=
-github.com/llm-measurement/llm-sketchkit v0.3.0 h1:X0/B4NCzEeaqLnZEPRZkKoj9SPkHXzFOUFCB8OPMkcU=
-github.com/llm-measurement/llm-sketchkit v0.3.0/go.mod h1:xM4wLCW5VoH5wYxJiEPl3czF+J3vRSvJcgaqsjqzuFc=
+github.com/llm-measurement/llm-sketchkit v0.4.0 h1:claC2/zMNv2B3cVBsBaY6NXbdfNMMDslN/2jKufqhRA=
+github.com/llm-measurement/llm-sketchkit v0.4.0/go.mod h1:e1E6q3IOTy7EzIdkYodgttzwWtCv5BKnncqctGX/Kvo=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq1c1nUAm88MOHcQC9l5mIlSMApZMrHA=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
 github.com/otiai10/copy v1.14.1 h1:5/7E6qsUMBaH5AnQ0sSLzzTg1oTECmcCmT6lvF45Na8=

@@ -2,6 +2,20 @@
 
 Notable user-visible changes are recorded here.
 
+## v0.4.0 / Helm chart 0.4.0 - 2026-10-16
+
+See the [release notes](docs/releases/v0.4.0.md). Upgrade fleetdiff readers to
+v0.10.0 before enabling the optional model-usage export.
+
+- Export bounded per-model input, output and cache components with request
+  coverage, joint complete cohorts and versioned per-request input histograms.
+- Require an explicit approved public model map and compatible contract ID.
+  Preserve atomic batch updates, bounded retention and cumulative replay rules.
+- Keep the new block off by default; existing metric and disabled-summary
+  behavior remains unchanged.
+- Publish a checksummed, attested OpenVEX assessment for GO-2026-5932 without
+  suppressing the module-level warning from stripped-binary scans.
+
 ## v0.3.3 / Helm chart 0.3.5 - 2026-10-15
 
 See the [release notes](docs/releases/v0.3.3.md). Chart 0.3.5 selects

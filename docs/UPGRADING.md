@@ -55,6 +55,27 @@ known window boundary, record the event, and allow old windows to expire.
 
 ## Compatibility
 
+### Per-Model Summaries In v0.4.0
+
+Upgrade every fleetdiff reader to v0.10.0 or later before enabling
+`summary_export.model_usage` (Helm `summaryExport.modelUsage.enabled`). The option
+is absent/off by default. Disabled exports retain their bytes and base accounting
+fingerprint. Enabled exports carry a separate contract binding the approved model
+map and routing; incompatible contracts or mixed enabled/disabled inputs fail.
+See [Per-Model Summary Splits](MODEL_USAGE_SUMMARIES.md) for the version matrix,
+coverage rules and expected-contract setup.
+
+Collector v0.4.0 uses sketchkit v0.4.0. This does not add an identity migration
+to the v0.3.3 distribution or standalone connector: x/text v0.42.0 and v0.43.0
+normalization sources are identical, and the identity corpora remain unchanged.
+Builds upgrading from earlier normalization versions still follow the migration
+instructions below.
+
+To roll back, disable the producer option before restoring an older binary and
+keep the new files with a compatible reader. Do not remove the extension from
+files to force compatibility. Keep enabled and disabled collection windows
+separate; enabling the option does not create historical per-model splits.
+
 ### Sketchkit 0.3.0 In This Source Candidate
 
 Collector v0.3.3 adopts llm-sketchkit v0.3.0 in both modules. Published v0.3.2
@@ -118,8 +139,8 @@ sketchkit v0.3.0 is a separate upgrade requiring the
 
 ### Feature Availability
 
-Use collector v0.3.3 and chart 0.3.5 for the current fixes; see the
-[release notes](releases/v0.3.3.md) and [verified installation](DEPLOYMENT.md).
+Use collector v0.4.0 and chart 0.4.0 for the current fixes; see the
+[release notes](releases/v0.4.0.md) and [verified installation](DEPLOYMENT.md).
 The table records when each capability first became available, not a
 recommendation to deploy an older release.
 
@@ -132,6 +153,7 @@ recommendation to deploy an older release.
 | Optional warning rules for unusual attempts, tokens per attempt, and coverage | Chart 0.3.1 | [Alerts](ALERTING.md) |
 | Summary storage, read-only reader, and JSON logging values | Chart 0.3.2 | [Summary export](SUMMARY_EXPORT_HELM.md) |
 | Local `scan` over retained windows and static config `diagnose` | fleetdiff v0.5.0 | [Scan and history retention](https://github.com/llm-measurement/fleetdiff/blob/main/docs/SCAN.md) |
+| Opt-in per-model component summaries and local repricing | Collector v0.4.0, fleetdiff v0.10.0 | [Per-model summaries](MODEL_USAGE_SUMMARIES.md) |
 
 Distinct gauges describe the current window. For a longer period, merge compatible
 summary state rather than adding gauges. Collect new ranking fields for complete
@@ -161,8 +183,8 @@ The chart rejects conflicting storage choices. The reader requires export enable
 
 Use one writer, one replica, and `Recreate`. A PVC retains files, not sketch state;
 every restart begins a new epoch and may leave partial windows. Export retention
-also deletes expired files from earlier epochs. Use 16 retained windows with
-`scan --baseline 6` as an initial history budget, not a memory-sizing guarantee.
+also deletes expired files from earlier epochs. Use 32 retained windows with
+the scan's default 24-window baseline as an initial history budget, not a memory-sizing guarantee.
 Archive needed closed windows before rollout or expiration; do not mix epochs or
 partial windows in the simple readback workflow.
 

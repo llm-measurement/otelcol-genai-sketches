@@ -245,6 +245,8 @@ func (cfg *Config) Validate() error {
 	errs = append(errs, validateFields(cfg.Fields))
 	errs = append(errs, validateTokenSources(cfg.Weights))
 	errs = append(errs, cfg.SummaryExport.Validate(cfg.WindowDuration))
+	_, modelUsageErr := compileModelUsage(cfg)
+	errs = append(errs, modelUsageErr)
 	if cfg.SummaryExport.Directory != "" && cfg.RetentionWindows < 2 {
 		errs = append(errs, errors.New("summary_export requires retention_windows >= 2 to retain completed windows"))
 	}

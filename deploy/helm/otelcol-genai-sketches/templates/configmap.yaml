@@ -1,5 +1,27 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{/* Code authors: Vijay and Codex */}}
+{{- if .Values.summaryExport.modelUsage.enabled }}
+{{- if not .Values.summaryExport.enabled }}
+{{- fail "summaryExport.modelUsage requires summaryExport.enabled=true" }}
+{{- end }}
+{{- $selected := 0 }}
+{{- range .Values.connector.slices }}
+{{- if eq .name $.Values.summaryExport.modelUsage.slice }}
+{{- $selected = add1 $selected }}
+{{- if not (deepEqual .keys (list "gen_ai.request.model")) }}
+{{- fail "summaryExport.modelUsage.slice must select a model-only connector slice" }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- if ne (int $selected) 1 }}
+{{- fail "summaryExport.modelUsage.slice must select exactly one existing connector slice" }}
+{{- end }}
+{{- range $observed, $_ := .Values.summaryExport.modelUsage.models }}
+{{- if gt (len $observed) 256 }}
+{{- fail "summaryExport.modelUsage model aliases must be at most 256 bytes" }}
+{{- end }}
+{{- end }}
+{{- end }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -83,6 +105,11 @@ data:
           scope_id: {{ .Values.summaryExport.scopeID | quote }}
           key_id: {{ .Values.summaryExport.keyID | quote }}
           interval: {{ .Values.summaryExport.interval | quote }}
+          {{- if .Values.summaryExport.modelUsage.enabled }}
+          model_usage:
+            slice: {{ .Values.summaryExport.modelUsage.slice | quote }}
+            models: {{ .Values.summaryExport.modelUsage.models | toJson }}
+          {{- end }}
         {{- end }}
 
     exporters:
