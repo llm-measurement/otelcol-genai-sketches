@@ -2,6 +2,15 @@
 
 Notable user-visible changes are recorded here.
 
+## v0.4.1 / Helm chart 0.4.1 - 2026-10-16
+
+See the [release notes](docs/releases/v0.4.1.md). Completes the per-model summary
+release with signed images, chart and attested OpenVEX evidence. Release tooling
+extracts each architecture by its own immutable platform digest, avoiding a
+Docker image-store collision. Runtime processing and the model-usage format are
+unchanged from v0.4.0. The earlier image and tag are retained; its chart and
+release assets were not published.
+
 ## v0.4.0 / Helm chart 0.4.0 - 2026-10-16
 
 See the [release notes](docs/releases/v0.4.0.md). Upgrade fleetdiff readers to

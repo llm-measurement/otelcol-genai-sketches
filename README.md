@@ -99,8 +99,8 @@ pin immutable digests, configure the hashing secret, and start the collector.
 
 | Artifact | Released version | Reference |
 | --- | --- | --- |
-| Collector image | `v0.4.0` | `ghcr.io/llm-measurement/otelcol-genai-sketches` |
-| Helm chart | `0.4.0` | `oci://ghcr.io/llm-measurement/charts/otelcol-genai-sketches` |
+| Collector image | `v0.4.1` | `ghcr.io/llm-measurement/otelcol-genai-sketches` |
+| Helm chart | `0.4.1` | `oci://ghcr.io/llm-measurement/charts/otelcol-genai-sketches` |
 
 The image supports Linux amd64 and arm64. For Kubernetes, the deployment guide
 includes the verified chart install and an existing-Secret configuration.

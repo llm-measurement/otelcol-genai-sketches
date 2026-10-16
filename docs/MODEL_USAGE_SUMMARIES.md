@@ -7,7 +7,7 @@ or invalid detail. Existing metrics and base summary accounting are unchanged.
 
 ## Enable After Upgrading Readers
 
-Available in collector v0.4.0 and chart 0.4.0. Upgrade every summary reader to
+Available in collector v0.4.1 and chart 0.4.1. Upgrade every summary reader to
 fleetdiff v0.10.0 or later, with support for `model_usage` version 1 and
 `input-tiers-v1`, before enabling it. Older readers reject the added block.
 Keep the option absent during a rolling reader
@@ -145,7 +145,7 @@ count its already-processed prefix.
 | --- | --- | --- |
 | Option absent | Existing Summary Exchange v1 | Original bytes and accounting contract |
 | Option enabled | Reader without model-usage support | Rejected; upgrade reader before opt-in |
-| Collector v0.4.0, option enabled | fleetdiff v0.10.0+ | Validated model-usage v1/input-tiers-v1 splits and coverage |
+| Collector v0.4.1, option enabled | fleetdiff v0.10.0+ | Validated model-usage v1/input-tiers-v1 splits and coverage |
 | Mixed option/contract settings | Any upgraded reader | Rejected as incompatible |
 
 ## Limits
