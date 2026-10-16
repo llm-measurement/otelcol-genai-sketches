@@ -2,41 +2,39 @@
 
 Notable user-visible changes are recorded here.
 
-## Unreleased
-
-- Identity change: standalone connector builds move from x/text v0.41.0 to
-  v0.42.0 with llm-sketchkit v0.3.0. Eight pinned U+11F41 combining-mark cases
-  change canonical bytes and hashes; the historical corpus is preserved.
-  The distribution moves from v0.42.0 to v0.43.0 with no change in its 8,254
-  pinned identities. Upgrade affected standalone producers at a window boundary;
-  keep old/new summaries separate or rebuild from legitimate original inputs
-  using one normalizer and the original key. Wire formats and accounting IDs
-  do not detect the identity boundary. See [Upgrading](docs/UPGRADING.md#sketchkit-030-in-this-source-candidate).
-- Adopt the combined runtime dependency updates, including Prometheus common
-  v0.72.1. Sketchkit v0.3.0 rejects nonempty zero-length observation intervals
-  and protobuf groups without changing canonical wire encodings. Fixed-clock
-  export tests cover explicit rejection, preserved valid files and retry after
-  time advances. No runtime version or release date is assigned here.
-
 ## v0.3.3 / Helm chart 0.3.5 - TAGDAY (pending)
 
 Unreleased review candidate; see the [draft release notes](docs/releases/v0.3.3.md).
 Before tagging, replace `TAGDAY (pending)` with the actual tag-day date in
-`YYYY-MM-DD` format and resolve the prerequisites listed in those notes.
+`YYYY-MM-DD` format.
 Collector v0.3.2 / chart 0.3.4 remains the released install pair.
 
-- Pending [PR #85](https://github.com/llm-measurement/otelcol-genai-sketches/pull/85):
-  verify `SHA256SUMS` and `sbom-index.json` with build-provenance attestations
+- Verify `SHA256SUMS` and `sbom-index.json` with build-provenance attestations
   and a downloadable `provenance.jsonl` bundle. Check both subjects against the
   release workflow and exact tag before metadata upload.
-- Pending the separate documentation change: follow deployment, summary export,
-  and LiteLLM guides aligned with fleetdiff v0.8.0; retain 32 example windows
+- Follow deployment, summary export, and LiteLLM guides aligned with fleetdiff
+  v0.8.0; retain 32 example windows
   for a 24-window baseline and two recent windows.
-- Include the merged OpenInference / OpenLLMetry normalization recipe and
-  source-specific own-traffic guidance. See the draft release notes for the
-  recipe's tested scope and release prerequisites.
+- Connect OpenInference / OpenLLMetry trace sources with the normalization
+  recipe and source-specific own-traffic guidance. See the draft release notes
+  for the recipe's tested scope.
+- Keep the previous valid summary file when repeated export of nonempty
+  observations within the same clock tick at startup or a new-window boundary
+  fails explicitly; export retained measurements after time advances.
+  llm-sketchkit v0.3.0 also rejects protobuf groups without changing canonical
+  encodings. Runtime dependencies include Prometheus common v0.72.1.
 - Prepare collector and connector build metadata for v0.3.3 and chart 0.3.5,
   whose appVersion selects collector 0.3.3.
+
+### Limits
+
+- Identity change: standalone/custom builds moving from x/text v0.41.0 to
+  v0.42.0 change eight of 8,254 pinned identities for U+11F41 combining-mark
+  cases. Upgrade affected producers at a window boundary and keep old/new
+  windows separate; follow the
+  [migration procedure](docs/UPGRADING.md#sketchkit-030-in-this-source-candidate).
+  The distribution moves from v0.42.0 to v0.43.0 with all 8,254 unchanged.
+  Wire formats and accounting IDs cannot detect this boundary.
 
 ## v0.3.2 / Helm chart 0.3.4 - 2026-10-11
 
