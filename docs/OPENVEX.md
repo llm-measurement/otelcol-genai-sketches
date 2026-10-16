@@ -1,6 +1,6 @@
 # Release OpenVEX
 
-Collector v0.4.0 adds `openvex.json` and `vex-linux-{amd64,arm64}.json`
+Collector v0.4.1 adds `openvex.json` and `vex-linux-{amd64,arm64}.json`
 to its release assets. Verify the published files before using the assessment.
 Earlier releases do not acquire it retroactively.
 

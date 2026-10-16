@@ -246,12 +246,22 @@ jobs:
           DOCKERFILE
           container=
           trap 'if [[ -n "$container" ]]; then docker rm -f "$container"; fi' EXIT
+          image_index="$(docker buildx imagetools inspect "${IMAGE_NAME}@${DIGEST}" --raw)"
           for arch in amd64 arm64; do
+            # Classic Docker cannot load two platforms under one index digest.
+            child_digest="$(jq -er --arg arch "$arch" '
+              [.manifests[] | select(.platform.os == "linux" and .platform.architecture == $arch)]
+              | if length != 1 then error("expected one Linux platform manifest") else .[0].digest end
+              | if type != "string" then error("invalid platform digest")
+                elif length == 71 and test("^sha256:[0-9a-f]{64}$") then .
+                else error("invalid platform digest") end
+            ' <<<"$image_index")"
+            child_ref="${IMAGE_NAME}@${child_digest}"
             docker buildx build --platform "linux/$arch" --target vex-export \
               --build-arg "VERSION=$VERSION" --file .cache/vex.Dockerfile \
               --output type=local,dest=release .
-            docker pull --platform "linux/$arch" "${IMAGE_NAME}@${DIGEST}"
-            container="$(docker create --platform "linux/$arch" "${IMAGE_NAME}@${DIGEST}")"
+            docker pull --platform "linux/$arch" "$child_ref"
+            container="$(docker create --platform "linux/$arch" "$child_ref")"
             docker cp "$container:/otelcol-genai-sketches" ".cache/vex-binaries/collector-linux-$arch"
             docker rm "$container"
             container=

@@ -55,7 +55,7 @@ known window boundary, record the event, and allow old windows to expire.
 
 ## Compatibility
 
-### Per-Model Summaries In v0.4.0
+### Per-Model Summaries In v0.4.1
 
 Upgrade every fleetdiff reader to v0.10.0 or later before enabling
 `summary_export.model_usage` (Helm `summaryExport.modelUsage.enabled`). The option
@@ -65,7 +65,7 @@ map and routing; incompatible contracts or mixed enabled/disabled inputs fail.
 See [Per-Model Summary Splits](MODEL_USAGE_SUMMARIES.md) for the version matrix,
 coverage rules and expected-contract setup.
 
-Collector v0.4.0 uses sketchkit v0.4.0. This does not add an identity migration
+Collector v0.4.1 uses sketchkit v0.4.0. This does not add an identity migration
 to the v0.3.3 distribution or standalone connector: x/text v0.42.0 and v0.43.0
 normalization sources are identical, and the identity corpora remain unchanged.
 Builds upgrading from earlier normalization versions still follow the migration
@@ -139,8 +139,8 @@ sketchkit v0.3.0 is a separate upgrade requiring the
 
 ### Feature Availability
 
-Use collector v0.4.0 and chart 0.4.0 for the current fixes; see the
-[release notes](releases/v0.4.0.md) and [verified installation](DEPLOYMENT.md).
+Use collector v0.4.1 and chart 0.4.1 for the current fixes; see the
+[release notes](releases/v0.4.1.md) and [verified installation](DEPLOYMENT.md).
 The table records when each capability first became available, not a
 recommendation to deploy an older release.
 
@@ -153,7 +153,7 @@ recommendation to deploy an older release.
 | Optional warning rules for unusual attempts, tokens per attempt, and coverage | Chart 0.3.1 | [Alerts](ALERTING.md) |
 | Summary storage, read-only reader, and JSON logging values | Chart 0.3.2 | [Summary export](SUMMARY_EXPORT_HELM.md) |
 | Local `scan` over retained windows and static config `diagnose` | fleetdiff v0.5.0 | [Scan and history retention](https://github.com/llm-measurement/fleetdiff/blob/main/docs/SCAN.md) |
-| Opt-in per-model component summaries and local repricing | Collector v0.4.0, fleetdiff v0.10.0 | [Per-model summaries](MODEL_USAGE_SUMMARIES.md) |
+| Opt-in per-model component summaries and local repricing | Collector v0.4.1, fleetdiff v0.10.0 | [Per-model summaries](MODEL_USAGE_SUMMARIES.md) |
 
 Distinct gauges describe the current window. For a longer period, merge compatible
 summary state rather than adding gauges. Collect new ranking fields for complete

@@ -12,12 +12,12 @@ ROOT = Path(__file__).resolve().parents[1]
 class InstallPairDocsTests(unittest.TestCase):
     def test_readme_pair(self):
         source = (ROOT / "README.md").read_text()
-        self.assertIn("| Collector image | `v0.4.0` |", source)
-        self.assertIn("| Helm chart | `0.4.0` |", source)
+        self.assertIn("| Collector image | `v0.4.1` |", source)
+        self.assertIn("| Helm chart | `0.4.1` |", source)
 
     def test_standalone_connector_pin(self):
         source = (ROOT / "connector/genaisketchconnector/README.md").read_text()
-        self.assertIn("gomod: github.com/llm-measurement/otelcol-genai-sketches/connector/genaisketchconnector v0.4.0", source)
+        self.assertIn("gomod: github.com/llm-measurement/otelcol-genai-sketches/connector/genaisketchconnector v0.4.1", source)
         self.assertIn("../../docs/UPGRADING.md#sketchkit-030-in-this-source-candidate", source)
 
     def test_api_verification_requires_signed_in_cli(self):
@@ -26,12 +26,12 @@ class InstallPairDocsTests(unittest.TestCase):
 
     def test_both_artifacts_use_the_runtime_release_identity(self):
         source = (ROOT / "docs/DEPLOYMENT.md").read_text()
-        self.assertIn("\nRELEASE=v0.4.0\n", source)
-        self.assertIn("\nCHART_RELEASE=v0.4.0\nCHART_VERSION=0.4.0\n", source)
+        self.assertIn("\nRELEASE=v0.4.1\n", source)
+        self.assertIn("\nCHART_RELEASE=v0.4.1\nCHART_VERSION=0.4.1\n", source)
         for variable in ("RELEASE", "CHART_RELEASE"):
             identity = f".github/workflows/release.yml@refs/tags/${{{variable}}}"
             self.assertEqual(source.count(identity), 2)
-        self.assertNotIn("chart-v0.4.0", source)
+        self.assertNotIn("chart-v0.4.1", source)
         self.assertNotIn("chart-release.yml", source)
 
     def test_metadata_is_authenticated_before_checksums(self):
@@ -45,13 +45,13 @@ class InstallPairDocsTests(unittest.TestCase):
     def test_summary_guide_pins_source_chart_and_verified_image(self):
         source = (ROOT / "docs/SUMMARY_EXPORT_HELM.md").read_text()
         install, validation = source.split("## Validation", 1)
-        self.assertIn("--branch v0.4.0", install)
-        self.assertEqual(install.count("--version 0.4.0"), 2)
+        self.assertIn("--branch v0.4.1", install)
+        self.assertEqual(install.count("--version 0.4.1"), 2)
         self.assertEqual(install.count('--set-string image.digest="${DIGEST:?'), 2)
         self.assertIn("**32 one-minute windows**", install)
         self.assertIn("**26 complete windows**", install)
         self.assertIn("collector v0.3.2 and fleetdiff v0.5.0", validation)
-        self.assertNotIn("v0.4.0", validation)
+        self.assertNotIn("v0.4.1", validation)
 
     def test_install_shell_blocks_parse_without_execution(self):
         for name in ("DEPLOYMENT.md", "SUMMARY_EXPORT_HELM.md"):
