@@ -8,13 +8,13 @@ filesystem, contains no shell, and uses pinned build and runtime base images.
 The example Compose stack remains a demonstration. Use the production image or Helm
 chart for a persistent environment.
 
-The commands below select the released collector **v0.3.2** and chart **0.3.4**.
+The commands below select the released collector **v0.3.3** and chart **0.3.5**.
 Chart and collector versions advance independently.
 
 ## Verify An Image
 
 Prerequisites: Docker with Buildx, curl, [cosign](https://docs.sigstore.dev/cosign/system_config/installation/),
-and the GitHub CLI (`gh`, for attestation verification and release downloads).
+and the GitHub CLI (`gh`, signed in for OCI provenance API checks and release downloads).
 Helm and kubectl are needed only for the Kubernetes path; OpenSSL generates the
 example hashing secret. Verification commands require network access to the
 release and signature metadata.
@@ -24,7 +24,7 @@ Use an immutable digest from the GitHub release, not a mutable tag:
 Fetch the references from that release's published metadata:
 
 ```bash
-RELEASE=v0.3.2
+RELEASE=v0.3.3
 IMAGE_REF="$(curl -fsSL \
   "https://github.com/llm-measurement/otelcol-genai-sketches/releases/download/${RELEASE}/image-digest.txt")"
 IMAGE="${IMAGE_REF%@*}"
@@ -42,13 +42,13 @@ gh attestation verify "oci://$IMAGE@$DIGEST" \
   --source-ref "refs/tags/${RELEASE}" --deny-self-hosted-runners
 ```
 
-Chart 0.3.4 includes summary storage and readback alongside opt-in warning rules,
-and defaults to collector image 0.3.2. Both artifacts were published, signed and
-attested by the v0.3.2 release workflow. Verify the chart's immutable reference too:
+Chart 0.3.5 includes summary storage and readback alongside opt-in warning rules,
+and defaults to collector image 0.3.3. Both artifacts are published, signed and
+attested by `release.yml` at `refs/tags/v0.3.3`. Verify the chart's immutable reference too:
 
 ```bash
-CHART_RELEASE=v0.3.2
-CHART_VERSION=0.3.4
+CHART_RELEASE=v0.3.3
+CHART_VERSION=0.3.5
 CHART_REF="$(curl -fsSL \
   "https://github.com/llm-measurement/otelcol-genai-sketches/releases/download/${CHART_RELEASE}/chart-digest.txt")"
 CHART="${CHART_REF%@*}"
@@ -74,28 +74,30 @@ docker buildx imagetools inspect "$IMAGE@$DIGEST" --format '{{ json .Provenance 
 ```
 
 Runtime releases carry image and chart digests, an SBOM index export, a packaged
-chart, and checksums. Chart-only releases carry the chart, its digest, and
-checksums without rebuilding the image. Verify each release in a separate directory:
+chart, and checksums. Collector v0.3.3 also includes `provenance.jsonl` for
+`SHA256SUMS` and `sbom-index.json`. Verify those metadata subjects before checking
+the downloaded files. The image and chart share this release and signing identity:
 
 ```bash
 mkdir -p release-assets
 gh release download "$RELEASE" \
   --repo llm-measurement/otelcol-genai-sketches \
   --dir release-assets
-(cd release-assets && sha256sum --check SHA256SUMS)
-mkdir -p chart-assets
-gh release download "$CHART_RELEASE" \
-  --repo llm-measurement/otelcol-genai-sketches \
-  --dir chart-assets
-(cd chart-assets && sha256sum --check SHA256SUMS)
+for subject in SHA256SUMS sbom-index.json; do
+  gh attestation verify "release-assets/$subject" \
+    --bundle release-assets/provenance.jsonl \
+    --repo llm-measurement/otelcol-genai-sketches \
+    --signer-workflow llm-measurement/otelcol-genai-sketches/.github/workflows/release.yml \
+    --source-ref "refs/tags/${RELEASE}" --deny-self-hosted-runners
+done
+(cd release-assets && shasum -a 256 -c SHA256SUMS)
 ```
 
 Verification checks the digest's signature and provenance against this repository's
 release workflow and tag. Review runtime configuration and workload sizing separately.
-The v0.3.2 checksums check file integrity; they are not independent authentication
-of `SHA256SUMS` or `sbom-index.json`. That release has no detached
-`provenance.jsonl` bundle for those two files. Keep the image and chart verification
-steps above when using its metadata.
+The checksum check establishes file integrity; the preceding attestation checks
+authenticate the checksum manifest and SBOM index. Keep the image and chart
+signature and provenance checks above as well.
 The image includes the project license and collected third-party notices under
 `/licenses`.
 
@@ -170,7 +172,7 @@ It exports complete state for local combination across independent collectors;
 it does not make Prometheus able to merge sketches. Chart **0.3.2** adds opt-in
 summary storage, a read-only reader sidecar, and independent JSON logging.
 [Summary Export With Helm](SUMMARY_EXPORT_HELM.md) walks through copy,
-investigate, and scan with the v0.3.2 collector image.
+investigate, and scan with the v0.3.3 collector image.
 
 The chart's `connector.topKKeys` passes through the optional
 key list; its default `[]` omits `topk_keys` and preserves prompt-only ranking.

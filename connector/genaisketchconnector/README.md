@@ -39,11 +39,15 @@ manifest:
 
 ```yaml
 connectors:
-  - gomod: github.com/llm-measurement/otelcol-genai-sketches/connector/genaisketchconnector v0.3.2
+  - gomod: github.com/llm-measurement/otelcol-genai-sketches/connector/genaisketchconnector v0.3.3
 ```
 
 Use `genaisketch` as a traces-pipeline exporter and a metrics-pipeline receiver,
 as shown below.
+
+Before upgrading a custom build, review the
+[standalone identity migration](../../docs/UPGRADING.md#sketchkit-030-in-this-source-candidate)
+for retained summary windows.
 
 ## Configuration
 
