@@ -217,6 +217,50 @@ jobs:
           docker buildx imagetools inspect "${IMAGE_NAME}@${DIGEST}" \
             --format '{{ json .SBOM }}' > release/sbom-index.json
 
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.26.9"
+          cache: false
+
+      - name: Verify exact Linux import graphs and generate OpenVEX
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          mkdir -p .cache/vex-binaries
+          # Extend the same build stage without changing the shipped image.
+          cp packaging/docker/Dockerfile .cache/vex.Dockerfile
+          cat >> .cache/vex.Dockerfile <<'DOCKERFILE'
+
+          FROM build AS vex-evidence
+          ARG TARGETARCH
+          COPY scripts/release-vex/main.go /vex/main.go
+          RUN --mount=type=cache,target=/go/pkg/mod \
+              --mount=type=cache,target=/root/.cache/go-build \
+              mkdir /vex-evidence && \
+              GOWORK=off go run /vex/main.go collect \
+                --dist /out --manifest /tmp/builder.yaml --arch "$TARGETARCH" \
+                --version "v${VERSION#v}" --out "/vex-evidence/vex-linux-${TARGETARCH}.json"
+          FROM scratch AS vex-export
+          COPY --from=vex-evidence /vex-evidence/ /
+          DOCKERFILE
+          container=
+          trap 'if [[ -n "$container" ]]; then docker rm -f "$container"; fi' EXIT
+          for arch in amd64 arm64; do
+            docker buildx build --platform "linux/$arch" --target vex-export \
+              --build-arg "VERSION=$VERSION" --file .cache/vex.Dockerfile \
+              --output type=local,dest=release .
+            docker pull --platform "linux/$arch" "${IMAGE_NAME}@${DIGEST}"
+            container="$(docker create --platform "linux/$arch" "${IMAGE_NAME}@${DIGEST}")"
+            docker cp "$container:/otelcol-genai-sketches" ".cache/vex-binaries/collector-linux-$arch"
+            docker rm "$container"
+            container=
+          done
+          GOWORK=off go run ./scripts/release-vex generate \
+            --version "${GITHUB_REF_NAME}" --image "${IMAGE_NAME}@${DIGEST}" \
+            --timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --evidence release --binaries .cache/vex-binaries --out release/openvex.json
+
       - name: Set up Helm
         uses: Azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
@@ -246,7 +290,7 @@ jobs:
             --certificate-identity "https://github.com/${GITHUB_REPOSITORY}/.github/workflows/release.yml@${GITHUB_REF}" \
             --certificate-oidc-issuer https://token.actions.githubusercontent.com \
             "${CHART_NAME}@${chart_digest}"
-          (cd release && sha256sum image-digest.txt chart-digest.txt sbom-index.json *.tgz > SHA256SUMS)
+          (cd release && sha256sum image-digest.txt chart-digest.txt sbom-index.json openvex.json vex-linux-*.json *.tgz > SHA256SUMS)
 
       - name: Attest Helm chart provenance
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
@@ -258,13 +302,14 @@ jobs:
       - name: Verify release metadata checksums
         run: cd release && sha256sum -c SHA256SUMS
 
-      - name: Attest release checksums and SBOM index provenance
+      - name: Attest release checksums, SBOM index, and OpenVEX provenance
         id: attest-metadata
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
         with:
           subject-path: |
             release/SHA256SUMS
             release/sbom-index.json
+            release/openvex.json
 
       - name: Verify release metadata provenance
         env:
@@ -274,7 +319,7 @@ jobs:
           BUNDLE: ${{ steps.attest-metadata.outputs.bundle-path }}
         run: |
           cp "$BUNDLE" release/provenance.jsonl
-          for subject in release/SHA256SUMS release/sbom-index.json; do
+          for subject in release/SHA256SUMS release/sbom-index.json release/openvex.json; do
             gh attestation verify "$subject" --repo "$GH_REPO" --bundle release/provenance.jsonl \
               --signer-workflow "$GH_REPO/.github/workflows/release.yml" \
               --source-ref "refs/tags/$TAG" --deny-self-hosted-runners

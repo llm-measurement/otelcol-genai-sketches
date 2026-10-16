@@ -30,11 +30,12 @@ var summaryTemporaryName = regexp.MustCompile(`^(\.[0-9]{20}-[a-f0-9]{32}\.json-
 // SummaryExportConfig enables an opt-in, private, bounded file export. Identity
 // scope is configured by the operator, never taken from untrusted span labels.
 type SummaryExportConfig struct {
-	Directory  string        `mapstructure:"directory"`
-	ProducerID string        `mapstructure:"producer_id"`
-	ScopeID    string        `mapstructure:"scope_id"`
-	KeyID      string        `mapstructure:"key_id"`
-	Interval   time.Duration `mapstructure:"interval"`
+	Directory  string            `mapstructure:"directory"`
+	ProducerID string            `mapstructure:"producer_id"`
+	ScopeID    string            `mapstructure:"scope_id"`
+	KeyID      string            `mapstructure:"key_id"`
+	Interval   time.Duration     `mapstructure:"interval"`
+	ModelUsage *ModelUsageConfig `mapstructure:"model_usage"`
 }
 
 func (cfg SummaryExportConfig) Validate(window time.Duration) error {
@@ -51,14 +52,15 @@ func (cfg SummaryExportConfig) Validate(window time.Duration) error {
 }
 
 type summaryExporter struct {
-	root          *os.Root
-	cfg           SummaryExportConfig
-	accountingID  string
-	epoch         string
-	started       time.Time
-	lastExport    time.Time
-	sequence      uint64
-	topKContracts []string
+	root               *os.Root
+	cfg                SummaryExportConfig
+	accountingID       string
+	epoch              string
+	started            time.Time
+	lastExport         time.Time
+	sequence           uint64
+	topKContracts      []string
+	modelUsageContract string
 }
 
 func newSummaryExporter(cfg *Config, now time.Time) (*summaryExporter, error) {
@@ -126,7 +128,15 @@ func newSummaryExporter(cfg *Config, now time.Time) (*summaryExporter, error) {
 		return nil, err
 	}
 	digest := sha256.Sum256(encoded)
-	return &summaryExporter{root: root, cfg: cfg.SummaryExport, accountingID: "genai-accounting-v1:" + hex.EncodeToString(digest[:]), epoch: hex.EncodeToString(epoch), started: now, topKContracts: contracts}, nil
+	e := &summaryExporter{root: root, cfg: cfg.SummaryExport, accountingID: "genai-accounting-v1:" + hex.EncodeToString(digest[:]), epoch: hex.EncodeToString(epoch), started: now, topKContracts: contracts}
+	if cfg.SummaryExport.ModelUsage != nil {
+		e.modelUsageContract, err = modelUsageContract(cfg, e.accountingID)
+		if err != nil {
+			_ = root.Close()
+			return nil, err
+		}
+	}
+	return e, nil
 }
 
 func (s *collectorState) summaryDocuments(e *summaryExporter, now time.Time) ([]summary.Envelope, error) {
@@ -158,6 +168,9 @@ func (s *collectorState) summaryDocuments(e *summaryExporter, now time.Time) ([]
 		doc := summary.Envelope{Version: 1, Sequence: e.sequence, ProducerID: e.cfg.ProducerID, Epoch: e.epoch, ScopeID: e.cfg.ScopeID, KeyID: e.cfg.KeyID, AccountingID: e.accountingID, WindowStart: windowStart, WindowDuration: s.cfg.windowDuration.Nanoseconds(), ObservedStart: max(windowStart, e.started.UnixNano()), ObservedEnd: min(windowStart+s.cfg.windowDuration.Nanoseconds(), now.UnixNano()), EmittedAt: now.UnixNano(), Counters: window.counters.export(), Sketches: sketches}
 		for _, contract := range e.topKContracts {
 			doc.Counters[contract] = 0
+		}
+		if e.modelUsageContract != "" {
+			doc.ModelUsage = modelUsageBlock(e.modelUsageContract, window.modelUsage)
 		}
 		documents = append(documents, doc)
 	}

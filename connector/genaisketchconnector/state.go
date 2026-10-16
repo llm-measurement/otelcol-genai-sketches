@@ -17,6 +17,7 @@ import (
 	sketchfi "github.com/llm-measurement/llm-sketchkit/go/sketchkit/frequentitems"
 	sketchhash "github.com/llm-measurement/llm-sketchkit/go/sketchkit/hash"
 	"github.com/llm-measurement/llm-sketchkit/go/sketchkit/hllpp"
+	"github.com/llm-measurement/llm-sketchkit/go/sketchkit/modelusage"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -63,6 +64,7 @@ type runtimeConfig struct {
 	requestIDAttrs       []string
 	mcpEnabled           bool
 	toolErrors           bool
+	modelUsage           *compiledModelUsage
 }
 
 type compiledField struct {
@@ -81,6 +83,7 @@ type collectorState struct {
 	overflows  map[string]*sliceState
 	nextLRUSeq int64
 	summary    *sliceState
+	batchOwned map[*sliceState]bool
 }
 
 type sliceState struct {
@@ -125,6 +128,8 @@ type windowState struct {
 	topKeys              []*sketchfi.Sketch
 	topToolErrors        *sketchfi.Sketch
 	dedupRequests        *sketchbloom.Sketch
+	modelUsage           map[string]modelusage.Model
+	modelUsageBytes      int
 }
 
 type TopKSnapshot struct {
@@ -317,6 +322,10 @@ func compileRuntimeConfig(cfg *Config) (runtimeConfig, error) {
 	if err := validateRuntimeFields(runtimeCfg); err != nil {
 		return runtimeConfig{}, err
 	}
+	runtimeCfg.modelUsage, err = compileModelUsage(cfg)
+	if err != nil {
+		return runtimeConfig{}, err
+	}
 	return runtimeCfg, nil
 }
 
@@ -331,11 +340,19 @@ func (s *collectorState) ConsumeTraces(_ context.Context, traces ptrace.Traces) 
 	if !relevant {
 		return pmetric.Metrics{}, false, nil
 	}
-	_, err = s.visitRelevantSpans(traces, func(data spanData, update spanUpdate) error {
-		return s.applySpan(data, update, now, windowStart)
+	working := s
+	if s.cfg.modelUsage != nil {
+		working = s.modelUsageBatch()
+	}
+	_, err = working.visitRelevantSpans(traces, func(data spanData, update spanUpdate) error {
+		return working.applySpan(data, update, now, windowStart)
 	})
 	if err != nil {
 		return pmetric.Metrics{}, false, err
+	}
+	if working != s {
+		working.batchOwned = nil
+		*s = *working
 	}
 
 	return s.buildMetrics(now), true, nil
@@ -799,6 +816,10 @@ func (s *sliceState) newWindow(owner *collectorState) (*windowState, error) {
 	}
 	if s == owner.summary {
 		window.counters = &accountingCounters{}
+		if owner.cfg.modelUsage != nil {
+			window.modelUsage = make(map[string]modelusage.Model)
+			window.modelUsageBytes = 2
+		}
 	}
 	return window, nil
 }

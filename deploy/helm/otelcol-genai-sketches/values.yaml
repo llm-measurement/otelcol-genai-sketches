@@ -192,6 +192,12 @@ summaryExport:
   scopeID: ""
   keyID: ""
   interval: 5s
+  # Keep disabled until every summary reader supports model_usage v1.
+  # See docs/MODEL_USAGE_SUMMARIES.md for the fleetdiff release gate.
+  modelUsage:
+    enabled: false
+    slice: ""
+    models: {}
   # Mirror this BusyBox image into an internal registry if needed; keep a digest pin.
   utilityImage:
     repository: docker.io/library/busybox

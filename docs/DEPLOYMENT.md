@@ -8,7 +8,7 @@ filesystem, contains no shell, and uses pinned build and runtime base images.
 The example Compose stack remains a demonstration. Use the production image or Helm
 chart for a persistent environment.
 
-The commands below select the released collector **v0.3.3** and chart **0.3.5**.
+The commands below select the released collector **v0.4.0** and chart **0.4.0**.
 Chart and collector versions advance independently.
 
 ## Verify An Image
@@ -24,7 +24,7 @@ Use an immutable digest from the GitHub release, not a mutable tag:
 Fetch the references from that release's published metadata:
 
 ```bash
-RELEASE=v0.3.3
+RELEASE=v0.4.0
 IMAGE_REF="$(curl -fsSL \
   "https://github.com/llm-measurement/otelcol-genai-sketches/releases/download/${RELEASE}/image-digest.txt")"
 IMAGE="${IMAGE_REF%@*}"
@@ -42,13 +42,14 @@ gh attestation verify "oci://$IMAGE@$DIGEST" \
   --source-ref "refs/tags/${RELEASE}" --deny-self-hosted-runners
 ```
 
-Chart 0.3.5 includes summary storage and readback alongside opt-in warning rules,
-and defaults to collector image 0.3.3. Both artifacts are published, signed and
-attested by `release.yml` at `refs/tags/v0.3.3`. Verify the chart's immutable reference too:
+Chart 0.4.0 includes summary storage and readback alongside opt-in warning rules
+and per-model usage accounting, and defaults to collector image 0.4.0. Both artifacts
+are published, signed and attested by `release.yml` at `refs/tags/v0.4.0`.
+Verify the chart's immutable reference too:
 
 ```bash
-CHART_RELEASE=v0.3.3
-CHART_VERSION=0.3.5
+CHART_RELEASE=v0.4.0
+CHART_VERSION=0.4.0
 CHART_REF="$(curl -fsSL \
   "https://github.com/llm-measurement/otelcol-genai-sketches/releases/download/${CHART_RELEASE}/chart-digest.txt")"
 CHART="${CHART_REF%@*}"
@@ -74,8 +75,9 @@ docker buildx imagetools inspect "$IMAGE@$DIGEST" --format '{{ json .Provenance 
 ```
 
 Runtime releases carry image and chart digests, an SBOM index export, a packaged
-chart, and checksums. Collector v0.3.3 also includes `provenance.jsonl` for
-`SHA256SUMS` and `sbom-index.json`. Verify those metadata subjects before checking
+chart, and checksums. Collector v0.3.3 introduced `provenance.jsonl` for
+`SHA256SUMS` and `sbom-index.json`; v0.4.0 adds `openvex.json`
+as a separate attestation subject. Verify those metadata subjects before checking
 the downloaded files. The image and chart share this release and signing identity:
 
 ```bash
@@ -83,7 +85,7 @@ mkdir -p release-assets
 gh release download "$RELEASE" \
   --repo llm-measurement/otelcol-genai-sketches \
   --dir release-assets
-for subject in SHA256SUMS sbom-index.json; do
+for subject in SHA256SUMS sbom-index.json openvex.json; do
   gh attestation verify "release-assets/$subject" \
     --bundle release-assets/provenance.jsonl \
     --repo llm-measurement/otelcol-genai-sketches \
@@ -96,8 +98,9 @@ done
 Verification checks the digest's signature and provenance against this repository's
 release workflow and tag. Review runtime configuration and workload sizing separately.
 The checksum check establishes file integrity; the preceding attestation checks
-authenticate the checksum manifest and SBOM index. Keep the image and chart
+authenticate the checksum manifest, SBOM index, and OpenVEX document. Keep the image and chart
 signature and provenance checks above as well.
+Verify the release-specific assessment as described in [Release OpenVEX](OPENVEX.md).
 The image includes the project license and collected third-party notices under
 `/licenses`.
 
@@ -172,7 +175,7 @@ It exports complete state for local combination across independent collectors;
 it does not make Prometheus able to merge sketches. Chart **0.3.2** adds opt-in
 summary storage, a read-only reader sidecar, and independent JSON logging.
 [Summary Export With Helm](SUMMARY_EXPORT_HELM.md) walks through copy,
-investigate, and scan with the v0.3.3 collector image.
+investigate, and scan with the v0.4.0 collector image.
 
 The chart's `connector.topKKeys` passes through the optional
 key list; its default `[]` omits `topk_keys` and preserves prompt-only ranking.

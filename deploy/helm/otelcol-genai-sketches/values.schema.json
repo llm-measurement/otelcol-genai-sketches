@@ -52,13 +52,30 @@
     "summaryExport": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["enabled", "producerID", "scopeID", "keyID", "interval", "utilityImage", "reader", "storage"],
+      "required": ["enabled", "producerID", "scopeID", "keyID", "interval", "modelUsage", "utilityImage", "reader", "storage"],
       "properties": {
         "enabled": {"type": "boolean"},
         "producerID": {"type": "string"},
         "scopeID": {"type": "string"},
         "keyID": {"type": "string"},
         "interval": {"type": "string", "pattern": "^(([1-9]|[1-5][0-9]|60)s|1m)$"},
+        "modelUsage": {
+          "type": "object", "additionalProperties": false,
+          "required": ["enabled", "slice", "models"],
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "slice": {"type": "string"},
+            "models": {
+              "type": "object", "maxProperties": 5000,
+              "propertyNames": {"minLength": 1, "maxLength": 256},
+              "additionalProperties": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$"}
+            }
+          },
+          "allOf": [{
+            "if": {"properties": {"enabled": {"const": true}}},
+            "then": {"properties": {"slice": {"minLength": 1}}}
+          }]
+        },
         "utilityImage": {
           "type": "object", "additionalProperties": false,
           "required": ["repository", "digest"],
@@ -94,6 +111,9 @@
       },
       "allOf": [{
         "if": {"properties": {"reader": {"properties": {"enabled": {"const": true}}}}},
+        "then": {"properties": {"enabled": {"const": true}}}
+      }, {
+        "if": {"properties": {"modelUsage": {"properties": {"enabled": {"const": true}}}}},
         "then": {"properties": {"enabled": {"const": true}}}
       }]
     },

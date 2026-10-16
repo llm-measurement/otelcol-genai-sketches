@@ -30,6 +30,7 @@ func (s *collectorState) applySpan(data spanData, update spanUpdate, now time.Ti
 	}
 	for i := range pending[:n] {
 		p := &pending[i]
+		p.slice = s.ownModelUsageSlice(p.slice, start)
 		p.window = p.slice.windows[start]
 		var err error
 		if p.window == nil {
@@ -45,6 +46,10 @@ func (s *collectorState) applySpan(data spanData, update spanUpdate, now time.Ti
 		if err := p.slice.checkUpdate(p.window, update, p.prepared); err != nil {
 			return err
 		}
+	}
+	modelUpdate, err := s.prepareModelUsage(data, update, pending[:n])
+	if err != nil {
+		return err
 	}
 	for _, p := range pending[:n] {
 		if p.evicted != nil {
@@ -66,6 +71,10 @@ func (s *collectorState) applySpan(data spanData, update spanUpdate, now time.Ti
 			}
 		}
 		p.slice.windows[start] = p.window
+		if p.slice == s.summary && modelUpdate != nil {
+			p.window.modelUsage[modelUpdate.id] = modelUpdate.row
+			p.window.modelUsageBytes = modelUpdate.bytes
+		}
 		if p.prepared.deduped {
 			p.slice.dedupSuppressed++
 			if p.window.counters != nil {

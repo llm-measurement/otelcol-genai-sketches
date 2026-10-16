@@ -4,19 +4,19 @@
 # Summary Export With Helm
 
 Keep summary windows in Kubernetes, copy them locally, and use fleetdiff to find
-the users and sessions behind a change. Chart **0.3.5** provides private storage,
-a read-only reader sidecar, and JSON log encoding with collector **v0.3.3**.
+the users and sessions behind a change. Chart **0.4.0** provides private storage,
+a read-only reader sidecar, and JSON log encoding with collector **v0.4.0**.
 Summary storage and readback were introduced in chart 0.3.2; chart and collector
 versions advance independently.
 
 ## Install
 
 Use Helm, kubectl with pod-exec permission, local Python **3.10+**, and
-[verified fleetdiff v0.8.0](https://github.com/llm-measurement/fleetdiff/blob/v0.8.0/docs/OPERATIONS.md#install-and-verify).
+[verified fleetdiff v0.10.0](https://github.com/llm-measurement/fleetdiff/blob/v0.10.0/docs/OPERATIONS.md#install-and-verify).
 Clone the matching release for the example values and copy helper:
 
 ```sh
-git clone --depth 1 --branch v0.3.3 https://github.com/llm-measurement/otelcol-genai-sketches.git collector-summary
+git clone --depth 1 --branch v0.4.0 https://github.com/llm-measurement/otelcol-genai-sketches.git collector-summary
 cd collector-summary
 ```
 
@@ -38,13 +38,13 @@ image digest, TLS, shadow, and resource settings when upgrading:
 ```sh
 umask 077
 helm template genai-sketches \
-  oci://ghcr.io/llm-measurement/charts/otelcol-genai-sketches --version 0.3.5 \
+  oci://ghcr.io/llm-measurement/charts/otelcol-genai-sketches --version 0.4.0 \
   --namespace observability \
   -f deploy/kubernetes/central/summary-values.yaml \
-  --set-string image.digest="${DIGEST:?verify the released v0.3.3 image first}"
+  --set-string image.digest="${DIGEST:?verify the released v0.4.0 image first}"
 
 helm upgrade --install genai-sketches \
-  oci://ghcr.io/llm-measurement/charts/otelcol-genai-sketches --version 0.3.5 \
+  oci://ghcr.io/llm-measurement/charts/otelcol-genai-sketches --version 0.4.0 \
   --namespace observability \
   -f deploy/kubernetes/central/summary-values.yaml \
   --set-string image.digest="${DIGEST:?verify the release image first}"
@@ -118,7 +118,7 @@ input/option errors. Keep `--as-of` for the copied snapshot; omit it for live
 freshness checks. Add `--format json` to save structured reports outside the
 summary directory. This uses the default 24-window baseline, matching the
 [anomaly guide](https://llm-measurement.github.io/anomalies.html).
-See the [scan guide](https://github.com/llm-measurement/fleetdiff/blob/v0.8.0/docs/SCAN.md#baseline-and-thresholds)
+See the [scan guide](https://github.com/llm-measurement/fleetdiff/blob/v0.10.0/docs/SCAN.md#baseline-and-thresholds)
 before changing baseline or persistence settings; increase retained history as needed.
 
 ## JSON Logs And Workflow Rankings
