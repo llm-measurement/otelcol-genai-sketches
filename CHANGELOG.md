@@ -2,12 +2,10 @@
 
 Notable user-visible changes are recorded here.
 
-## v0.3.3 / Helm chart 0.3.5 - TAGDAY (pending)
+## v0.3.3 / Helm chart 0.3.5 - 2026-10-15
 
-Unreleased review candidate; see the [draft release notes](docs/releases/v0.3.3.md).
-Before tagging, replace `TAGDAY (pending)` with the actual tag-day date in
-`YYYY-MM-DD` format.
-Collector v0.3.2 / chart 0.3.4 remains the released install pair.
+See the [release notes](docs/releases/v0.3.3.md). Chart 0.3.5 selects
+collector v0.3.3; both are published by the runtime release.
 
 - Verify `SHA256SUMS` and `sbom-index.json` with build-provenance attestations
   and a downloadable `provenance.jsonl` bundle. Check both subjects against the
@@ -16,14 +14,18 @@ Collector v0.3.2 / chart 0.3.4 remains the released install pair.
   v0.8.0; retain 32 example windows
   for a 24-window baseline and two recent windows.
 - Connect OpenInference / OpenLLMetry trace sources with the normalization
-  recipe and source-specific own-traffic guidance. See the draft release notes
+  recipe and source-specific own-traffic guidance. See the release notes
   for the recipe's tested scope.
 - Keep the previous valid summary file when repeated export of nonempty
   observations within the same clock tick at startup or a new-window boundary
   fails explicitly; export retained measurements after time advances.
   llm-sketchkit v0.3.0 also rejects protobuf groups without changing canonical
   encodings. Runtime dependencies include Prometheus common v0.72.1.
-- Prepare collector and connector build metadata for v0.3.3 and chart 0.3.5,
+- Check per-team token-budget burn with multiwindow alert rules. Exclude stale
+  instances before team aggregation so a live peer cannot keep a stale peer's
+  historical rate in the alert calculation. The recipe includes 23 rule cases
+  and a real OTLP replay.
+- Set collector and connector build metadata to v0.3.3 and chart 0.3.5,
   whose appVersion selects collector 0.3.3.
 
 ### Limits

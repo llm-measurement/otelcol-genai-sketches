@@ -57,9 +57,8 @@ known window boundary, record the event, and allow old windows to expire.
 
 ### Sketchkit 0.3.0 In This Source Candidate
 
-This unreleased dependency candidate adopts llm-sketchkit v0.3.0 in both modules.
-It does not change published v0.3.2 artifacts, assign a release date or create a
-tag. The normalization transitions differ by build:
+Collector v0.3.3 adopts llm-sketchkit v0.3.0 in both modules. Published v0.3.2
+artifacts are unchanged. The normalization transitions differ by build:
 
 | Build | Previous x/text | Candidate x/text | Pinned identity result |
 | --- | --- | --- | --- |
@@ -119,8 +118,8 @@ sketchkit v0.3.0 is a separate upgrade requiring the
 
 ### Feature Availability
 
-Use collector v0.3.2 and chart 0.3.4 for the current hardening fixes; see the
-[release notes](releases/v0.3.2.md) and [verified installation](DEPLOYMENT.md).
+Use collector v0.3.3 and chart 0.3.5 for the current fixes; see the
+[release notes](releases/v0.3.3.md) and [verified installation](DEPLOYMENT.md).
 The table records when each capability first became available, not a
 recommendation to deploy an older release.
 
