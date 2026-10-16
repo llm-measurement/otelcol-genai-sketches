@@ -12,15 +12,7 @@ groups:
           ) / 2592000
           and on (slice, slice_value)
           (count by (slice, slice_value) (gen_ai_token_budget_tokens{slice="by_team"}) == 1)
-      # Range rates can outlive stale samples; require a current counter series.
-      - record: gen_ai_token_budget:series_present
-        expr: |
-          count by (slice, slice_value) (
-            gen_ai_sketch_total_tokens_total{
-              job="otelcol-genai-sketches", slice="by_team", overflow="false",
-              slice_value=~"team\\.id=.+", slice_value!~"team\\.id=(<missing>|<too_long>)"
-            }
-          )
+      # Match current series before aggregation so live peers cannot retain stale rates.
       - record: gen_ai_token_budget:burn_rate5m
         expr: |
           sum by (slice, slice_value) (
@@ -28,9 +20,12 @@ groups:
               job="otelcol-genai-sketches", slice="by_team", overflow="false",
               slice_value=~"team\\.id=.+", slice_value!~"team\\.id=(<missing>|<too_long>)"
             }[5m])
+            and gen_ai_sketch_total_tokens_total{
+              job="otelcol-genai-sketches", slice="by_team", overflow="false",
+              slice_value=~"team\\.id=.+", slice_value!~"team\\.id=(<missing>|<too_long>)"
+            }
           )
           / on (slice, slice_value) gen_ai_token_budget:tokens_per_second
-          and on (slice, slice_value) gen_ai_token_budget:series_present
       - record: gen_ai_token_budget:burn_rate1h
         expr: |
           sum by (slice, slice_value) (
@@ -38,9 +33,12 @@ groups:
               job="otelcol-genai-sketches", slice="by_team", overflow="false",
               slice_value=~"team\\.id=.+", slice_value!~"team\\.id=(<missing>|<too_long>)"
             }[1h])
+            and gen_ai_sketch_total_tokens_total{
+              job="otelcol-genai-sketches", slice="by_team", overflow="false",
+              slice_value=~"team\\.id=.+", slice_value!~"team\\.id=(<missing>|<too_long>)"
+            }
           )
           / on (slice, slice_value) gen_ai_token_budget:tokens_per_second
-          and on (slice, slice_value) gen_ai_token_budget:series_present
       - record: gen_ai_token_budget:burn_rate30m
         expr: |
           sum by (slice, slice_value) (
@@ -48,9 +46,12 @@ groups:
               job="otelcol-genai-sketches", slice="by_team", overflow="false",
               slice_value=~"team\\.id=.+", slice_value!~"team\\.id=(<missing>|<too_long>)"
             }[30m])
+            and gen_ai_sketch_total_tokens_total{
+              job="otelcol-genai-sketches", slice="by_team", overflow="false",
+              slice_value=~"team\\.id=.+", slice_value!~"team\\.id=(<missing>|<too_long>)"
+            }
           )
           / on (slice, slice_value) gen_ai_token_budget:tokens_per_second
-          and on (slice, slice_value) gen_ai_token_budget:series_present
       - record: gen_ai_token_budget:burn_rate6h
         expr: |
           sum by (slice, slice_value) (
@@ -58,9 +59,12 @@ groups:
               job="otelcol-genai-sketches", slice="by_team", overflow="false",
               slice_value=~"team\\.id=.+", slice_value!~"team\\.id=(<missing>|<too_long>)"
             }[6h])
+            and gen_ai_sketch_total_tokens_total{
+              job="otelcol-genai-sketches", slice="by_team", overflow="false",
+              slice_value=~"team\\.id=.+", slice_value!~"team\\.id=(<missing>|<too_long>)"
+            }
           )
           / on (slice, slice_value) gen_ai_token_budget:tokens_per_second
-          and on (slice, slice_value) gen_ai_token_budget:series_present
       - alert: GenAITokenBudgetFastBurn
         expr: |
           (gen_ai_token_budget:burn_rate1h > 14.4)

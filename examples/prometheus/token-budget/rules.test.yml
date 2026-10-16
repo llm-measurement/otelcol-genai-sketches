@@ -1231,6 +1231,66 @@ tests:
         eval_time: "6h"
         exp_samples: []
   -
+    name: "stale peers are excluded before team aggregation"
+    interval: "1m"
+    input_series:
+      - series: 'gen_ai_token_budget_tokens{slice="by_team",slice_value="team.id=platform"}'
+        values: "2592000+0x360"
+      - series: 'gen_ai_sketch_total_tokens_total{job="otelcol-genai-sketches",slice="by_team",slice_value="team.id=platform",overflow="false",instance="stale-peer"}'
+        values: "0+1200x350 stale _x9"
+      # The same instance with a different exporter identity must not match either.
+      - series: 'gen_ai_sketch_total_tokens_total{job="otelcol-genai-sketches",slice="by_team",slice_value="team.id=platform",overflow="false",instance="live-peer",service_instance_id="old"}'
+        values: "0+1200x350 stale _x9"
+      - series: 'gen_ai_sketch_total_tokens_total{job="otelcol-genai-sketches",slice="by_team",slice_value="team.id=platform",overflow="false",instance="live-peer",service_instance_id="new"}'
+        values: "0+60x360"
+    promql_expr_test:
+      - expr: "gen_ai_token_budget:burn_rate5m"
+        eval_time: "352m"
+        exp_samples:
+          - labels: '{__name__="gen_ai_token_budget:burn_rate5m",slice="by_team",slice_value="team.id=platform"}'
+            value: 1
+      - expr: "gen_ai_token_budget:burn_rate1h"
+        eval_time: "352m"
+        exp_samples:
+          - labels: '{__name__="gen_ai_token_budget:burn_rate1h",slice="by_team",slice_value="team.id=platform"}'
+            value: 1
+      - expr: "gen_ai_token_budget:burn_rate30m"
+        eval_time: "352m"
+        exp_samples:
+          - labels: '{__name__="gen_ai_token_budget:burn_rate30m",slice="by_team",slice_value="team.id=platform"}'
+            value: 1
+      - expr: "gen_ai_token_budget:burn_rate6h"
+        eval_time: "352m"
+        exp_samples:
+          - labels: '{__name__="gen_ai_token_budget:burn_rate6h",slice="by_team",slice_value="team.id=platform"}'
+            # Only 352 of the 360 minutes have elapsed in this first check.
+            value: 0.9777777777777777
+      - expr: "gen_ai_token_budget:burn_rate5m"
+        eval_time: "6h"
+        exp_samples:
+          - labels: '{__name__="gen_ai_token_budget:burn_rate5m",slice="by_team",slice_value="team.id=platform"}'
+            value: 1
+      - expr: "gen_ai_token_budget:burn_rate1h"
+        eval_time: "6h"
+        exp_samples:
+          - labels: '{__name__="gen_ai_token_budget:burn_rate1h",slice="by_team",slice_value="team.id=platform"}'
+            value: 1
+      - expr: "gen_ai_token_budget:burn_rate30m"
+        eval_time: "6h"
+        exp_samples:
+          - labels: '{__name__="gen_ai_token_budget:burn_rate30m",slice="by_team",slice_value="team.id=platform"}'
+            value: 1
+      - expr: "gen_ai_token_budget:burn_rate6h"
+        eval_time: "6h"
+        exp_samples:
+          - labels: '{__name__="gen_ai_token_budget:burn_rate6h",slice="by_team",slice_value="team.id=platform"}'
+            value: 1
+    alert_rule_test:
+      - {eval_time: "352m", alertname: "GenAITokenBudgetFastBurn", exp_alerts: []}
+      - {eval_time: "352m", alertname: "GenAITokenBudgetSlowBurn", exp_alerts: []}
+      - {eval_time: "6h", alertname: "GenAITokenBudgetFastBurn", exp_alerts: []}
+      - {eval_time: "6h", alertname: "GenAITokenBudgetSlowBurn", exp_alerts: []}
+  -
     name: "stale counters cannot keep burn alerts firing"
     interval: "1m"
     input_series:

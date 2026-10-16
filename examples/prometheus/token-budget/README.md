@@ -98,7 +98,7 @@ make token-budget-replay
 ```
 
 The first target uses the repository-pinned Prometheus image to validate both
-rule files and run 22 deterministic cases without network access inside the
+rule files and run 23 deterministic cases without network access inside the
 container. Docker may fetch the pinned image if it is not already cached.
 The second builds the checked-out collector, runs the real OTLP/gRPC test, and
 runs promtool against its measured counter timeline. No provider calls or API
