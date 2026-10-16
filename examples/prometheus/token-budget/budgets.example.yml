@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: Apache-2.0
+# Code authors: Vijay and Codex
+# SYNTHETIC EXAMPLES ONLY. Replace labels and amounts with user-supplied budgets.
+# A fixed 30-day allowance of 2,592,000 tokens equals 1 token/second.
+groups:
+  - name: genai-token-budget-inputs
+    interval: 1m
+    rules:
+      - record: gen_ai_token_budget_tokens
+        expr: vector(2592000)
+        labels: {slice: by_team, slice_value: "team.id=platform"}
+      - record: gen_ai_token_budget_tokens
+        expr: vector(2592000)
+        labels: {slice: by_team, slice_value: "team.id=inference"}

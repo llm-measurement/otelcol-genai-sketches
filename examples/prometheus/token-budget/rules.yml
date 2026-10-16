@@ -1,0 +1,106 @@
+# SPDX-License-Identifier: Apache-2.0
+# Code authors: Vijay and Codex
+groups:
+  - name: genai-token-budget
+    interval: 1m
+    rules:
+      # Only one finite, positive user-supplied budget per team is admissible.
+      - record: gen_ai_token_budget:tokens_per_second
+        expr: |
+          max by (slice, slice_value) (
+            (gen_ai_token_budget_tokens{slice="by_team"} > 0) < Inf
+          ) / 2592000
+          and on (slice, slice_value)
+          (count by (slice, slice_value) (gen_ai_token_budget_tokens{slice="by_team"}) == 1)
+      # Range rates can outlive stale samples; require a current counter series.
+      - record: gen_ai_token_budget:series_present
+        expr: |
+          count by (slice, slice_value) (
+            gen_ai_sketch_total_tokens_total{
+              job="otelcol-genai-sketches", slice="by_team", overflow="false",
+              slice_value=~"team\\.id=.+", slice_value!~"team\\.id=(<missing>|<too_long>)"
+            }
+          )
+      - record: gen_ai_token_budget:burn_rate5m
+        expr: |
+          sum by (slice, slice_value) (
+            rate(gen_ai_sketch_total_tokens_total{
+              job="otelcol-genai-sketches", slice="by_team", overflow="false",
+              slice_value=~"team\\.id=.+", slice_value!~"team\\.id=(<missing>|<too_long>)"
+            }[5m])
+          )
+          / on (slice, slice_value) gen_ai_token_budget:tokens_per_second
+          and on (slice, slice_value) gen_ai_token_budget:series_present
+      - record: gen_ai_token_budget:burn_rate1h
+        expr: |
+          sum by (slice, slice_value) (
+            rate(gen_ai_sketch_total_tokens_total{
+              job="otelcol-genai-sketches", slice="by_team", overflow="false",
+              slice_value=~"team\\.id=.+", slice_value!~"team\\.id=(<missing>|<too_long>)"
+            }[1h])
+          )
+          / on (slice, slice_value) gen_ai_token_budget:tokens_per_second
+          and on (slice, slice_value) gen_ai_token_budget:series_present
+      - record: gen_ai_token_budget:burn_rate30m
+        expr: |
+          sum by (slice, slice_value) (
+            rate(gen_ai_sketch_total_tokens_total{
+              job="otelcol-genai-sketches", slice="by_team", overflow="false",
+              slice_value=~"team\\.id=.+", slice_value!~"team\\.id=(<missing>|<too_long>)"
+            }[30m])
+          )
+          / on (slice, slice_value) gen_ai_token_budget:tokens_per_second
+          and on (slice, slice_value) gen_ai_token_budget:series_present
+      - record: gen_ai_token_budget:burn_rate6h
+        expr: |
+          sum by (slice, slice_value) (
+            rate(gen_ai_sketch_total_tokens_total{
+              job="otelcol-genai-sketches", slice="by_team", overflow="false",
+              slice_value=~"team\\.id=.+", slice_value!~"team\\.id=(<missing>|<too_long>)"
+            }[6h])
+          )
+          / on (slice, slice_value) gen_ai_token_budget:tokens_per_second
+          and on (slice, slice_value) gen_ai_token_budget:series_present
+      - alert: GenAITokenBudgetFastBurn
+        expr: |
+          (gen_ai_token_budget:burn_rate1h > 14.4)
+          and on (slice, slice_value) (gen_ai_token_budget:burn_rate5m > 14.4)
+        labels: {severity: critical}
+        annotations:
+          summary: Fast token-budget burn for {{ $labels.slice_value }}
+          description: Reported token rate exceeds 14.4 times the 30-day allowance in both the 1h and 5m windows.
+      - alert: GenAITokenBudgetSlowBurn
+        expr: |
+          (gen_ai_token_budget:burn_rate6h > 6)
+          and on (slice, slice_value) (gen_ai_token_budget:burn_rate30m > 6)
+        labels: {severity: warning}
+        annotations:
+          summary: Slow token-budget burn for {{ $labels.slice_value }}
+          description: Reported token rate exceeds 6 times the 30-day allowance in both the 6h and 30m windows.
+      - alert: GenAITokenBudgetMissing
+        expr: |
+          sum by (slice, slice_value) (
+            rate(gen_ai_sketch_requests_total{
+              job="otelcol-genai-sketches", slice="by_team", overflow="false",
+              slice_value=~"team\\.id=.+", slice_value!~"team\\.id=(<missing>|<too_long>)"
+            }[5m])
+          ) > 0
+          unless on (slice, slice_value) gen_ai_token_budget:tokens_per_second
+        labels: {severity: warning}
+        annotations:
+          summary: Missing or invalid token budget for {{ $labels.slice_value }}
+          description: Active team traffic has no unique finite positive 30-day token budget.
+      - alert: GenAITokenBudgetUnattributed
+        expr: |
+          sum by (slice) (
+            rate(gen_ai_sketch_requests_total{job="otelcol-genai-sketches",slice="by_team",overflow="true"}[5m])
+            or
+            rate(gen_ai_sketch_requests_total{
+              job="otelcol-genai-sketches",slice="by_team",overflow="false",
+              slice_value=~"team\\.id=(<missing>|<too_long>)"
+            }[5m])
+          ) > 0
+        labels: {severity: warning}
+        annotations:
+          summary: Token-budget traffic is not attributable to a team
+          description: Resolve slice overflow or missing/oversized team IDs before treating team budgets as complete.

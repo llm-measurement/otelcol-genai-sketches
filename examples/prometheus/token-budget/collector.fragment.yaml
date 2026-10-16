@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: Apache-2.0
+# Code authors: Vijay and Codex
+# Merge into a complete existing collector config. Not a standalone config.
+connectors:
+  genaisketch:
+    slices:
+      - name: by_team
+        keys: [team.id]
+        from_resource_attributes: [team.id]
