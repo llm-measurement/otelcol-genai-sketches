@@ -16,9 +16,11 @@
 {{- if ne (int $selected) 1 }}
 {{- fail "summaryExport.modelUsage.slice must select exactly one existing connector slice" }}
 {{- end }}
-{{- range $observed, $_ := .Values.summaryExport.modelUsage.models }}
+{{- range $mapping := list .Values.summaryExport.modelUsage.models .Values.summaryExport.modelUsage.responseModels }}
+{{- range $observed, $_ := $mapping }}
 {{- if gt (len $observed) 256 }}
 {{- fail "summaryExport.modelUsage model aliases must be at most 256 bytes" }}
+{{- end }}
 {{- end }}
 {{- end }}
 {{- end }}
@@ -109,6 +111,12 @@ data:
           model_usage:
             slice: {{ .Values.summaryExport.modelUsage.slice | quote }}
             models: {{ .Values.summaryExport.modelUsage.models | toJson }}
+            {{- if .Values.summaryExport.modelUsage.identity }}
+            identity: {{ .Values.summaryExport.modelUsage.identity | quote }}
+            {{- end }}
+            {{- if hasKey .Values.summaryExport.modelUsage "responseModels" }}
+            response_models: {{ .Values.summaryExport.modelUsage.responseModels | toJson }}
+            {{- end }}
           {{- end }}
         {{- end }}
 

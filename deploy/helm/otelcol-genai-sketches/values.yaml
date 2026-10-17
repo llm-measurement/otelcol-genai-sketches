@@ -198,6 +198,9 @@ summaryExport:
     enabled: false
     slice: ""
     models: {}
+    # UNRELEASED: optional identity selects a pinned served-model profile.
+    # Leave identity absent/empty for legacy request-model attribution.
+    # responseModels is required only for the LiteLLM profile ({} is valid).
   # Mirror this BusyBox image into an internal registry if needed; keep a digest pin.
   utilityImage:
     repository: docker.io/library/busybox

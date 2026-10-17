@@ -65,7 +65,13 @@
           "properties": {
             "enabled": {"type": "boolean"},
             "slice": {"type": "string"},
+            "identity": {"type": "string", "enum": ["", "agentgateway-1.6.0-chat-v1", "envoy-ai-gateway-1.1.0-chat-v1", "litellm-1.104.0-chat-v1"]},
             "models": {
+              "type": "object", "maxProperties": 5000,
+              "propertyNames": {"minLength": 1, "maxLength": 256},
+              "additionalProperties": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$"}
+            },
+            "responseModels": {
               "type": "object", "maxProperties": 5000,
               "propertyNames": {"minLength": 1, "maxLength": 256},
               "additionalProperties": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$"}
@@ -73,7 +79,12 @@
           },
           "allOf": [{
             "if": {"properties": {"enabled": {"const": true}}},
-            "then": {"properties": {"slice": {"minLength": 1}}}
+            "then": {
+              "properties": {"slice": {"minLength": 1}},
+              "if": {"required": ["identity"], "properties": {"identity": {"const": "litellm-1.104.0-chat-v1"}}},
+              "then": {"required": ["responseModels"]},
+              "else": {"not": {"required": ["responseModels"]}}
+            }
           }]
         },
         "utilityImage": {

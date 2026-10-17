@@ -39,6 +39,12 @@ slice-overflow routes become their fixed buckets. No raw model/deployment name i
 implicitly copied into the summary. Keep the mapping and routing configuration
 consistent between producers; both are bound into a separate compatibility ID.
 
+Legacy requested-model mapping requires each observed name to identify one stable
+public model. Do not assume this for dynamic aliases that can select different
+models through routing or fallback. Legacy request-model attribution remains the
+unchanged default when `model_usage.identity` is absent or empty; the served-model
+opt-in described below is not yet released.
+
 ## Helm Opt-In
 
 `summaryExport.modelUsage.enabled` defaults to `false`, independently of summary
@@ -68,6 +74,106 @@ with at most 5,000 map entries. Mapping aliases are private configuration: Helm
 values and the rendered ConfigMap contain them, while summary files contain only
 approved public IDs or fixed reserved buckets. Restrict access to configuration
 as well as summary storage.
+
+## UNRELEASED: Served Identity Opt-In
+
+The upcoming optional `model_usage.identity` selects a version-pinned served-model
+profile; absent or empty keeps legacy request-model attribution. In Helm these
+fields are `summaryExport.modelUsage.identity` and `responseModels`; absent fields
+are omitted, and disabled settings leave rendering unchanged. This opt-in is not
+available in the released collector/chart pair documented above.
+
+| Identity | Exact input namespace for `models` |
+| --- | --- |
+| `agentgateway-1.6.0-chat-v1` | Span `gen_ai.response.model` |
+| `envoy-ai-gateway-1.1.0-chat-v1` | Span `gen_ai.response.model` |
+| `litellm-1.104.0-chat-v1` | Span `litellm.provider.model` |
+
+LiteLLM additionally requires a non-null `response_models` map (Helm:
+`responseModels`), which may be empty. Its keys are exact `gen_ai.response.model`
+values, separate from the primary map's namespace. A known selected provider model
+may be priced when the response-model attribute is absent; a present response must
+be explicitly mapped to the same approved public ID. Present empty or invalid
+response-model attributes stay unpriced. Equality with
+`litellm.model_group` does not prove an alias rewrite and does not authorize pricing.
+Map provider model names only: pricing a route alias is unsafe under dynamic
+routing. Verified raw and fallback provider responses can be priced when the maps
+agree. Omit `response_models` for both other profiles and for legacy mode. Both maps
+use the existing entry, name-length and public-ID limits. Approve dated snapshot
+names individually, with no prefix matching; missing, unmapped, ambiguous or
+conflicting served identity stays in unpriced reserved buckets, never inheriting
+an alias's price.
+
+### LiteLLM Telemetry And Auto Routing
+
+The LiteLLM profile requires the pinned gateway's stock `otel` callback in
+latest-experimental GenAI semantic-convention mode. Configure the callback in
+LiteLLM, and set the environment variable on the LiteLLM process:
+
+```yaml
+litellm_settings:
+  callbacks: [otel]
+```
+
+```sh
+export OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental
+```
+
+Legacy telemetry mode stringifies `llm.is_streaming`; this profile rejects that
+non-boolean value and leaves the observation unpriced. The captured spans have no
+explicit telemetry-mode marker, so the collector cannot confirm this prerequisite
+from a mode attribute. Verify the gateway configuration before enabling the
+profile; do not infer its mode from an absent attribute.
+
+Default Auto Routing can echo the requested alias in `gen_ai.response.model`.
+Such a response remains unpriced, even if the selected provider model is mapped.
+To preserve the provider response name, set the option inside each relevant Auto
+Routing model entry:
+
+```yaml
+model_list:
+  - model_name: routing-alias
+    litellm_params:
+      model: auto_router/complexity_router
+      complexity_router_config:
+        return_raw_model_name: true
+```
+
+This shows the option's placement, not a complete router configuration. Keep the
+router's other required settings. Global `litellm_settings.return_model_name`
+and `litellm_settings.return_raw_model_name` did not preserve the provider name
+in the pinned checks. Explicitly map each returned provider snapshot in
+`response_models`; do not add route aliases merely to increase priced coverage.
+
+Served identity is span-local, with no resource-attribute fallback. The existing
+selected request-model slice remains the admission guard, including its overflow
+decision; it is not replaced by a served-model slice. Served profiles additionally
+retain at most `max_slices` public-model rows per summary window (Helm:
+`connector.maxSlices`). Admission is first-seen: once full, new public IDs go to
+`__overflow__`, while admitted rows continue accumulating and are never evicted
+within that window. Fixed reserved buckets do not consume the public-row budget.
+This bound supplements, rather than replaces, the existing default slice-overflow
+behavior.
+
+These profiles are verified only for nonstreaming chat; Copilot and streaming
+remain unsupported. Known true or malformed stream flags stay unpriced. In intact
+spans from the pinned LiteLLM callback in the required mode, the callback emits
+`gen_ai.request.stream=true` only for streaming requests, so absence represents
+nonstreaming. This interpretation does not apply to filtered or transformed
+captures. For agentgateway and Envoy, absence has no verified streaming meaning;
+use these profiles only on known nonstreaming traffic. Native LiteLLM may use the paired
+markers `llm.request.type=acompletion` and `http.route=/v1/chat/completions` to
+identify the request kind only when the `gen_ai.operation.name` attribute is
+absent, not present empty or invalid. Present empty or invalid operation attributes
+stay unpriced. Those markers do not establish whether it streamed.
+
+The opt-in produces a new opaque `model_usage.contract_id` binding the profile,
+maps and admission policy, without changing the summary or model-usage format
+version. Review the profile and both applicable maps, then obtain and explicitly
+approve the new ID using the procedure below. Pass that exact ID to the reader
+with `--model-usage-contract`; a mismatched expected ID is rejected, and legacy
+and served contracts cannot be mixed. The unchanged format version is not approval
+of a new attribution contract.
 
 ## Obtain The Expected Contract
 
