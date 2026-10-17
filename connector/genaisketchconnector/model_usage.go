@@ -18,13 +18,17 @@ import (
 // ModelUsageConfig maps observed names to operator-approved public model IDs.
 // Its absence preserves the original export and accounting fingerprint.
 type ModelUsageConfig struct {
-	Slice  string            `mapstructure:"slice"`
-	Models map[string]string `mapstructure:"models"`
+	Slice          string            `mapstructure:"slice"`
+	Models         map[string]string `mapstructure:"models"`
+	Identity       string            `mapstructure:"identity"`
+	ResponseModels map[string]string `mapstructure:"response_models"`
 }
 
 type compiledModelUsage struct {
-	slice  int
-	models map[string]string
+	slice          int
+	models         map[string]string
+	identity       string
+	responseModels map[string]string
 }
 
 type pendingModelUsage struct {
@@ -38,7 +42,11 @@ func modelUsageContract(cfg *Config, accountingID string) (string, error) {
 	for _, s := range cfg.Slices {
 		routing.Slices = append(routing.Slices, modelusage.Slice{Name: s.Name, Keys: s.Keys, FromResourceAttributes: s.FromResourceAttributes})
 	}
-	return modelusage.ContractID(accountingID, cfg.SummaryExport.ModelUsage.Models, routing)
+	m := cfg.SummaryExport.ModelUsage
+	if m.Identity == "" {
+		return modelusage.ContractID(accountingID, m.Models, routing)
+	}
+	return servedModelUsageContract(accountingID, m, routing)
 }
 
 func compileModelUsage(cfg *Config) (*compiledModelUsage, error) {
@@ -54,12 +62,15 @@ func compileModelUsage(cfg *Config) (*compiledModelUsage, error) {
 			return nil, errors.New("summary_export.model_usage has an invalid model mapping")
 		}
 	}
+	if err := validateServedModelUsage(m); err != nil {
+		return nil, err
+	}
 	if _, err := modelUsageContract(cfg, "validation"); err != nil {
 		return nil, errors.New("summary_export.model_usage requires a model-only slice and valid routing")
 	}
 	for i, s := range cfg.Slices {
 		if s.Name == m.Slice {
-			return &compiledModelUsage{slice: i, models: maps.Clone(m.Models)}, nil
+			return &compiledModelUsage{slice: i, models: maps.Clone(m.Models), identity: m.Identity, responseModels: maps.Clone(m.ResponseModels)}, nil
 		}
 	}
 	return nil, errors.New("summary_export.model_usage selected slice is missing")
@@ -97,6 +108,9 @@ func (s *collectorState) modelUsageID(data spanData, pending []pendingSliceUpdat
 	i := s.cfg.modelUsage.slice
 	if pending[i].slice.label.overflow {
 		return "__overflow__", nil
+	}
+	if s.cfg.modelUsage.identity != "" {
+		return s.cfg.modelUsage.servedModelID(data.spanAttrs), nil
 	}
 	cfg := s.cfg.slices[i]
 	observed, ok := lookupStringInMap(data.spanAttrs, cfg.Keys)
@@ -136,7 +150,11 @@ func (s *collectorState) prepareModelUsage(data spanData, update spanUpdate, pen
 				}
 			}
 			if named >= s.cfg.maxSlices {
-				return nil, errors.New("summary model_usage model count exceeds slice budget")
+				if s.cfg.modelUsage.identity == "" {
+					return nil, errors.New("summary model_usage model count exceeds slice budget")
+				}
+				id = "__overflow__"
+				previous, exists = rows[id]
 			}
 		}
 		row, err := modelusage.AddAttempt(previous, modelUsageAttempt(update.totals))

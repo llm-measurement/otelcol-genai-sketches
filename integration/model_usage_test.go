@@ -110,3 +110,91 @@ func TestModelUsageRealOTLP(t *testing.T) {
 		t.Fatal("replayed snapshot doubled totals", err)
 	}
 }
+
+func TestServedModelUsageRealOTLP(t *testing.T) {
+	binary := filepath.Join(repoRoot(t), "dist", "otelcol-genai-sketches")
+	requireExecutable(t, binary)
+	dir, otlp, prom := t.TempDir(), freePort(t), freePort(t)
+	if err := os.Chmod(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	path := writeCollectorConfig(t, otlp, prom)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cfg map[string]any
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		t.Fatal(err)
+	}
+	c := cfg["connectors"].(map[string]any)["genaisketch"].(map[string]any)
+	c["window_duration"], c["max_slices"] = "24h", 1
+	c["slices"] = []any{map[string]any{"name": "model", "keys": []string{"gen_ai.request.model"}}}
+	c["summary_export"] = map[string]any{"directory": dir, "producer_id": "producer", "scope_id": "scope", "key_id": "synthetic", "interval": "1s", "model_usage": map[string]any{
+		"slice": "model", "identity": "envoy-ai-gateway-1.1.0-chat-v1",
+		"models": map[string]string{"PRIVATE_RESPONSE_A": "model-a", "PRIVATE_RESPONSE_B": "model-b"},
+	}}
+	data, err = yaml.Marshal(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	_, logs := startCollector(t, ctx, binary, path)
+	waitForOutputEventually(t, logs, regexp.MustCompile(`started genaisketch connector`))
+	idle := waitSummary(t, dir, 0)
+	request := traceRequest(
+		otlpSpanSpec{Operation: "chat", Model: "shared-alias", InputTokens: intPtr(100), OutputTokens: intPtr(10)},
+		otlpSpanSpec{Operation: "chat", Model: "shared-alias", InputTokens: intPtr(100), OutputTokens: intPtr(10)},
+		otlpSpanSpec{Operation: "chat", Model: "shared-alias", InputTokens: intPtr(100), OutputTokens: intPtr(10)},
+		otlpSpanSpec{Operation: "chat", Model: "shared-alias", InputTokens: intPtr(100), OutputTokens: intPtr(10)},
+	)
+	spans := request.ResourceSpans[0].ScopeSpans[0].Spans
+	for i, response := range []string{"PRIVATE_RESPONSE_A", "PRIVATE_RESPONSE_B", "PRIVATE_RESPONSE_A", "PRIVATE_RESPONSE_UNKNOWN"} {
+		spans[i].Attributes = append(spans[i].Attributes, stringKV("gen_ai.response.model", response),
+			stringKV("agent.id", "PRIVATE_AGENT"), stringKV("litellm.provider.model", "PRIVATE_DEPLOYMENT"),
+			intKV("gen_ai.usage.cache_read.input_tokens", 0), intKV("gen_ai.usage.cache_write.input_tokens", 0))
+	}
+	call, stop := context.WithTimeout(ctx, 15*time.Second)
+	defer stop()
+	conn, err := grpc.DialContext(call, fmt.Sprintf("127.0.0.1:%d", otlp), grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	if _, err := tracecollectorpb.NewTraceServiceClient(conn).Export(call, request); err != nil {
+		t.Fatal(err)
+	}
+	doc := waitSummary(t, dir, 4)
+	if doc.ModelUsage == nil || idle.ModelUsage == nil || doc.ModelUsage.ContractID != idle.ModelUsage.ContractID {
+		t.Fatal("served contract not stable from controlled idle export")
+	}
+	if doc.ModelUsage.Models["model-a"].Requests != 2 || doc.ModelUsage.Models["__overflow__"].Requests != 1 || doc.ModelUsage.Models["__unmapped__"].Requests != 1 || len(doc.ModelUsage.Models) != 3 {
+		t.Fatal("one alias did not retain bounded served cohorts", doc.ModelUsage)
+	}
+	var requests, inputs uint64
+	for _, row := range doc.ModelUsage.Models {
+		requests += row.Complete.Requests
+		inputs += row.Complete.InputTokens
+	}
+	if requests != 4 || inputs != 400 {
+		t.Fatal("identity exclusion lost recorded usage", requests, inputs)
+	}
+	encoded, err := doc.MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(encoded, []byte("PRIVATE_")) || bytes.Contains(encoded, []byte("shared-alias")) {
+		t.Fatal("raw identity escaped summary")
+	}
+	if bytes.Contains([]byte(logs.String()), []byte("PRIVATE_")) {
+		t.Fatal("new identity escaped collector log")
+	}
+	result, err := summary.Combine([]summary.Envelope{doc, doc}, []string{"producer"})
+	if err != nil || result.Counters["requests"] != 4 {
+		t.Fatal("snapshot replay doubled totals", err)
+	}
+}

@@ -22,17 +22,135 @@ func TestModelUsageDisabledRenderingUnchanged(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		settings := append(append([]string{}, base...),
-			"summaryExport.modelUsage.enabled=false",
-			"summaryExport.modelUsage.slice=not_selected",
-			`summaryExport.modelUsage.models={"PRIVATE_ALIAS":"public-model"}`)
-		disabled, err := render(t, settings...)
-		if err != nil || !bytes.Equal(original, disabled) {
-			t.Fatal("disabled settings changed rendered manifests", err)
+		for _, profile := range [][]string{
+			nil,
+			{"summaryExport.modelUsage.identity="},
+			{"summaryExport.modelUsage.identity=agentgateway-1.6.0-chat-v1"},
+			{"summaryExport.modelUsage.identity=envoy-ai-gateway-1.1.0-chat-v1"},
+			{"summaryExport.modelUsage.identity=litellm-1.104.0-chat-v1", "summaryExport.modelUsage.responseModels={}"},
+			{"summaryExport.modelUsage.identity=litellm-1.104.0-chat-v1", `summaryExport.modelUsage.responseModels={"PRIVATE_RESPONSE":"public-model"}`},
+		} {
+			settings := append(append([]string{}, base...),
+				"summaryExport.modelUsage.enabled=false",
+				"summaryExport.modelUsage.slice=not_selected",
+				`summaryExport.modelUsage.models={"PRIVATE_ALIAS":"public-model"}`)
+			disabled, err := render(t, append(settings, profile...)...)
+			if err != nil || !bytes.Equal(original, disabled) {
+				t.Fatalf("disabled settings changed rendered manifests for %v: %v", profile, err)
+			}
+			for _, sentinel := range []string{"model_usage", "PRIVATE_ALIAS", "PRIVATE_RESPONSE", "response_models", "chat-v1"} {
+				if bytes.Contains(disabled, []byte(sentinel)) {
+					t.Fatalf("disabled configuration escaped into manifests: %s", sentinel)
+				}
+			}
 		}
-		if bytes.Contains(disabled, []byte("model_usage")) || bytes.Contains(disabled, []byte("PRIVATE_ALIAS")) {
-			t.Fatal("disabled configuration escaped into manifests")
-		}
+	}
+}
+
+func TestModelUsageEmptyIdentityPreservesLegacyRendering(t *testing.T) {
+	original, err := render(t, modelUsageSettings()...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	empty, err := render(t, modelUsageSettings("summaryExport.modelUsage.identity=")...)
+	if err != nil || !bytes.Equal(original, empty) {
+		t.Fatal("empty identity changed legacy rendering", err)
+	}
+}
+
+func TestModelUsageIdentityRendering(t *testing.T) {
+	for _, identity := range []string{"agentgateway-1.6.0-chat-v1", "envoy-ai-gateway-1.1.0-chat-v1", "litellm-1.104.0-chat-v1"} {
+		t.Run(identity, func(t *testing.T) {
+			for _, mapping := range []map[string]string{
+				{},
+				{"123": "123", "true": "true", "provider/model-2026-10-16": "public-model"},
+			} {
+				encoded, err := json.Marshal(mapping)
+				if err != nil {
+					t.Fatal(err)
+				}
+				settings := modelUsageSettings("summaryExport.modelUsage.identity="+identity,
+					"summaryExport.modelUsage.models="+string(encoded))
+				want := map[string]any{"slice": "by_model", "identity": identity, "models": map[string]any{}}
+				for name, public := range mapping {
+					want["models"].(map[string]any)[name] = public
+				}
+				if identity == "litellm-1.104.0-chat-v1" {
+					responses := map[string]string{}
+					for name, public := range mapping {
+						responses["response-"+name] = public
+					}
+					responseJSON, err := json.Marshal(responses)
+					if err != nil {
+						t.Fatal(err)
+					}
+					settings = append(settings, "summaryExport.modelUsage.responseModels="+string(responseJSON))
+					want["response_models"] = map[string]any{}
+					for name, public := range responses {
+						want["response_models"].(map[string]any)[name] = public
+					}
+				}
+				cfg := summaryConfig(t, summaryDocuments(t, settings...))
+				usage := nested(cfg, "connectors", "genaisketch", "summary_export", "model_usage")
+				if !reflect.DeepEqual(usage, want) {
+					t.Fatalf("identity or map namespace changed: got %#v, want %#v", usage, want)
+				}
+			}
+		})
+	}
+}
+
+func TestModelUsageIdentityRejectsInvalidValues(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		settings []string
+	}{
+		{"unknown-identity", []string{"summaryExport.modelUsage.identity=unknown"}},
+		{"wrong-version", []string{"summaryExport.modelUsage.identity=agentgateway-1.7.0-chat-v1"}},
+		{"non-string-identity", []string{"summaryExport.modelUsage.identity=123"}},
+		{"null-identity", []string{"summaryExport.modelUsage.identity=null"}},
+		{"legacy-response-map", []string{"summaryExport.modelUsage.responseModels={}"}},
+		{"empty-identity-response-map", []string{"summaryExport.modelUsage.identity=", "summaryExport.modelUsage.responseModels={}"}},
+		{"agentgateway-response-map", []string{"summaryExport.modelUsage.identity=agentgateway-1.6.0-chat-v1", "summaryExport.modelUsage.responseModels={}"}},
+		{"envoy-response-map", []string{"summaryExport.modelUsage.identity=envoy-ai-gateway-1.1.0-chat-v1", "summaryExport.modelUsage.responseModels={}"}},
+		{"litellm-missing-response-map", []string{"summaryExport.modelUsage.identity=litellm-1.104.0-chat-v1"}},
+		{"litellm-null-response-map", []string{"summaryExport.modelUsage.identity=litellm-1.104.0-chat-v1", "summaryExport.modelUsage.responseModels=null"}},
+		{"response-slice", []string{"summaryExport.modelUsage.identity=agentgateway-1.6.0-chat-v1", `connector.slices=[{"name":"by_model","keys":["gen_ai.response.model"]}]`}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if output, err := render(t, modelUsageSettings(tc.settings...)...); err == nil {
+				t.Fatalf("invalid identity configuration accepted: %v\n%s", tc.settings, output)
+			}
+		})
+	}
+}
+
+func TestModelUsageResponseMapRejectsInvalidValues(t *testing.T) {
+	tooMany := map[string]string{}
+	for i := range 5001 {
+		key, _ := json.Marshal(i)
+		tooMany[string(key)] = "public-model"
+	}
+	oversize, _ := json.Marshal(tooMany)
+	for _, tc := range []struct{ name, mapping string }{
+		{"list", "[]"},
+		{"non-object", "123"},
+		{"empty-name", `{"":"public-model"}`},
+		{"long-name", `{"` + strings.Repeat("a", 257) + `":"public-model"}`},
+		{"long-utf8-name", `{"` + strings.Repeat("\u00e9", 129) + `":"public-model"}`},
+		{"too-many-names", string(oversize)},
+		{"non-string-id", `{"response":123}`},
+		{"empty-id", `{"response":""}`},
+		{"reserved-id", `{"response":"__unmapped__"}`},
+		{"nonpublic-id", `{"response":"https://host/?secret=value"}`},
+		{"long-id", `{"response":"` + strings.Repeat("a", 129) + `"}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if output, err := render(t, modelUsageSettings("summaryExport.modelUsage.identity=litellm-1.104.0-chat-v1",
+				"summaryExport.modelUsage.responseModels="+tc.mapping)...); err == nil {
+				t.Fatalf("invalid response map accepted\n%s", output)
+			}
+		})
 	}
 }
 

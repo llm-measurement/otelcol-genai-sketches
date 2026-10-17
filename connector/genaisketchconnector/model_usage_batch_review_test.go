@@ -20,8 +20,14 @@ import (
 )
 
 func TestModelUsageBatchReviewByteBudgetRollback(t *testing.T) {
-	for _, dedup := range []bool{false, true} {
-		t.Run(fmt.Sprintf("dedup=%t", dedup), func(t *testing.T) {
+	for _, tc := range []struct {
+		identity string
+		dedup    bool
+	}{
+		{"", false}, {"", true}, {modelIdentityAgentGateway, false}, {modelIdentityAgentGateway, true},
+	} {
+		identity, dedup := tc.identity, tc.dedup
+		t.Run(fmt.Sprintf("identity=%s/dedup=%t", identity, dedup), func(t *testing.T) {
 			publicID := func(i int) string {
 				return fmt.Sprintf("model-%04d-%s", i, strings.Repeat("x", 117))
 			}
@@ -34,6 +40,7 @@ func TestModelUsageBatchReviewByteBudgetRollback(t *testing.T) {
 			s, e, clk := modelFixture(t, func(c *Config) {
 				c.MaxSlices = modelusage.MaxModels
 				c.Dedup.Enabled = dedup
+				c.SummaryExport.ModelUsage.Identity = identity
 				c.SummaryExport.ModelUsage.Models = make(map[string]string)
 				for i := range modelusage.MaxModels {
 					c.SummaryExport.ModelUsage.Models[observedID(i)] = publicID(i)
@@ -42,6 +49,7 @@ func TestModelUsageBatchReviewByteBudgetRollback(t *testing.T) {
 			trace := func(model int, request string, input int64) ptrace.Traces {
 				return modelTrace(input, func(a pcommon.Map) {
 					a.PutStr("gen_ai.request.model", observedID(model))
+					a.PutStr("gen_ai.response.model", observedID(model))
 					a.PutStr("request.id", request)
 				})
 			}
