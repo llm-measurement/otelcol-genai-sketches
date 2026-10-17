@@ -347,3 +347,357 @@ func TestServedIdentityExactMapOrderAndLength(t *testing.T) {
 		t.Fatal(doc.ModelUsage)
 	}
 }
+
+func nativeLiteLLMConfig(profile string) func(*Config) {
+	return func(c *Config) {
+		servedFixtureConfig(c)
+		c.SummaryExport.ModelUsage.Identity = profile
+		if profile == modelIdentityLiteLLMStream {
+			c.SummaryExport.ModelUsage.ResponseModels = nil
+		}
+	}
+}
+
+func nativeLiteLLMTrace(profile string, edit func(pcommon.Map)) ptrace.Traces {
+	traces := modelTrace(100, func(a pcommon.Map) {
+		a.Remove("gen_ai.operation.name")
+		a.PutStr("llm.request.type", "acompletion")
+		a.PutStr("http.route", "/v1/chat/completions")
+		if profile == modelIdentityLiteLLMResponses {
+			a.PutStr("llm.request.type", "aresponses")
+			a.PutStr("http.route", "/v1/responses")
+		}
+		a.PutBool("gen_ai.request.stream", true)
+		a.PutStr("litellm.provider.model", "PRIVATE_DEPLOYMENT")
+		a.PutStr("litellm.model_group", "PRIVATE_ROUTE")
+		a.PutStr("gen_ai.response.model", "PRIVATE_SNAPSHOT")
+		if edit != nil {
+			edit(a)
+		}
+	})
+	traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).SetName("chat PRIVATE_ROUTE")
+	return traces
+}
+
+func TestServedNativeLiteLLMAdmission(t *testing.T) {
+	for _, profile := range []string{modelIdentityLiteLLMStream, modelIdentityLiteLLMResponses} {
+		t.Run(profile, func(t *testing.T) {
+			s, _, _ := modelFixture(t, nativeLiteLLMConfig(profile))
+			for _, tc := range []struct {
+				name string
+				edit func(pcommon.Map)
+				want string
+			}{
+				{"native", func(pcommon.Map) {}, "public-model"},
+				{"explicit-chat-operation", func(a pcommon.Map) { a.PutStr("gen_ai.operation.name", "chat") }, "public-model"},
+				{"empty-operation", func(a pcommon.Map) { a.PutStr("gen_ai.operation.name", "") }, "__unmapped__"},
+				{"non-string-operation", func(a pcommon.Map) { a.PutInt("gen_ai.operation.name", 1) }, "__unmapped__"},
+				{"unverified-responses-operation", func(a pcommon.Map) { a.PutStr("gen_ai.operation.name", "responses") }, "__unmapped__"},
+				{"different-operation", func(a pcommon.Map) { a.PutStr("gen_ai.operation.name", "text_completion") }, "__unmapped__"},
+				{"missing-call", func(a pcommon.Map) { a.Remove("llm.request.type") }, "__unmapped__"},
+				{"missing-route", func(a pcommon.Map) { a.Remove("http.route") }, "__unmapped__"},
+				{"empty-call", func(a pcommon.Map) { a.PutStr("llm.request.type", "") }, "__unmapped__"},
+				{"non-string-route", func(a pcommon.Map) { a.PutInt("http.route", 1) }, "__unmapped__"},
+				{"unverified-sync-call", func(a pcommon.Map) { a.PutStr("llm.request.type", "responses") }, "__unmapped__"},
+				{"wrong-route-despite-chat", func(a pcommon.Map) {
+					a.PutStr("gen_ai.operation.name", "chat")
+					a.PutStr("http.route", "/v1/completions")
+				}, "__unmapped__"},
+				{"other-api", func(a pcommon.Map) {
+					call, route := "aresponses", "/v1/responses"
+					if profile == modelIdentityLiteLLMResponses {
+						call, route = "acompletion", "/v1/chat/completions"
+					}
+					a.PutStr("llm.request.type", call)
+					a.PutStr("http.route", route)
+				}, "__unmapped__"},
+				{"missing-selected", func(a pcommon.Map) { a.Remove("litellm.provider.model") }, "__missing__"},
+				{"empty-selected", func(a pcommon.Map) { a.PutStr("litellm.provider.model", "") }, "__missing__"},
+				{"typed-selected", func(a pcommon.Map) { a.PutInt("litellm.provider.model", 1) }, "__unmapped__"},
+				{"invalid-utf8-selected", func(a pcommon.Map) { a.PutStr("litellm.provider.model", "\xff") }, "__unmapped__"},
+				{"long-selected", func(a pcommon.Map) { a.PutStr("litellm.provider.model", strings.Repeat("x", 257)) }, "__too_long__"},
+				{"unknown-selected", func(a pcommon.Map) { a.PutStr("litellm.provider.model", "public-model") }, "__unmapped__"},
+				{"no-prefix-stripping", func(a pcommon.Map) { a.PutStr("litellm.provider.model", "openai/PRIVATE_DEPLOYMENT") }, "__unmapped__"},
+				{"no-trimming", func(a pcommon.Map) { a.PutStr("litellm.provider.model", " PRIVATE_DEPLOYMENT") }, "__unmapped__"},
+				{"absent-response", func(a pcommon.Map) { a.Remove("gen_ai.response.model") }, "public-model"},
+				{"recovery", func(a pcommon.Map) {
+					a.PutStr("litellm.provider.model", "PRIVATE_OTHER_DEPLOYMENT")
+					a.PutStr("gen_ai.response.model", "PRIVATE_OTHER_SNAPSHOT")
+				}, "other-model"},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					traces := nativeLiteLLMTrace(profile, tc.edit)
+					a := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Attributes()
+					if got := s.cfg.modelUsage.servedModelID(a); got != tc.want {
+						t.Fatalf("got %s, want %s", got, tc.want)
+					}
+				})
+			}
+			for _, response := range []any{"PRIVATE_ROUTE", "PRIVATE_OTHER_SNAPSHOT", "PRIVATE_SNAPSHOT-next-date", "", int64(1), "\xff", strings.Repeat("x", 257)} {
+				traces := nativeLiteLLMTrace(profile, func(a pcommon.Map) {
+					if err := a.PutEmpty("gen_ai.response.model").FromRaw(response); err != nil {
+						t.Fatal(err)
+					}
+				})
+				want := "__unmapped__"
+				if profile == modelIdentityLiteLLMStream {
+					want = "public-model"
+				}
+				a := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Attributes()
+				if got := s.cfg.modelUsage.servedModelID(a); got != want {
+					t.Fatalf("response verification: got %s, want %s", got, want)
+				}
+			}
+			traces := nativeLiteLLMTrace(profile, func(a pcommon.Map) { a.Remove("litellm.provider.model") })
+			traces.ResourceSpans().At(0).Resource().Attributes().PutStr("litellm.provider.model", "PRIVATE_DEPLOYMENT")
+			mustConsumeTraces(t, s, traces)
+			if s.cfg.modelUsage.servedModelID(traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Attributes()) != "__missing__" {
+				t.Fatal("resource model replaced missing span-local selected identity")
+			}
+		})
+	}
+}
+
+func TestServedNativeLiteLLMStreamFlags(t *testing.T) {
+	for _, profile := range []string{modelIdentityLiteLLMStream, modelIdentityLiteLLMResponses} {
+		s, _, _ := modelFixture(t, nativeLiteLLMConfig(profile))
+		for _, tc := range []struct {
+			name            string
+			stream, legacy  any
+			chat, responses bool
+		}{
+			{"absent", nil, nil, false, true},
+			{"true", true, nil, true, true},
+			{"false", false, nil, false, true},
+			{"legacy-true", nil, true, false, true},
+			{"legacy-false", nil, false, false, true},
+			{"matching-true", true, true, true, true},
+			{"matching-false", false, false, false, true},
+			{"conflicting-true", true, false, false, false},
+			{"conflicting-false", false, true, false, false},
+			{"string-true", "true", nil, false, false},
+			{"string-false", "false", nil, false, false},
+			{"numeric", int64(1), nil, false, false},
+			{"string-legacy", true, "false", false, false},
+			{"numeric-legacy", true, int64(0), false, false},
+			{"nested", map[string]any{"value": true}, nil, false, false},
+		} {
+			t.Run(profile+"/"+tc.name, func(t *testing.T) {
+				traces := nativeLiteLLMTrace(profile, func(a pcommon.Map) {
+					a.Remove("gen_ai.request.stream")
+					for key, value := range map[string]any{"gen_ai.request.stream": tc.stream, "llm.is_streaming": tc.legacy} {
+						if value != nil {
+							if err := a.PutEmpty(key).FromRaw(value); err != nil {
+								t.Fatal(err)
+							}
+						}
+					}
+				})
+				want := "__unmapped__"
+				if profile == modelIdentityLiteLLMStream && tc.chat || profile == modelIdentityLiteLLMResponses && tc.responses {
+					want = "public-model"
+				}
+				a := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Attributes()
+				if got := s.cfg.modelUsage.servedModelID(a); got != want {
+					t.Fatalf("got %s, want %s", got, want)
+				}
+			})
+		}
+		for _, key := range []string{"gen_ai.request.stream", "llm.is_streaming"} {
+			traces := nativeLiteLLMTrace(profile, func(a pcommon.Map) { a.PutEmpty(key) })
+			a := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Attributes()
+			if got := s.cfg.modelUsage.servedModelID(a); got != "__unmapped__" {
+				t.Fatal("empty stream value accepted")
+			}
+		}
+	}
+}
+
+func TestServedNativeLiteLLMDuplicateMarkers(t *testing.T) {
+	for _, profile := range []string{modelIdentityLiteLLMStream, modelIdentityLiteLLMResponses} {
+		s, _, _ := modelFixture(t, nativeLiteLLMConfig(profile))
+		for _, key := range []string{"gen_ai.operation.name", "llm.request.type", "http.route", "gen_ai.request.stream", "llm.is_streaming", "litellm.provider.model", "gen_ai.response.model"} {
+			t.Run(profile+"/"+key, func(t *testing.T) {
+				traces := nativeLiteLLMTrace(profile, func(a pcommon.Map) {
+					a.PutStr("gen_ai.operation.name", "chat")
+					a.PutBool("llm.is_streaming", true)
+				})
+				a := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Attributes()
+				var attrs []any
+				a.Range(func(name string, value pcommon.Value) bool {
+					wireValue := map[string]any{"stringValue": value.Str()}
+					if value.Type() == pcommon.ValueTypeBool {
+						wireValue = map[string]any{"boolValue": value.Bool()}
+					}
+					entry := map[string]any{"key": name, "value": wireValue}
+					attrs = append(attrs, entry)
+					if name == key {
+						attrs = append(attrs, entry)
+					}
+					return true
+				})
+				wire, err := json.Marshal(map[string]any{"resourceSpans": []any{map[string]any{"scopeSpans": []any{map[string]any{"spans": []any{map[string]any{"attributes": attrs}}}}}}})
+				if err != nil {
+					t.Fatal(err)
+				}
+				decoder := ptrace.JSONUnmarshaler{}
+				decoded, err := decoder.UnmarshalTraces(wire)
+				if err != nil {
+					t.Fatal(err)
+				}
+				want := "__unmapped__"
+				if profile == modelIdentityLiteLLMStream && key == "gen_ai.response.model" {
+					want = "public-model"
+				}
+				got := s.cfg.modelUsage.servedModelID(decoded.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Attributes())
+				if got != want {
+					t.Fatalf("duplicate marker: got %s, want %s", got, want)
+				}
+			})
+		}
+	}
+}
+
+func TestServedNativeLiteLLMLegacyAccountingParity(t *testing.T) {
+	for _, profile := range []string{modelIdentityLiteLLMStream, modelIdentityLiteLLMResponses} {
+		s, e, clk := modelFixture(t, nativeLiteLLMConfig(profile))
+		legacy, le, _ := modelFixture(t, nil)
+		le.epoch = e.epoch
+		for _, edit := range []func(pcommon.Map){
+			nil,
+			func(a pcommon.Map) { a.Remove("gen_ai.usage.cache_read.input_tokens") },
+			func(a pcommon.Map) { a.Remove("litellm.provider.model") },
+			func(a pcommon.Map) { a.PutStr("litellm.provider.model", "PRIVATE_UNKNOWN") },
+			func(a pcommon.Map) {
+				for _, key := range []string{"gen_ai.usage.input_tokens", "gen_ai.usage.output_tokens", "gen_ai.usage.cache_read.input_tokens", "gen_ai.usage.cache_write.input_tokens"} {
+					a.Remove(key)
+				}
+			},
+		} {
+			traces := nativeLiteLLMTrace(profile, edit)
+			got := mustConsumeTraces(t, s, traces)
+			want := mustConsumeTraces(t, legacy, traces)
+			if !bytes.Equal(sortedMetricAttributeJSON(t, marshalMetrics(t, got)), sortedMetricAttributeJSON(t, marshalMetrics(t, want))) {
+				t.Fatal("new profile changed metrics")
+			}
+		}
+		doc := exportDocs(t, s, e, clk.now.Add(time.Second))[0]
+		old := exportDocs(t, legacy, le, clk.now.Add(time.Second))[0]
+		if doc.ModelUsage.Models["public-model"].Requests != 3 || doc.ModelUsage.Models["public-model"].Complete.Requests != 1 || doc.ModelUsage.Models["__missing__"].Requests != 1 || doc.ModelUsage.Models["__unmapped__"].Requests != 1 {
+			t.Fatal("identity or usage coverage changed", doc.ModelUsage)
+		}
+		encoded, err := doc.MarshalBinary()
+		if err != nil || bytes.Contains(encoded, []byte("PRIVATE_")) {
+			t.Fatal("private identity escaped summary", err)
+		}
+		if combined, err := summary.Combine([]summary.Envelope{doc, doc}, []string{"producer"}); err != nil || combined.Counters["requests"] != 5 {
+			t.Fatal("replay changed totals", err)
+		}
+		if _, err := summary.Combine([]summary.Envelope{doc, old}, []string{"producer"}); err == nil {
+			t.Fatal("mixed legacy and new contracts accepted")
+		}
+		doc.ModelUsage, old.ModelUsage = nil, nil
+		if !bytes.Equal(mustJSON(t, doc), mustJSON(t, old)) || e.accountingID != le.accountingID {
+			t.Fatal("new profile changed base summary or accounting contract")
+		}
+	}
+}
+
+func TestServedNativeLiteLLMContractsAndConfig(t *testing.T) {
+	c := defaultConfig()
+	c.Slices = []SliceConfig{{Name: "model", Keys: []string{"gen_ai.request.model"}}}
+	c.SummaryExport.ModelUsage = &ModelUsageConfig{Slice: "model"}
+	servedFixtureConfig(c)
+	seen := map[string]bool{}
+	wantContracts := map[string]string{
+		modelIdentityLiteLLM:          "model-usage-v1:9caf9e0fd8bea10d820fb1fd8df57fe6b7dbb93ff739b6fecf995e14c53ba3d7",
+		modelIdentityAgentGateway:     "model-usage-v1:6d31240a04e9f2bcad4d31c02284d8468a9ed7af3cb9e95bf44670574b40f7cb",
+		modelIdentityEnvoy:            "model-usage-v1:47e989ca24b71d6f8bdb55b8b55c17486c4ef0a79c9acaf5db7fe1c4a9a90ac8",
+		modelIdentityLiteLLMStream:    "model-usage-v1:e49e83fdd03403f81e921cfd56a63a8ad6216721f6e1ba01312ef965a8bdb475",
+		modelIdentityLiteLLMResponses: "model-usage-v1:ae51e62a4bcf591456f70c85ca9cebbfb3e621a93f53053ada117c21a2153dbd",
+	}
+	for _, profile := range []string{modelIdentityLiteLLM, modelIdentityAgentGateway, modelIdentityEnvoy, modelIdentityLiteLLMStream, modelIdentityLiteLLMResponses} {
+		servedFixtureConfig(c)
+		c.SummaryExport.ModelUsage.Identity = profile
+		if profile != modelIdentityLiteLLM && profile != modelIdentityLiteLLMResponses {
+			c.SummaryExport.ModelUsage.ResponseModels = nil
+		}
+		contract, err := modelUsageContract(c, "validation")
+		if err != nil || seen[contract] {
+			t.Fatal("profile contract missing or reused", err)
+		}
+		seen[contract] = true
+		t.Logf("%s: %s", profile, contract)
+		if contract != wantContracts[profile] {
+			t.Fatal("frozen profile contract changed", profile, contract)
+		}
+		c.SummaryExport.ModelUsage.Models["PRIVATE_DEPLOYMENT"] = "other-model"
+		changed, err := modelUsageContract(c, "validation")
+		if err != nil || changed == contract {
+			t.Fatal("profile contract failed to bind selected-model map", err)
+		}
+		if profile == modelIdentityLiteLLMResponses {
+			c.SummaryExport.ModelUsage.Models["PRIVATE_DEPLOYMENT"] = "public-model"
+			c.SummaryExport.ModelUsage.ResponseModels["PRIVATE_SNAPSHOT"] = "other-model"
+			changed, err = modelUsageContract(c, "validation")
+			if err != nil || changed == contract {
+				t.Fatal("Responses contract failed to bind response-model map", err)
+			}
+		}
+	}
+	for _, invalid := range []*ModelUsageConfig{
+		{Identity: modelIdentityLiteLLMStream, ResponseModels: map[string]string{}},
+		{Identity: modelIdentityLiteLLMStream, ResponseModels: map[string]string{"PRIVATE_RESPONSE": "public-model"}},
+		{Identity: modelIdentityLiteLLMResponses},
+		{Identity: modelIdentityLiteLLMResponses, ResponseModels: map[string]string{"PRIVATE_RESPONSE": "__missing__"}},
+		{Identity: modelIdentityLiteLLMResponses, ResponseModels: map[string]string{"": "public-model"}},
+		{Identity: modelIdentityLiteLLMResponses, ResponseModels: map[string]string{strings.Repeat("x", 257): "public-model"}},
+	} {
+		if err := validateServedModelUsage(invalid); err == nil || strings.Contains(err.Error(), "PRIVATE_") {
+			t.Fatal("invalid new-profile config accepted or reflected", err)
+		}
+	}
+	var cfg *Config
+	s, _, _ := modelFixture(t, func(c *Config) { nativeLiteLLMConfig(modelIdentityLiteLLMResponses)(c); cfg = c })
+	want := maps.Clone(s.cfg.modelUsage.responseModels)
+	cfg.SummaryExport.ModelUsage.ResponseModels["PRIVATE_SNAPSHOT"] = "other-model"
+	if !reflect.DeepEqual(want, s.cfg.modelUsage.responseModels) {
+		t.Fatal("Responses verifier map was not immutable")
+	}
+}
+
+func TestServedLegacyProfileAdmissionUnchanged(t *testing.T) {
+	for _, profile := range []string{modelIdentityLiteLLM, modelIdentityAgentGateway, modelIdentityEnvoy} {
+		m := compiledModelUsage{identity: profile,
+			models:         map[string]string{"PRIVATE_DEPLOYMENT": "public-model", "PRIVATE_SNAPSHOT": "public-model"},
+			responseModels: map[string]string{"PRIVATE_SNAPSHOT": "public-model"},
+		}
+		values := []any{nil, false, true, "false", "true", int64(0), map[string]any{"flag": false}}
+		for _, stream := range values {
+			for _, legacy := range values {
+				a := pcommon.NewMap()
+				a.PutStr("gen_ai.operation.name", "chat")
+				a.PutStr("litellm.provider.model", "PRIVATE_DEPLOYMENT")
+				a.PutStr("gen_ai.response.model", "PRIVATE_SNAPSHOT")
+				// Old profiles do not gate a valid explicit operation on these markers.
+				a.PutStr("llm.request.type", "aresponses")
+				a.PutStr("http.route", "/v1/responses")
+				want := "public-model"
+				for key, value := range map[string]any{"gen_ai.request.stream": stream, "llm.is_streaming": legacy} {
+					if value == nil {
+						continue
+					}
+					if err := a.PutEmpty(key).FromRaw(value); err != nil {
+						t.Fatal(err)
+					}
+					if flag, ok := value.(bool); !ok || flag {
+						want = "__unmapped__"
+					}
+				}
+				if got := m.servedModelID(a); got != want {
+					t.Fatalf("%s legacy stream admission changed: got %s, want %s", profile, got, want)
+				}
+			}
+		}
+	}
+}
