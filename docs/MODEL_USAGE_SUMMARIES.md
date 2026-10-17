@@ -38,6 +38,9 @@ explicit: an unmapped name becomes `__unmapped__`; missing, oversized and existi
 slice-overflow routes become their fixed buckets. No raw model/deployment name is
 implicitly copied into the summary. Keep the mapping and routing configuration
 consistent between producers; both are bound into a separate compatibility ID.
+This mapping does not rewrite metric labels: existing slice labels remain
+[bounded and cleartext](../README.md#privacy-and-limits). Use non-sensitive model
+and route names in the selected slice.
 
 Legacy requested-model mapping requires each observed name to identify one stable
 public model. Do not assume this for dynamic aliases that can select different
@@ -88,9 +91,11 @@ available in the released collector/chart pair documented above.
 | `agentgateway-1.6.0-chat-v1` | Span `gen_ai.response.model` |
 | `envoy-ai-gateway-1.1.0-chat-v1` | Span `gen_ai.response.model` |
 | `litellm-1.104.0-chat-v1` | Span `litellm.provider.model` |
+| `litellm-1.104.0-chat-stream-v1` | Span `litellm.provider.model`, gateway-selected only |
+| `litellm-1.104.0-responses-v1` | Span `litellm.provider.model` |
 
-LiteLLM additionally requires a non-null `response_models` map (Helm:
-`responseModels`), which may be empty. Its keys are exact `gen_ai.response.model`
+LiteLLM nonstreaming Chat and Responses additionally require a non-null
+`response_models` map (Helm: `responseModels`), which may be empty. Its keys are exact `gen_ai.response.model`
 values, separate from the primary map's namespace. A known selected provider model
 may be priced when the response-model attribute is absent; a present response must
 be explicitly mapped to the same approved public ID. Present empty or invalid
@@ -98,15 +103,19 @@ response-model attributes stay unpriced. Equality with
 `litellm.model_group` does not prove an alias rewrite and does not authorize pricing.
 Map provider model names only: pricing a route alias is unsafe under dynamic
 routing. Verified raw and fallback provider responses can be priced when the maps
-agree. Omit `response_models` for both other profiles and for legacy mode. Both maps
-use the existing entry, name-length and public-ID limits. Approve dated snapshot
+agree. The streaming Chat profile instead uses the gateway-selected model,
+provider snapshot not confirmed: its response-model attribute repeats the
+dispatch name even when the provider omits a model. It deliberately ignores that
+attribute. Omit `response_models` for streaming Chat, both other gateways and
+legacy mode. Both maps use the existing entry, name-length and public-ID limits.
+Approve dated snapshot
 names individually, with no prefix matching; missing, unmapped, ambiguous or
 conflicting served identity stays in unpriced reserved buckets, never inheriting
 an alias's price.
 
 ### LiteLLM Telemetry And Auto Routing
 
-The LiteLLM profile requires the pinned gateway's stock `otel` callback in
+The LiteLLM profiles require the pinned gateway's stock `otel` callback in
 latest-experimental GenAI semantic-convention mode. Configure the callback in
 LiteLLM, and set the environment variable on the LiteLLM process:
 
@@ -119,13 +128,14 @@ litellm_settings:
 export OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental
 ```
 
-Legacy telemetry mode stringifies `llm.is_streaming`; this profile rejects that
-non-boolean value and leaves the observation unpriced. The captured spans have no
+Legacy telemetry mode stringifies `llm.is_streaming`; these profiles reject that
+non-boolean value and leave the observation unpriced. The captured spans have no
 explicit telemetry-mode marker, so the collector cannot confirm this prerequisite
 from a mode attribute. Verify the gateway configuration before enabling the
 profile; do not infer its mode from an absent attribute.
 
-Default Auto Routing can echo the requested alias in `gen_ai.response.model`.
+Default nonstreaming Auto Routing can echo the requested alias in
+`gen_ai.response.model`.
 Such a response remains unpriced, even if the selected provider model is mapped.
 To preserve the provider response name, set the option inside each relevant Auto
 Routing model entry:
@@ -142,8 +152,9 @@ model_list:
 This shows the option's placement, not a complete router configuration. Keep the
 router's other required settings. Global `litellm_settings.return_model_name`
 and `litellm_settings.return_raw_model_name` did not preserve the provider name
-in the pinned checks. Explicitly map each returned provider snapshot in
-`response_models`; do not add route aliases merely to increase priced coverage.
+in the pinned checks. For nonstreaming Chat and Responses, map each returned
+snapshot in `response_models`; do not add route aliases merely to increase priced
+coverage.
 
 Served identity is span-local, with no resource-attribute fallback. The existing
 selected request-model slice remains the admission guard, including its overflow
@@ -155,17 +166,37 @@ within that window. Fixed reserved buckets do not consume the public-row budget.
 This bound supplements, rather than replaces, the existing default slice-overflow
 behavior.
 
-These profiles are verified only for nonstreaming chat; Copilot and streaming
-remain unsupported. Known true or malformed stream flags stay unpriced. In intact
-spans from the pinned LiteLLM callback in the required mode, the callback emits
-`gen_ai.request.stream=true` only for streaming requests, so absence represents
-nonstreaming. This interpretation does not apply to filtered or transformed
-captures. For agentgateway and Envoy, absence has no verified streaming meaning;
-use these profiles only on known nonstreaming traffic. Native LiteLLM may use the paired
-markers `llm.request.type=acompletion` and `http.route=/v1/chat/completions` to
-identify the request kind only when the `gen_ai.operation.name` attribute is
-absent, not present empty or invalid. Present empty or invalid operation attributes
-stay unpriced. Those markers do not establish whether it streamed.
+### Verified Request Scope
+
+The agentgateway and Envoy profiles cover streaming and nonstreaming Chat,
+including recovery. Their pinned spans have no stream marker, so this widens the
+verified scope without changing either profile's behavior or contract ID.
+
+LiteLLM keeps separate request profiles:
+
+- `litellm-1.104.0-chat-v1` covers nonstreaming Chat. It continues to reject true
+  or malformed stream flags. In intact spans from the required callback mode,
+  absence of `gen_ai.request.stream` represents nonstreaming; this interpretation
+  does not extend to filtered or transformed captures. Paired native markers
+  `llm.request.type=acompletion` and `http.route=/v1/chat/completions` identify Chat
+  only when `gen_ai.operation.name` is absent, not present empty or invalid.
+- `litellm-1.104.0-chat-stream-v1` requires both native Chat markers and a typed
+  `gen_ai.request.stream=true`. It uses the selected-model basis described above,
+  including recovery. A response-model attribute adds no provider confirmation.
+- `litellm-1.104.0-responses-v1` requires `llm.request.type=aresponses` together
+  with `http.route=/v1/responses`, for streaming and nonstreaming requests. Span
+  names are not an API discriminator: the pinned callback can call a Responses
+  span "chat". A present response model must agree through the explicit map;
+  streaming preserves the inner provider snapshot, while nonstreaming alias
+  echoes remain unpriced. An absent response model permits selected-model
+  attribution. Malformed or conflicting stream markers remain unpriced.
+
+Copilot has no verified served-identity profile. With agentgateway, an absent
+response model also loses native usage in the captured span, even when usage
+appears on the wire. With Envoy, callers must request `include_usage` to obtain
+native stream usage; interrupted streams produced no correlated span in these
+checks. Model identity is not a completion signal, and these profiles do not
+establish finality of reported usage.
 
 The opt-in produces a new opaque `model_usage.contract_id` binding the profile,
 maps and admission policy, without changing the summary or model-usage format

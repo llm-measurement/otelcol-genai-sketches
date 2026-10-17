@@ -250,3 +250,8 @@ The synthetic `before.json` and `after.json` fixtures exercise the receiver,
 accounting, disjoint-partition merge, and privacy scans. Separate live mock and
 real-provider runs are recorded in [Validation](VALIDATION.md), with versions,
 results, and scope. Canonical attributes pass directly to the connector.
+
+For dynamic routing, the unreleased [served-identity profiles](../../../docs/MODEL_USAGE_SUMMARIES.md#verified-request-scope)
+separately cover pinned LiteLLM 1.104.0 nonstreaming Chat, streaming Chat and
+Responses. Review that profile's selected/response-model maps and telemetry
+prerequisites before enabling per-model summaries.
