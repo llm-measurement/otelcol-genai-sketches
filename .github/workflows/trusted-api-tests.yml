@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Code authors: Vijay and Codex
-name: dco-tests
+name: trusted-api-tests
 
 on:
   # These tests execute PR code and must never run on pull_request_target.
@@ -11,12 +11,12 @@ permissions:
   contents: read
 
 jobs:
-  dco-tests:
+  trusted-api-tests:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Test PR commit checks and workflow boundaries
-        run: node --test .github/tests/dco.test.cjs
+      - name: Test trusted API checks and workflow boundaries
+        run: node --test .github/tests/trusted-api.test.cjs
