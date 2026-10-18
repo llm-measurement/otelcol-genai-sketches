@@ -367,6 +367,10 @@ func nativeLiteLLMTrace(profile string, edit func(pcommon.Map)) ptrace.Traces {
 			a.PutStr("llm.request.type", "aresponses")
 			a.PutStr("http.route", "/v1/responses")
 		}
+		if profile == modelIdentityLiteLLMMessages {
+			a.PutStr("llm.request.type", "anthropic_messages")
+			a.PutStr("http.route", "/v1/messages")
+		}
 		a.PutBool("gen_ai.request.stream", true)
 		a.PutStr("litellm.provider.model", "PRIVATE_DEPLOYMENT")
 		a.PutStr("litellm.model_group", "PRIVATE_ROUTE")
@@ -514,7 +518,7 @@ func TestServedNativeLiteLLMStreamFlags(t *testing.T) {
 }
 
 func TestServedNativeLiteLLMDuplicateMarkers(t *testing.T) {
-	for _, profile := range []string{modelIdentityLiteLLMStream, modelIdentityLiteLLMResponses} {
+	for _, profile := range []string{modelIdentityLiteLLMStream, modelIdentityLiteLLMResponses, modelIdentityLiteLLMMessages} {
 		s, _, _ := modelFixture(t, nativeLiteLLMConfig(profile))
 		for _, key := range []string{"gen_ai.operation.name", "llm.request.type", "http.route", "gen_ai.request.stream", "llm.is_streaming", "litellm.provider.model", "gen_ai.response.model"} {
 			t.Run(profile+"/"+key, func(t *testing.T) {
@@ -546,7 +550,7 @@ func TestServedNativeLiteLLMDuplicateMarkers(t *testing.T) {
 					t.Fatal(err)
 				}
 				want := "__unmapped__"
-				if profile == modelIdentityLiteLLMStream && key == "gen_ai.response.model" {
+				if (profile == modelIdentityLiteLLMStream || profile == modelIdentityLiteLLMMessages) && key == "gen_ai.response.model" {
 					want = "public-model"
 				}
 				got := s.cfg.modelUsage.servedModelID(decoded.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Attributes())
@@ -559,7 +563,7 @@ func TestServedNativeLiteLLMDuplicateMarkers(t *testing.T) {
 }
 
 func TestServedNativeLiteLLMLegacyAccountingParity(t *testing.T) {
-	for _, profile := range []string{modelIdentityLiteLLMStream, modelIdentityLiteLLMResponses} {
+	for _, profile := range []string{modelIdentityLiteLLMStream, modelIdentityLiteLLMResponses, modelIdentityLiteLLMMessages} {
 		s, e, clk := modelFixture(t, nativeLiteLLMConfig(profile))
 		legacy, le, _ := modelFixture(t, nil)
 		le.epoch = e.epoch
