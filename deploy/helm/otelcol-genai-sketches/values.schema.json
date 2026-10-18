@@ -73,6 +73,7 @@
               "litellm-1.104.0-chat-stream-v1",
               "litellm-1.104.0-responses-v1",
               "litellm-1.104.0-v1",
+              "litellm-1.104.0-v2",
               "litellm-1.104.0-messages-v1"
             ]},
             "models": {
@@ -90,7 +91,7 @@
             "if": {"properties": {"enabled": {"const": true}}},
             "then": {
               "properties": {"slice": {"minLength": 1}},
-              "if": {"required": ["identity"], "properties": {"identity": {"enum": ["litellm-1.104.0-chat-v1", "litellm-1.104.0-responses-v1", "litellm-1.104.0-v1", "litellm-1.104.0-messages-v1"]}}},
+              "if": {"required": ["identity"], "properties": {"identity": {"enum": ["litellm-1.104.0-chat-v1", "litellm-1.104.0-responses-v1", "litellm-1.104.0-v1", "litellm-1.104.0-v2", "litellm-1.104.0-messages-v1"]}}},
               "then": {"required": ["responseModels"]},
               "else": {"not": {"required": ["responseModels"]}}
             }

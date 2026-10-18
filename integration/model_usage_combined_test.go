@@ -29,11 +29,16 @@ import (
 const litellmCombinedIdentity = "litellm-1.104.0-v1"
 
 func TestLiteLLMCombinedModelUsageRealOTLP(t *testing.T) {
+	testLiteLLMCombinedModelUsageRealOTLP(t, litellmCombinedConfig(), litellmCombinedCases(), []string{"", "agentgateway-1.6.0-chat-v1", "envoy-ai-gateway-1.1.0-chat-v1", "litellm-1.104.0-chat-v1", litellmChatStreamIdentity, litellmResponsesIdentity})
+}
+
+func testLiteLLMCombinedModelUsageRealOTLP(t *testing.T, modelConfig map[string]any, batches [][]litellmProfileCase, otherIdentities []string) {
+	t.Helper()
 	binary := filepath.Join(repoRoot(t), "dist", "otelcol-genai-sketches")
 	requireExecutable(t, binary)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
-	profile := startModelUsageProfile(t, ctx, binary, litellmCombinedConfig())
+	profile := startModelUsageProfile(t, ctx, binary, modelConfig)
 	baseline := startModelUsageProfile(t, ctx, binary, nil)
 	if profile.idle.ModelUsage == nil || profile.idle.ModelUsage.Models == nil || len(profile.idle.ModelUsage.Models) != 0 || baseline.idle.ModelUsage != nil {
 		t.Fatal("combined opt-in changed idle extension presence")
@@ -43,8 +48,11 @@ func TestLiteLLMCombinedModelUsageRealOTLP(t *testing.T) {
 		t.Fatal("combined contract missing or base accounting contract changed")
 	}
 
-	batches := litellmCombinedCases()
-	all := traceRequest(make([]otlpSpanSpec, 4*len(batches))...)
+	spanCount := 0
+	for _, batch := range batches {
+		spanCount += len(batch)
+	}
+	all := traceRequest(make([]otlpSpanSpec, spanCount)...)
 	spans := all.ResourceSpans[0].ScopeSpans[0].Spans
 	// Resource identities and markers must not repair absent span-local values.
 	all.ResourceSpans[0].Resource.Attributes = append(all.ResourceSpans[0].Resource.Attributes,
@@ -55,10 +63,11 @@ func TestLiteLLMCombinedModelUsageRealOTLP(t *testing.T) {
 	type totals struct{ requests, complete, missing, tokenUnits uint64 }
 	want := map[string]totals{}
 	var first, latest summary.Envelope
+	sent := 0
 	for batchIndex, batch := range batches {
 		if !t.Run(strings.SplitN(batch[0].name, "/", 2)[1], func(t *testing.T) {
 			for pathIndex, tc := range batch {
-				i := 4*batchIndex + pathIndex
+				i := sent + pathIndex
 				span := spans[i]
 				// Distinct token amounts expose a path swap even if request counts agree.
 				units := int64(1 << pathIndex)
@@ -90,11 +99,12 @@ func TestLiteLLMCombinedModelUsageRealOTLP(t *testing.T) {
 			mixed := &tracecollectorpb.ExportTraceServiceRequest{ResourceSpans: []*tracepb.ResourceSpans{{
 				Resource: all.ResourceSpans[0].Resource,
 				ScopeSpans: []*tracepb.ScopeSpans{{
-					Spans: spans[4*batchIndex : 4*(batchIndex+1)],
+					Spans: spans[sent : sent+len(batch)],
 				}},
 			}}}
 			exportModelUsageProfile(t, ctx, profile.client, mixed)
-			latest = waitSummary(t, profile.dir, uint64(4*(batchIndex+1)))
+			sent += len(batch)
+			latest = waitSummary(t, profile.dir, uint64(sent))
 			if batchIndex == 0 {
 				first = latest
 			}
@@ -141,7 +151,7 @@ func TestLiteLLMCombinedModelUsageRealOTLP(t *testing.T) {
 		t.Fatal("mixed default/combined snapshots did not fail extension presence check", err)
 	}
 
-	for _, identity := range []string{"", "agentgateway-1.6.0-chat-v1", "envoy-ai-gateway-1.1.0-chat-v1", "litellm-1.104.0-chat-v1", litellmChatStreamIdentity, litellmResponsesIdentity} {
+	for _, identity := range otherIdentities {
 		name := identity
 		if name == "" {
 			name = "legacy-request-model"
@@ -150,9 +160,10 @@ func TestLiteLLMCombinedModelUsageRealOTLP(t *testing.T) {
 			otherCtx, stop := context.WithTimeout(ctx, 20*time.Second)
 			defer stop()
 			model := litellmProfileConfig(identity)
-			if identity == "litellm-1.104.0-chat-v1" {
-				model["response_models"] = litellmCombinedConfig()["response_models"]
+			if identity == "litellm-1.104.0-chat-v1" || identity == litellmMessagesIdentity || identity == litellmCombinedIdentity {
+				model["response_models"] = modelConfig["response_models"]
 			}
+			model["models"] = modelConfig["models"]
 			other := startModelUsageProfile(t, otherCtx, binary, model)
 			if other.idle.ModelUsage == nil || other.idle.ModelUsage.ContractID == contract || other.idle.AccountingID != latest.AccountingID {
 				t.Fatal("combined contract not distinct from legacy/profile contract")
@@ -280,6 +291,11 @@ func litellmCombinedCases() [][]litellmProfileCase {
 }
 
 func TestLiteLLMCombinedModelUsageConfigValidation(t *testing.T) {
+	testLiteLLMCombinedModelUsageConfigValidation(t, litellmCombinedIdentity)
+}
+
+func testLiteLLMCombinedModelUsageConfigValidation(t *testing.T, identity string) {
+	t.Helper()
 	binary := filepath.Join(repoRoot(t), "dist", "otelcol-genai-sketches")
 	requireExecutable(t, binary)
 	for _, tc := range []struct {
@@ -296,6 +312,7 @@ func TestLiteLLMCombinedModelUsageConfigValidation(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			model := litellmCombinedConfig()
+			model["identity"] = identity
 			delete(model, "response_models")
 			if !tc.omit {
 				model["response_models"] = tc.responses

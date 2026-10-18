@@ -2,6 +2,20 @@
 
 Notable user-visible changes are recorded here.
 
+## v0.6.0 / Helm chart 0.6.0 - 2026-10-18
+
+See the [release notes](docs/releases/v0.6.0.md). Use one opt-in producer for
+LiteLLM gateways serving Chat, Responses and Anthropic Messages traffic.
+
+- Add `litellm-1.104.0-v2`, combining the four tested Chat, streaming Chat,
+  Responses and Messages rules under a new model-usage contract.
+- Add the standalone `litellm-1.104.0-messages-v1` profile. Nonstreaming Messages
+  checks a present response model against the selected model; streaming Messages
+  records gateway selection only.
+- Preserve the v1 combined profile, all standalone contracts, default output,
+  base accounting and summary formats. Chart 0.6.0 and collector v0.6.0 are
+  published together; existing profiles do not change unless explicitly selected.
+
 ## v0.5.0 / Helm chart 0.5.0 - 2026-10-17
 
 See the [release notes](docs/releases/v0.5.0.md). Pair with fleetdiff v0.11.0

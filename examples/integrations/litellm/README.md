@@ -257,12 +257,24 @@ Choose `litellm-1.104.0-v1` for mixed traffic under one summary contract, or a
 standalone profile for a single traffic class. Review its selected/response-model maps and telemetry
 prerequisites before enabling per-model summaries.
 
-### Unreleased Native Messages Profile
+### Combined LiteLLM v2 In v0.6.0
 
-The separate [`litellm-1.104.0-messages-v1` profile](../../../docs/MODEL_USAGE_SUMMARIES.md#unreleased-native-messages-profile)
-is for evaluation with a reviewed source build and matching source chart only.
-Installed collector/image/chart v0.5.0 does not support it; the released combined
-profile remains unchanged and rejects Messages. No recipe version pin is changed.
+Collector/image v0.6.0 and chart 0.6.0 add
+[`litellm-1.104.0-v2`](../../../docs/MODEL_USAGE_SUMMARIES.md#combined-litellm-v2-in-v060)
+for mixed Chat, streaming Chat, Responses and native Messages under one summary
+contract. It selects the existing standalone rules using exact native call-type
+and route pairs, with no change to their stream or response validation. Both
+exact selected/response maps are bound to the new contract; `responseModels` is
+required and may be empty. Approve the v2 contract before comparison and do not
+mix it with v1 or standalone summaries. V1 remains unchanged and rejects Messages.
+Installed collector/image/chart v0.5.0 does not support v2. No recipe version pin
+is changed, and selecting a profile alone does not upgrade the runtime.
+
+### Native Messages Profile In v0.6.0
+
+The separate [`litellm-1.104.0-messages-v1` profile](../../../docs/MODEL_USAGE_SUMMARIES.md#native-messages-profile-in-v060)
+also requires collector/image v0.6.0 and chart 0.6.0. It uses the same Messages
+rule as combined v2; installed v0.5.0 does not support it.
 
 Use the stock `otel` callback with
 `OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental`. Native spans must have

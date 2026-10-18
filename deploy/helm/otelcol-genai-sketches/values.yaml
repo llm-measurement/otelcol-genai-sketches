@@ -205,10 +205,12 @@ summaryExport:
     # litellm-1.104.0-v1 combines all three native LiteLLM paths.
     # It requires responseModels ({} is valid), used for nonstreaming Chat and
     # Responses, and ignored for streaming Chat. All identity profiles stay opt-in.
-    # UNRELEASED: litellm-1.104.0-messages-v1 is a separate native Messages profile.
-    # Collector/image/chart v0.5.0 do not support it; use a reviewed source build.
+    # Collector/image v0.6.0 and chart 0.6.0 add litellm-1.104.0-messages-v1
+    # and litellm-1.104.0-v2 (Chat, streaming Chat, Responses and Messages).
+    # Collector/image/chart v0.5.0 do not support these two profiles.
     # responseModels is required ({} is valid), checked for nonstreaming Messages
     # and ignored for typed native streaming. Combined v1 still rejects Messages.
+    # V2 has a distinct contract; approve it before comparing its summaries.
   # Mirror this BusyBox image into an internal registry if needed; keep a digest pin.
   utilityImage:
     repository: docker.io/library/busybox

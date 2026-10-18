@@ -55,6 +55,21 @@ known window boundary, record the event, and allow old windows to expire.
 
 ## Compatibility
 
+### Mixed LiteLLM Traffic In v0.6.0
+
+Collector v0.6.0 and chart 0.6.0 add `litellm-1.104.0-v2` for gateways serving
+Chat, streaming Chat, Responses and Anthropic Messages together. Pair it with
+fleetdiff v0.11.0 and approve its exact model maps and new contract identifier
+before enabling it. Native call-type and route markers select one of the four
+existing rules; streaming Messages and streaming Chat identify gateway selection,
+not an independently confirmed provider model.
+
+The existing `litellm-1.104.0-v1` contract remains unchanged and still excludes
+Messages. Do not combine v1 and v2 windows. Change profiles at a window boundary
+and retain each contract's exports separately. To roll back to v0.5.0, restore a
+profile supported by that version before restoring the binary; keep v2 exports
+with their compatible reader. Default request-model attribution is unchanged.
+
 ### Served-Model Profiles In v0.5.0
 
 Pair collector v0.5.0 and chart 0.5.0 with fleetdiff v0.11.0. Existing

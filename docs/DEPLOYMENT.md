@@ -8,7 +8,7 @@ filesystem, contains no shell, and uses pinned build and runtime base images.
 The example Compose stack remains a demonstration. Use the production image or Helm
 chart for a persistent environment.
 
-The commands below select collector **v0.5.0** and chart **0.5.0**.
+The commands below select collector **v0.6.0** and chart **0.6.0**.
 Chart and collector versions advance independently.
 
 ## Verify An Image
@@ -24,7 +24,7 @@ Use an immutable digest from the GitHub release, not a mutable tag:
 Fetch the references from that release's published metadata:
 
 ```bash
-RELEASE=v0.5.0
+RELEASE=v0.6.0
 IMAGE_REF="$(curl -fsSL \
   "https://github.com/llm-measurement/otelcol-genai-sketches/releases/download/${RELEASE}/image-digest.txt")"
 IMAGE="${IMAGE_REF%@*}"
@@ -42,14 +42,14 @@ gh attestation verify "oci://$IMAGE@$DIGEST" \
   --source-ref "refs/tags/${RELEASE}" --deny-self-hosted-runners
 ```
 
-Chart 0.5.0 includes summary storage and readback alongside opt-in warning rules
-and served-model usage accounting, and defaults to collector image 0.5.0. Both artifacts
-share `release.yml` at `refs/tags/v0.5.0`; there is no separate chart tag.
+Chart 0.6.0 includes summary storage and readback alongside opt-in warning rules
+and served-model usage accounting, and defaults to collector image 0.6.0. Both artifacts
+share `release.yml` at `refs/tags/v0.6.0`; there is no separate chart tag.
 Verify the chart's immutable reference too:
 
 ```bash
-CHART_RELEASE=v0.5.0
-CHART_VERSION=0.5.0
+CHART_RELEASE=v0.6.0
+CHART_VERSION=0.6.0
 CHART_REF="$(curl -fsSL \
   "https://github.com/llm-measurement/otelcol-genai-sketches/releases/download/${CHART_RELEASE}/chart-digest.txt")"
 CHART="${CHART_REF%@*}"
@@ -175,7 +175,7 @@ It exports complete state for local combination across independent collectors;
 it does not make Prometheus able to merge sketches. Chart **0.3.2** adds opt-in
 summary storage, a read-only reader sidecar, and independent JSON logging.
 [Summary Export With Helm](SUMMARY_EXPORT_HELM.md) walks through copy,
-investigate, and scan with the v0.5.0 collector image.
+investigate, and scan with the v0.6.0 collector image.
 
 The chart's `connector.topKKeys` passes through the optional
 key list; its default `[]` omits `topk_keys` and preserves prompt-only ranking.
