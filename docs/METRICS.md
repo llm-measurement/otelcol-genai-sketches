@@ -23,21 +23,29 @@ low-cardinality and non-sensitive. `gen_ai_sketch_active_slices` has only its fi
 | `gen_ai_sketch_usage_provenance_total` | Input/output field observations by declared source: provider-reported, inferred, unavailable, or unknown; not token counts |
 | `gen_ai_sketch_dedup_suppressed_total` | Probable duplicates suppressed when optional deduplication is enabled |
 | `gen_ai_sketch_dedup_key_missing_total` | Requests counted without a configured deduplication key |
+| `gen_ai_sketch_rejected_spans_total` | Malformed identity spans excluded from sketch accounting without rejecting valid peers in the batch |
 
 Counters use reported numeric fields. Missing-usage and provenance counters show
 completeness and declared origin. See [Token Fields](ACCOUNTING.md#token-fields)
 for genuine zeros, invalid values, and subset accounting.
 
-Each cumulative series begins when its retained slice is created. Collector restart,
-or eviction followed by recreation of the same label set, creates a counter reset.
-Use Prometheus `rate()` or `increase()` across those resets.
+Each slice-level cumulative series begins when its retained slice is created.
+Collector restart, or eviction followed by recreation of the same label set,
+creates a counter reset. Use Prometheus `rate()` or `increase()` across those resets.
+
+`gen_ai_sketch_rejected_spans_total` is connector-wide and has only the fixed
+`reason` label: `invalid_utf8` or `attribute_too_large`. It emits only observed
+reasons, has no slice or raw-input labels, and resets on connector restart.
 
 `gen_ai_sketch_token_field_observations_total` adds only two fixed labels:
 `token_field` is one of `input`, `output`, `cache_read_input`,
 `cache_write_input`, or `reasoning_output`; `state` is one of `reported`,
 `missing`, `invalid`, `conflict`, or `subset_violation`. Optional detail fields do
-not emit `missing`. Alias conflicts use the first valid configured value and report
-the conflict instead of adding both values.
+not normally emit `missing`; an over-cap value with no valid configured fallback
+emits both `invalid` and `missing`. The inclusive cap is `1,000,000,000` per field,
+not a cumulative budget. Merely absent optional detail fields still emit neither
+`reported` nor `missing`. Alias conflicts use the first valid configured value and
+report the conflict instead of adding both values.
 
 `gen_ai_sketch_usage_provenance_total` uses fixed `token_field` values `input`
 and `output`, and `source` values `provider_reported`, `inferred`, `unavailable`,
@@ -57,9 +65,26 @@ a genuine provider-reported zero is still valid. See [Usage Provenance](USAGE_PR
 | `gen_ai_sketch_distinct_mcp_sessions` | Optional HLL++ estimate for keyed MCP sessions |
 | `gen_ai_sketch_distinct_mcp_methods` | Optional HLL++ estimate for keyed MCP methods |
 | `gen_ai_sketch_distinct_mcp_resources` | Optional HLL++ estimate for keyed MCP resources |
+| `gen_ai_sketch_accounting_saturated` | Nonzero diagnostics for saturated lifetime slice counters, current slice windows, retained unavailable summary windows, or connector-wide rejection counters |
 
 MCP metrics appear only when MCP support is enabled and the corresponding values are
 observed.
+
+`gen_ai_sketch_accounting_saturated` adds fixed `surface` and `reason` labels.
+`surface="slice_counters"` and `surface="slice_window"` carry the usual slice
+labels and value `1` per affected reason. `surface="summary_window"` has no slice
+labels and counts retained unavailable windows per reason. `surface="rejections"`
+uses `reason="counter_limit"` and value `1` when an increment would exceed a
+connector-wide rejection counter's signed 64-bit maximum. Reaching the exact maximum
+does not set it. Counts clamp at that maximum; the flag has no slice labels and
+stays set until restart. Across all four surfaces, the eight fixed reasons are
+`counter_limit`, `total_tokens_limit`, `topk_weight_limit`, `tool_error_weight_limit`,
+`dedup_count_limit`, `model_usage_overflow`, `model_count_limit`, and
+`summary_byte_limit`. Flags are sticky for the affected slice or window's lifetime;
+only current slice windows and retained summary windows are reported. Multiple
+reasons can describe one window. See
+[Accounting Saturation](CONFIGURATION.md#accounting-saturation) for skipped exports
+and independent lifetime-counter saturation.
 
 ## Request Classification
 

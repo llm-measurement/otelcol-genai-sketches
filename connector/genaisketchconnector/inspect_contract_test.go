@@ -19,6 +19,13 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
+type inspectAccountingExpected struct {
+	Metrics           map[string]uint64 `json:"metrics"`
+	ObservedCounters  map[string]uint64 `json:"observed_counters"`
+	TokenObservations map[string]uint64 `json:"token_observations"`
+	UsageProvenance   map[string]uint64 `json:"usage_provenance"`
+}
+
 // The identical versioned corpus is also consumed by fleetdiff. Expectations are
 // hand-specified, not recorded from either implementation during a test run.
 func TestInspectAccountingContract(t *testing.T) {
@@ -32,15 +39,10 @@ func TestInspectAccountingContract(t *testing.T) {
 			Revision   string `json:"revision"`
 		} `json:"source"`
 		Cases []struct {
-			Name     string `json:"name"`
-			Input    string `json:"input"`
-			Expected struct {
-				Metrics           map[string]uint64 `json:"metrics"`
-				ObservedCounters  map[string]uint64 `json:"observed_counters"`
-				TokenObservations map[string]uint64 `json:"token_observations"`
-				UsageProvenance   map[string]uint64 `json:"usage_provenance"`
-			} `json:"expected"`
-			Error bool `json:"error"`
+			Name     string                    `json:"name"`
+			Input    string                    `json:"input"`
+			Expected inspectAccountingExpected `json:"expected"`
+			Error    bool                      `json:"error"`
 		} `json:"cases"`
 	}
 	if err := json.Unmarshal(files["manifest.json"], &manifest); err != nil {
@@ -62,6 +64,13 @@ func TestInspectAccountingContract(t *testing.T) {
 		}
 		names[tc.Name], inputs[tc.Input] = true, true
 		t.Run(tc.Name, func(t *testing.T) {
+			expected, wantError := tc.Expected, tc.Error
+			if tc.Error && len(tc.Expected.Metrics)+len(tc.Expected.ObservedCounters)+len(tc.Expected.TokenObservations)+len(tc.Expected.UsageProvenance) != 0 {
+				t.Fatal("frozen v1 error cases must not promise partial-success counters")
+			}
+			if hardened, ok := hardenedInspectExpectation(tc.Name); ok {
+				expected, wantError = hardened, false
+			}
 			traces, err := (&ptrace.JSONUnmarshaler{}).UnmarshalTraces(files[tc.Input])
 			if err != nil {
 				t.Fatalf("fixture is not an OTLP ExportTraceServiceRequest: %v", err)
@@ -79,10 +88,7 @@ func TestInspectAccountingContract(t *testing.T) {
 			}
 			state := newFleetFixtureState(t, cfg)
 			metrics, ok, err := state.ConsumeTraces(context.Background(), traces)
-			if tc.Error {
-				if len(tc.Expected.Metrics)+len(tc.Expected.ObservedCounters)+len(tc.Expected.TokenObservations)+len(tc.Expected.UsageProvenance) != 0 {
-					t.Fatal("error cases must not promise partial-success counters")
-				}
+			if wantError {
 				if err == nil || ok {
 					t.Fatal("expected accounting error, not a partial success")
 				}
@@ -101,12 +107,12 @@ func TestInspectAccountingContract(t *testing.T) {
 			for _, name := range accountingMetricNames {
 				gotMetrics[name] = uint64(sumMetricValues(metrics, name))
 			}
-			if !reflect.DeepEqual(gotMetrics, tc.Expected.Metrics) {
-				t.Errorf("metrics:\n got %v\nwant %v", gotMetrics, tc.Expected.Metrics)
+			if !reflect.DeepEqual(gotMetrics, expected.Metrics) {
+				t.Errorf("metrics:\n got %v\nwant %v", gotMetrics, expected.Metrics)
 			}
-			wantObserved := tc.Expected.ObservedCounters
+			wantObserved := expected.ObservedCounters
 			if wantObserved == nil {
-				wantObserved = tc.Expected.Metrics
+				wantObserved = expected.Metrics
 			}
 			gotObserved := make(map[string]uint64, len(accountingMetricNames))
 			for _, name := range accountingMetricNames {
@@ -148,8 +154,8 @@ func TestInspectAccountingContract(t *testing.T) {
 					gotObservations[field+"/"+quality] = uint64(sumMetricValuesWithLabels(metrics, tokenFieldObservationsMetricName, labels))
 				}
 			}
-			if !reflect.DeepEqual(gotObservations, tc.Expected.TokenObservations) {
-				t.Errorf("token observations:\n got %v\nwant %v", gotObservations, tc.Expected.TokenObservations)
+			if !reflect.DeepEqual(gotObservations, expected.TokenObservations) {
+				t.Errorf("token observations:\n got %v\nwant %v", gotObservations, expected.TokenObservations)
 			}
 			gotProvenance := make(map[string]uint64)
 			for _, field := range usageProvenanceFields {
@@ -158,8 +164,8 @@ func TestInspectAccountingContract(t *testing.T) {
 					gotProvenance[field+"/"+origin] = uint64(sumMetricValuesWithLabels(metrics, usageProvenanceMetricName, labels))
 				}
 			}
-			if !reflect.DeepEqual(gotProvenance, tc.Expected.UsageProvenance) {
-				t.Errorf("usage provenance:\n got %v\nwant %v", gotProvenance, tc.Expected.UsageProvenance)
+			if !reflect.DeepEqual(gotProvenance, expected.UsageProvenance) {
+				t.Errorf("usage provenance:\n got %v\nwant %v", gotProvenance, expected.UsageProvenance)
 			}
 			if bytes.Contains(marshalMetrics(t, metrics), []byte("INSPECT_CONTRACT_PRIVATE")) {
 				t.Fatal("sentinel leaked into a metric or label")

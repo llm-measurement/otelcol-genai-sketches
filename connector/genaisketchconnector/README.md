@@ -153,6 +153,33 @@ input tokens, and reasoning tokens are a subset of output tokens. Distinct
 counts are estimates, and rankings carry lower and upper bounds. Original spans
 remain subject to your trace backend's content and retention policy.
 
+An oversized configured hashed-field input or one containing invalid UTF-8 rejects
+only its span from sketch accounting. `gen_ai_sketch_rejected_spans_total` uses only
+the fixed reasons `invalid_utf8` and `attribute_too_large`. Each of the five token
+fields has an inclusive cap of `1,000,000,000`; over-cap sources are invalid and,
+without a valid fallback, missing rather than reported zero. The request is retained.
+This intentionally changes over-cap acceptance; the summary wire format is unchanged.
+Other valid fields and spans continue to contribute normally. See
+[field mapping](../../docs/CONFIGURATION.md#field-mapping) and
+[token weights](../../docs/CONFIGURATION.md#token-weights) for the limits.
+
+`gen_ai_sketch_accounting_saturated` reports fixed saturation surfaces and reasons.
+Lifetime counters clamp independently of summary windows. An unavailable summary
+window is skipped before serialization, preserving any earlier partial file and its
+`observed_end_unix_nano` until retention cleanup; other windows continue. Saturated
+ranking streams are omitted and the snapshot sets `truncated: true`. See
+[accounting saturation](../../docs/CONFIGURATION.md#accounting-saturation) before
+treating a partial summary or omitted ranking as complete evidence.
+
+Every batch is transactional, including when model-usage summaries are disabled.
+Unexpected accounting failures before commit leave no partially counted prefix.
+After commit, downstream metrics delivery failures are logged and the failed
+snapshot is dropped instead of returning a trace error that could trigger a
+duplicate replay. Later snapshots report cumulative counters; the connector does
+not guarantee replay of missed window-specific gauges or durable metrics delivery.
+The warning omits raw downstream error text. See
+[batch and delivery failures](../../docs/CONFIGURATION.md#batch-and-delivery-failures).
+
 The [metrics reference](../../docs/METRICS.md) lists the emitted instruments.
 [Accounting](../../docs/ACCOUNTING.md) defines token validity, window timing,
 and restart behavior. Use exact records for billing and quota enforcement.

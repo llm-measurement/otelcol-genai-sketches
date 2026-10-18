@@ -289,31 +289,26 @@ func TestModelUsageConfigErrorsDoNotEcho(t *testing.T) {
 	}
 }
 
-func TestModelUsageBatchCounterFailureAtomic(t *testing.T) {
+func TestModelUsageBatchCounterSaturationFreezesSummary(t *testing.T) {
 	s, e, clk := modelFixture(t, func(c *Config) { c.TopK = 0 })
-	mustConsumeTraces(t, s, modelTrace(maxInt64Value-1, func(a pcommon.Map) { a.PutInt("gen_ai.usage.output_tokens", 0) }))
-	before := stateFingerprint(t, s)
+	mustConsumeTraces(t, s, modelTrace(1, func(a pcommon.Map) { a.PutInt("gen_ai.usage.output_tokens", 0) }))
 	window := s.summary.windows[s.windowStart(clk.now)]
-	rows, _ := json.Marshal(window.modelUsage)
-	byteCount, lru := window.modelUsageBytes, s.nextLRUSeq
+	window.counters.inputTokens = uint64(maxInt64Value - 1)
 	first := modelTrace(0, func(a pcommon.Map) {
 		a.PutInt("gen_ai.usage.output_tokens", 0)
 		a.PutStr("gen_ai.request.model", "PRIVATE_NEW")
 	})
 	second := modelTrace(2, func(a pcommon.Map) { a.PutInt("gen_ai.usage.output_tokens", 0) })
 	second.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).CopyTo(first.ResourceSpans().At(0).ScopeSpans().At(0).Spans().AppendEmpty())
-	for range 2 {
-		if _, _, err := s.ConsumeTraces(context.Background(), first); err == nil {
-			t.Fatal("overflowing batch accepted")
-		}
-		after, _ := json.Marshal(s.summary.windows[s.windowStart(clk.now)].modelUsage)
-		if !bytes.Equal(before, stateFingerprint(t, s)) || !bytes.Equal(rows, after) || byteCount != window.modelUsageBytes || lru != s.nextLRUSeq {
-			t.Fatal("failed batch or its replay accepted a prefix")
-		}
+	metrics := mustConsumeTraces(t, s, first)
+	window = s.summary.windows[s.windowStart(clk.now)]
+	if !window.saturation[saturationCounter] || window.counters.requests != 2 || window.counters.inputTokens != uint64(maxInt64Value-1) || sumMetricValues(metrics, requestsMetricName) != 3 {
+		t.Fatal("summary saturation discarded ordinary requests or changed the last exact summary")
 	}
-	doc := exportDocs(t, s, e, clk.now.Add(time.Second))[0]
-	if doc.Counters["requests"] != 1 {
-		t.Fatal("failed batch entered summary")
+	rows := mustJSON(t, window.modelUsage)
+	mustConsumeTraces(t, s, modelTrace(1, nil))
+	if !bytes.Equal(rows, mustJSON(t, s.summary.windows[s.windowStart(clk.now)].modelUsage)) || len(exportDocs(t, s, e, clk.now.Add(time.Second))) != 0 {
+		t.Fatal("suppressed summary kept changing or was exported as exact")
 	}
 }
 
@@ -340,18 +335,15 @@ func TestModelUsageByteBudget(t *testing.T) {
 	}
 	w.modelUsageBytes = len(encodedModels)
 	s.cfg.modelUsage.models["PRIVATE_MODEL"] = fmt.Sprintf("model-%04d-%s", 0, strings.Repeat("x", 117))
-	w.counters.requests = row.Requests * 5000
-	w.counters.inputTokens = row.Fields.Input.Tokens * 5000
-	w.counters.outputTokens = row.Fields.Output.Tokens * 5000
-	before := stateFingerprint(t, s)
 	rows, _ := json.Marshal(w.modelUsage)
-	_, _, err = s.ConsumeTraces(context.Background(), modelTrace(100000, nil))
-	if err == nil || !strings.Contains(err.Error(), "byte budget") {
-		t.Fatalf("expected size refusal, got %v; rows=%d", err, len(rows))
+	metrics := mustConsumeTraces(t, s, modelTrace(100000, nil))
+	w = s.summary.windows[s.windowStart(clk.now)]
+	if !w.saturation[saturationSummaryBytes] || sumMetricValues(metrics, requestsMetricName) != 2 {
+		t.Fatal("byte capacity did not isolate summary from ordinary metrics")
 	}
 	after, _ := json.Marshal(w.modelUsage)
-	if !bytes.Equal(before, stateFingerprint(t, s)) || !bytes.Equal(rows, after) {
-		t.Fatal("size rejection changed state")
+	if !bytes.Equal(rows, after) || w.modelUsageBytes != len(rows) || w.counters.requests != 1 {
+		t.Fatal("byte suppression changed the frozen summary")
 	}
 }
 
