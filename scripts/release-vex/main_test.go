@@ -207,14 +207,14 @@ func TestReleaseWorkflowBindsAndAuthenticatesVEX(t *testing.T) {
 		"cp packaging/docker/Dockerfile .cache/vex.Dockerfile", "FROM build AS vex-evidence", "for arch in amd64 arm64; do",
 		"--target vex-export", "docker cp", "--binaries .cache/vex-binaries", "--image \"${IMAGE_NAME}@${DIGEST}\"",
 		"sbom-index.json openvex.json vex-linux-*.json *.tgz > SHA256SUMS", "            release/openvex.json\n",
-		"for subject in release/SHA256SUMS release/sbom-index.json release/openvex.json; do", "--source-ref \"refs/tags/$TAG\" --deny-self-hosted-runners",
+		"for subject in release/SHA256SUMS release/sbom-index.json release/openvex.json; do", "--source-ref \"refs/tags/$TAG\" --source-digest \"$GITHUB_SHA\" --deny-self-hosted-runners",
 		"ignore-unfixed: false", "go -C dist run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./...",
 	} {
 		if !strings.Contains(source, want) {
 			t.Errorf("missing release gate: %s", want)
 		}
 	}
-	if strings.Index(source, "go run ./scripts/release-vex generate") > strings.Index(source, " > SHA256SUMS)") {
+	if strings.Index(source, "go run ./scripts/release-vex generate") > strings.Index(source, "sbom-index.json openvex.json vex-linux-*.json *.tgz > SHA256SUMS)") {
 		t.Fatal("VEX generated after checksums")
 	}
 	if strings.Contains(source, "--ignorefile") || strings.Contains(source, "--vex") {
