@@ -134,8 +134,44 @@ quota ledger.
 ## What happens when a configured attribute is absent or too large?
 
 Missing slice parts use the fixed `<missing>` label value. Slice parts longer than
-the accepted limit use `<too_long>`. Raw attributes larger than 8 KiB are ignored
-before canonicalization or sketch updates.
+the accepted limit use `<too_long>`. A configured hashed-field value larger than
+8 KiB or containing invalid UTF-8 rejects that span from sketch accounting,
+not the other spans in its batch. `gen_ai_sketch_rejected_spans_total` records only
+the fixed reasons `invalid_utf8` and `attribute_too_large`, never raw rejected values.
+
+An invalid token value is different: the request still counts. All five token fields
+have an inclusive per-field cap of `1,000,000,000`. Over-cap sources record `invalid`;
+an over-cap field with no valid configured source records `missing`, not a reported
+zero. Unavailable input or output also increments the missing-token-usage
+counter. This intentionally changes over-cap input acceptance without changing the
+summary wire format. See [Token Weights](CONFIGURATION.md#token-weights).
+
+## What happens when accounting reaches a capacity limit?
+
+The fixed-label `gen_ai_sketch_accounting_saturated` gauge identifies the affected
+surface and reason. Lifetime counters clamp independently of summary windows.
+An unavailable summary window is skipped before serialization: any earlier partial
+file and its `observed_end_unix_nano` stay unchanged until retention cleanup. Other
+windows continue to export. Do not treat that earlier partial file as complete coverage.
+
+Saturated top-k streams are omitted and the snapshot sets `truncated: true`; other
+streams continue. The saturation flag stays set for the affected slice or window's
+lifetime. See [Accounting Saturation](CONFIGURATION.md#accounting-saturation) for
+the diagnostic scopes and fixed reasons.
+
+## Can a metrics delivery failure cause traces to be counted again?
+
+After accounting commits, a downstream metrics delivery failure is logged and the
+failed snapshot is dropped. The connector does not return that failure to the
+trace sender, so it does not ask the sender to retry already-counted traces. A later
+successful snapshot can recover cumulative counts, but missed window-specific
+gauges need not be replayed. This is not durable delivery: restart or slice eviction
+can reset those counters. The warning omits raw downstream error text.
+
+Batch accounting is transactional with or without model-usage summaries. An
+unexpected accounting failure before commit leaves no partially counted prefix.
+Independent replay or retries elsewhere in the trace pipeline can still duplicate
+requests; optional deduplication has the limitations described above.
 
 ## Does the connector support MCP telemetry?
 

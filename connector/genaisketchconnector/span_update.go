@@ -39,17 +39,22 @@ func (s *collectorState) applySpan(data spanData, update spanUpdate, now time.Ti
 				return err
 			}
 		}
+		if p.slice == s.summary && p.window.summarySuppressed() {
+			continue
+		}
 		p.prepared, err = s.prepareUpdate(p.window, data, update)
 		if err != nil {
 			return err
 		}
-		if err := p.slice.checkUpdate(p.window, update, p.prepared); err != nil {
-			return err
-		}
+		p.slice.checkUpdate(p.window, update, &p.prepared)
 	}
 	modelUpdate, err := s.prepareModelUsage(data, update, pending[:n])
 	if err != nil {
-		return err
+		if reason, capacity := modelUsageCapacityReason(err); capacity {
+			pending[n-1].window.saturation[reason] = true
+		} else {
+			return err
+		}
 	}
 	for _, p := range pending[:n] {
 		if p.evicted != nil {
@@ -71,14 +76,17 @@ func (s *collectorState) applySpan(data spanData, update spanUpdate, now time.Ti
 			}
 		}
 		p.slice.windows[start] = p.window
+		if p.slice == s.summary && p.window.summarySuppressed() {
+			continue
+		}
 		if p.slice == s.summary && modelUpdate != nil {
 			p.window.modelUsage[modelUpdate.id] = modelUpdate.row
 			p.window.modelUsageBytes = modelUpdate.bytes
 		}
 		if p.prepared.deduped {
-			p.slice.dedupSuppressed++
+			p.slice.add(&p.slice.dedupSuppressed, 1)
 			if p.window.counters != nil {
-				p.window.counters.dedupSuppressed++
+				p.window.counters.add(&p.window.counters.dedupSuppressed, 1)
 			}
 			continue
 		}

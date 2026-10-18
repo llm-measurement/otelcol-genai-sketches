@@ -153,7 +153,13 @@ func (c *tracesConnector) ConsumeTraces(ctx context.Context, traces ptrace.Trace
 	if c.shouldLogTopKLocked(now) {
 		c.emitTopKSnapshotLocked(now)
 	}
-	return c.next.ConsumeMetrics(ctx, metrics)
+	if err := c.next.ConsumeMetrics(ctx, metrics); err != nil {
+		// Accounting is committed. Returning this error would invite the sender
+		// to replay counted traces. A later emission carries cumulative counters.
+		// Downstream errors can contain span labels, so do not log their text.
+		c.logger.Warn("genaisketch downstream metrics delivery failed after accounting commit; not retrying traces")
+	}
+	return nil
 }
 
 func (c *tracesConnector) debugLogLoop(ctx context.Context, done chan struct{}) {
@@ -221,7 +227,7 @@ func (c *tracesConnector) emitTopKSnapshotLocked(now time.Time) {
 		c.logger.Warn("failed to build genaisketch topk snapshot", zap.Error(err))
 		return
 	}
-	if snapshot.ItemCount() == 0 {
+	if snapshot.ItemCount() == 0 && !snapshot.Truncated {
 		return
 	}
 	payload, err := json.Marshal(snapshot)

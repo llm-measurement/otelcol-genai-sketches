@@ -64,25 +64,29 @@ func TestMissingTokenBehaviorDoesNotInventWeights(t *testing.T) {
 	}
 }
 
-func TestTokenOverflowRejectedBeforeStateMutation(t *testing.T) {
+func TestTokenOverflowRetainsRequestAndValidOutput(t *testing.T) {
 	state := newTestState(t, testConfig(func(cfg *Config) {
 		cfg.Slices = []SliceConfig{{Name: "by_model", Keys: []string{"gen_ai.request.model"}}}
 	}))
 
 	_, _, err := state.ConsumeTraces(context.Background(), traceWithStringTokens("18446744073709551615", "1"))
-	if err == nil || !strings.Contains(err.Error(), "token value exceeds") {
-		t.Fatalf("ConsumeTraces error = %v, want token bound rejection", err)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if len(state.slices) != 0 {
-		t.Fatalf("slices mutated on rejected token span: %d", len(state.slices))
+	for _, slice := range state.slices {
+		if slice.requests != 1 || slice.inputTokens != 0 || slice.outputTokens != 1 || slice.missingTokens != 1 || slice.tokenObservations[tokenFieldInput][tokenStateInvalid] != 1 {
+			t.Fatalf("invalid input lost valid accounting: %+v", slice.accountingCounters)
+		}
 	}
 
 	_, _, err = state.ConsumeTraces(context.Background(), traceWithStringTokens("9223372036854775807", "1"))
-	if err == nil || !strings.Contains(err.Error(), "token sum exceeds") {
-		t.Fatalf("ConsumeTraces error = %v, want token-sum overflow rejection", err)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if len(state.slices) != 0 {
-		t.Fatalf("slices mutated on rejected token sum: %d", len(state.slices))
+	for _, slice := range state.slices {
+		if slice.requests != 2 || slice.inputTokens != 0 || slice.outputTokens != 2 || slice.missingTokens != 2 {
+			t.Fatalf("subsequent over-cap input wedged accounting: %+v", slice.accountingCounters)
+		}
 	}
 }
 
@@ -134,7 +138,7 @@ func TestTopKZeroAvoidsFrequentItemsState(t *testing.T) {
 	}
 }
 
-func TestTokenOverflowRejectsWholeBatchBeforeStateMutation(t *testing.T) {
+func TestTokenOverflowDoesNotRejectOtherBatchSpans(t *testing.T) {
 	state := newTestState(t, testConfig(func(cfg *Config) {
 		cfg.Slices = []SliceConfig{{Name: "by_model", Keys: []string{"gen_ai.request.model"}}}
 	}))
@@ -151,15 +155,18 @@ func TestTokenOverflowRejectsWholeBatchBeforeStateMutation(t *testing.T) {
 	span.Attributes().PutInt("gen_ai.usage.output_tokens", 1)
 
 	_, _, err := state.ConsumeTraces(context.Background(), traces)
-	if err == nil || !strings.Contains(err.Error(), "token value exceeds") {
-		t.Fatalf("ConsumeTraces error = %v, want token bound rejection", err)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if len(state.slices) != 0 {
-		t.Fatalf("slices mutated before full-batch validation: %d", len(state.slices))
+	if len(state.slices) != 2 {
+		t.Fatalf("valid requests lost: %d slices", len(state.slices))
+	}
+	if got := state.slices["by_model\x00gen_ai.request.model=invalid-model"]; got.requests != 1 || got.outputTokens != 1 || got.missingTokens != 1 {
+		t.Fatalf("over-cap field rejected request or valid output: %+v", got.accountingCounters)
 	}
 }
 
-func TestHashInputErrorRejectsWholeBatchBeforeStateMutation(t *testing.T) {
+func TestHashInputErrorRejectsOnlyMalformedSpan(t *testing.T) {
 	state := newTestState(t, testConfig(func(cfg *Config) {
 		cfg.Slices = []SliceConfig{{Name: "by_model", Keys: []string{"gen_ai.request.model"}}}
 	}))
@@ -178,11 +185,11 @@ func TestHashInputErrorRejectsWholeBatchBeforeStateMutation(t *testing.T) {
 	span.Attributes().PutInt("gen_ai.usage.output_tokens", 1)
 
 	_, _, err := state.ConsumeTraces(context.Background(), traces)
-	if err == nil || !strings.Contains(err.Error(), "fields.prompt_key value exceeds") {
-		t.Fatalf("ConsumeTraces error = %v, want hash input bound rejection", err)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if len(state.slices) != 0 {
-		t.Fatalf("slices mutated before full-batch validation: %d", len(state.slices))
+	if len(state.slices) != 1 || state.slices["by_model\x00gen_ai.request.model=valid-model"].requests != 1 || state.rejections.counts[spanRejectedAttributeSize] != 1 {
+		t.Fatal("malformed span changed valid accounting or lacked a fixed rejection reason")
 	}
 }
 
@@ -203,6 +210,7 @@ func TestPerWindowHLLUpdatesAndRingRotation(t *testing.T) {
 
 	clk.Set(clk.Now().Add(time.Second))
 	mustConsume(t, state, testSpan{Model: "gpt-test", User: "user-2", Prompt: "prompt-2", Doc: "doc-2"})
+	slice = state.slices["by_model\x00gen_ai.request.model=gpt-test"]
 	secondWindow := state.windowStart(clk.Now())
 	if got := slice.windows[secondWindow].distinctUsers.Estimate(); got < 0.9 || got > 1.1 {
 		t.Fatalf("second window users = %f, want approximately 1", got)
@@ -213,6 +221,7 @@ func TestPerWindowHLLUpdatesAndRingRotation(t *testing.T) {
 
 	clk.Set(clk.Now().Add(time.Second))
 	mustConsume(t, state, testSpan{Model: "gpt-test", User: "user-3", Prompt: "prompt-3", Doc: "doc-3"})
+	slice = state.slices["by_model\x00gen_ai.request.model=gpt-test"]
 	if _, ok := slice.windows[firstWindow]; ok {
 		t.Fatal("expired first window still retained")
 	}

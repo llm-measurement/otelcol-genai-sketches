@@ -5,9 +5,9 @@ package genaisketchconnector
 
 import "maps"
 
-// Opt-in limits may reject a later otherwise valid span. A detached batch
-// prevents retries from counting an already-applied prefix. Only touched slices
-// and the current window are copied; retained history remains immutable.
+// Every batch is detached so an internal failure cannot leave an applied prefix
+// for a retry to count again. Only touched slices and the current window are
+// copied; retained history remains immutable.
 func (s *collectorState) modelUsageBatch() *collectorState {
 	c := *s
 	c.slices = maps.Clone(s.slices)
@@ -22,7 +22,9 @@ func (s *collectorState) ownModelUsageSlice(slice *sliceState, start int64) *sli
 	}
 	c := *slice
 	c.windows = maps.Clone(slice.windows)
-	if w := c.windows[start]; w != nil {
+	// A suppressed summary is immutable until expiry. Do not repeatedly copy
+	// its potentially full model map or sketches on every later batch.
+	if w := c.windows[start]; w != nil && !(slice == s.summary && w.summarySuppressed()) {
 		copy := cloneSummaryWindow(w)
 		copy.modelUsage = maps.Clone(w.modelUsage)
 		c.windows[start] = copy

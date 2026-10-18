@@ -239,9 +239,9 @@ func TestTopKKeysOversizedSessionDoesNotMutate(t *testing.T) {
 	traces := tracesFromSpans(testSpan{Model: "model"})
 	private := strings.Repeat("PRIVATE_SESSION", maxAttributeValueBytes)
 	traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Attributes().PutStr("session.id", private)
-	_, _, err := s.ConsumeTraces(context.Background(), traces)
-	if err == nil || strings.Contains(err.Error(), "PRIVATE_SESSION") || len(s.slices) != 0 {
-		t.Fatal("oversized session accepted, echoed, or mutated state")
+	metrics, ok, err := s.ConsumeTraces(context.Background(), traces)
+	if err != nil || !ok || len(s.slices) != 0 || rejectionMetricCounts(t, metrics)["attribute_too_large"] != 1 || bytes.Contains(marshalMetrics(t, metrics), []byte("PRIVATE_SESSION")) {
+		t.Fatal("oversized session was not isolated with a fixed diagnostic")
 	}
 }
 

@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	sketchbloom "github.com/llm-measurement/llm-sketchkit/go/sketchkit/bloom"
 	sketchcanon "github.com/llm-measurement/llm-sketchkit/go/sketchkit/canon"
@@ -84,6 +85,7 @@ type collectorState struct {
 	nextLRUSeq int64
 	summary    *sliceState
 	batchOwned map[*sliceState]bool
+	rejections spanRejections
 }
 
 type sliceState struct {
@@ -96,6 +98,8 @@ type sliceState struct {
 }
 
 type accountingCounters struct {
+	saturated             bool
+	totalSaturated        bool
 	requests              uint64
 	agentRuns             uint64
 	inputTokens           uint64
@@ -118,6 +122,9 @@ type sliceLabel struct {
 }
 
 type windowState struct {
+	saturation           [saturationReasonCount]bool
+	topKeySaturated      [4]bool
+	toolErrorSaturated   bool
 	counters             *accountingCounters
 	distinctUsers        *hllpp.Sketch
 	distinctPrompts      *hllpp.Sketch
@@ -222,10 +229,11 @@ var tokenObservationStateNames = [tokenStateCount]string{
 type tokenObservationCounts [tokenFieldCount][tokenStateCount]uint64
 
 type tokenObservation struct {
-	value    uint64
-	reported bool
-	invalid  bool
-	conflict bool
+	value     uint64
+	reported  bool
+	invalid   bool
+	conflict  bool
+	overLimit bool
 }
 
 type spanUpdate struct {
@@ -333,32 +341,23 @@ func (s *collectorState) ConsumeTraces(_ context.Context, traces ptrace.Traces) 
 	now := s.clock.Now()
 	windowStart := s.windowStart(now)
 
-	relevant, err := s.visitRelevantSpans(traces, nil)
+	working := s.modelUsageBatch()
+	relevant, err := working.visitRelevantSpans(traces, now, func(data spanData, update spanUpdate) error {
+		return working.applySpan(data, update, now, windowStart)
+	})
 	if err != nil {
 		return pmetric.Metrics{}, false, err
 	}
 	if !relevant {
 		return pmetric.Metrics{}, false, nil
 	}
-	working := s
-	if s.cfg.modelUsage != nil {
-		working = s.modelUsageBatch()
-	}
-	_, err = working.visitRelevantSpans(traces, func(data spanData, update spanUpdate) error {
-		return working.applySpan(data, update, now, windowStart)
-	})
-	if err != nil {
-		return pmetric.Metrics{}, false, err
-	}
-	if working != s {
-		working.batchOwned = nil
-		*s = *working
-	}
+	working.batchOwned = nil
+	*s = *working
 
 	return s.buildMetrics(now), true, nil
 }
 
-func (s *collectorState) visitRelevantSpans(traces ptrace.Traces, visit func(spanData, spanUpdate) error) (bool, error) {
+func (s *collectorState) visitRelevantSpans(traces ptrace.Traces, now time.Time, visit func(spanData, spanUpdate) error) (bool, error) {
 	relevant := false
 	resourceSpans := traces.ResourceSpans()
 	for i := 0; i < resourceSpans.Len(); i++ {
@@ -377,14 +376,18 @@ func (s *collectorState) visitRelevantSpans(traces ptrace.Traces, visit func(spa
 					continue
 				}
 				relevant = true
-				if visit == nil {
-					if err := s.validateHashedInputs(data, update); err != nil {
+				if err := s.validateHashedInputs(data, update); err != nil {
+					var reason spanRejection
+					if !errors.As(err, &reason) {
 						return false, err
 					}
+					s.rejections.record(reason, now)
 					continue
 				}
-				if err := visit(data, update); err != nil {
-					return false, err
+				if visit != nil {
+					if err := visit(data, update); err != nil {
+						return false, err
+					}
 				}
 			}
 		}
@@ -474,41 +477,39 @@ func (s *collectorState) cutoffWindowStart(currentWindowStart int64) int64 {
 	return currentWindowStart - retained*s.cfg.windowDuration.Nanoseconds()
 }
 
-func (s *sliceState) checkUpdate(window *windowState, update spanUpdate, prepared preparedUpdate) error {
+func (s *sliceState) checkUpdate(window *windowState, update spanUpdate, prepared *preparedUpdate) {
 	if prepared.deduped {
-		if _, err := checkedAddUint64("slice.dedup_suppressed", s.dedupSuppressed, 1); err != nil {
-			return err
+		if window.counters != nil && window.counters.dedupSuppressed >= math.MaxInt64 {
+			window.saturation[saturationCounter] = true
 		}
-		if window.counters != nil {
-			if _, err := checkedAddUint64("summary.dedup_suppressed", window.counters.dedupSuppressed, 1); err != nil {
-				return err
-			}
-			if window.counters.dedupSuppressed >= math.MaxInt64 {
-				return errors.New("summary dedup counter overflow")
-			}
-		}
-		return nil
-	}
-	if err := s.checkCounters(update, prepared, math.MaxUint64); err != nil {
-		return err
+		return
 	}
 	if window.counters != nil {
-		if err := window.counters.checkCounters(update, prepared, math.MaxInt64); err != nil {
-			return err
+		if err := window.counters.checkCounters(update, *prepared, math.MaxInt64); err != nil {
+			window.saturation[saturationCounter] = true
+		}
+		input, okInput := addUint64(window.counters.inputTokens, update.totals.inputTokens)
+		output, okOutput := addUint64(window.counters.outputTokens, update.totals.outputTokens)
+		if !okInput || !okOutput || input > math.MaxInt64 || output > math.MaxInt64-input {
+			window.saturation[saturationTotalTokens] = true
 		}
 	}
 	for i, hash := range prepared.topKeyHashes {
 		if hash.ok && window.topKeys[i].TotalWeight() > maxInt64Value-prepared.topKeyWeights[i] {
-			return errors.New("top-k total weight overflow")
+			window.topKeySaturated[i] = true
+			window.saturation[saturationTopK] = true
+		}
+		if window.topKeySaturated[i] {
+			prepared.topKeyHashes[i] = optionalHash{}
 		}
 	}
 	if prepared.toolErrorHash.ok && window.topToolErrors != nil && window.topToolErrors.TotalWeight() == maxInt64Value {
-		return errors.New("tool-error total weight overflow")
+		window.toolErrorSaturated = true
+		window.saturation[saturationToolError] = true
 	}
-	if prepared.dedupHash.ok && window.dedupRequests.InsertedCount() == math.MaxUint64 {
-		return sketchbloom.ErrCountOverflow
+	if window.toolErrorSaturated {
+		prepared.toolErrorHash = optionalHash{}
 	}
-	return nil
 }
 
 func (s *collectorState) prepareUpdate(window *windowState, data spanData, update spanUpdate) (preparedUpdate, error) {
@@ -591,6 +592,12 @@ func (s *collectorState) prepareUpdate(window *windowState, data spanData, updat
 
 func (s *collectorState) prepareDedup(window *windowState, data spanData) (optionalHash, bool, bool, error) {
 	if !s.cfg.dedupEnabled || window.dedupRequests == nil {
+		return optionalHash{}, false, false, nil
+	}
+	if window.dedupRequests.InsertedCount() == math.MaxUint64 {
+		window.saturation[saturationDedup] = true
+	}
+	if window.saturation[saturationDedup] {
 		return optionalHash{}, false, false, nil
 	}
 	requestID, ok := lookupRequestID(data, s.cfg.requestIDAttrs)
@@ -724,28 +731,29 @@ func (s *collectorState) applyNoErrorSketches(window *windowState, prepared prep
 func (s *accountingCounters) addCounters(update spanUpdate, prepared preparedUpdate) {
 	for field := range usageProvenanceFields {
 		for state := range usageProvenanceStates {
-			s.usageProvenance[field][state] += update.totals.usageProvenance[field][state]
+			s.add(&s.usageProvenance[field][state], update.totals.usageProvenance[field][state])
 		}
 	}
-	s.requests += update.totals.requests
-	s.inputTokens += update.totals.inputTokens
-	s.outputTokens += update.totals.outputTokens
-	s.cacheReadInputTokens += update.totals.cacheReadInputTokens
-	s.cacheWriteInputTokens += update.totals.cacheWriteInputTokens
-	s.reasoningOutputTokens += update.totals.reasoningOutputTokens
-	s.missingTokens += update.totals.missingTokens
+	s.add(&s.requests, update.totals.requests)
+	s.add(&s.inputTokens, update.totals.inputTokens)
+	s.add(&s.outputTokens, update.totals.outputTokens)
+	s.add(&s.cacheReadInputTokens, update.totals.cacheReadInputTokens)
+	s.add(&s.cacheWriteInputTokens, update.totals.cacheWriteInputTokens)
+	s.add(&s.reasoningOutputTokens, update.totals.reasoningOutputTokens)
+	s.add(&s.missingTokens, update.totals.missingTokens)
 	for field := tokenField(0); field < tokenFieldCount; field++ {
 		for state := tokenObservationState(0); state < tokenStateCount; state++ {
 			delta := update.totals.tokenObservations[field][state]
-			s.tokenObservations[field][state] += delta
+			s.add(&s.tokenObservations[field][state], delta)
 		}
 	}
 	if prepared.dedupKeyMissing {
-		s.dedupKeyMissing++
+		s.add(&s.dedupKeyMissing, 1)
 	}
 	if update.agentRun {
-		s.agentRuns++
+		s.add(&s.agentRuns, 1)
 	}
+	s.totalSaturated = s.totalSaturated || s.inputTokens > math.MaxInt64-s.outputTokens
 }
 
 func addHash(sketch *hllpp.Sketch, hash optionalHash) {
@@ -831,7 +839,10 @@ func (s *collectorState) hashToolErrorSignature(data spanData) (uint64, bool, er
 		return 0, false, nil
 	}
 	if len(tool) > maxAttributeValueBytes || len(errorType) > maxAttributeValueBytes {
-		return 0, false, fmt.Errorf("tool-error attribute exceeds %d bytes", maxAttributeValueBytes)
+		return 0, false, spanRejectedAttributeSize
+	}
+	if !utf8.ValidString(tool) || !utf8.ValidString(errorType) {
+		return 0, false, spanRejectedUTF8
 	}
 	canonicalTool, err := sketchcanon.CanonicalizeString(sketchcanon.TextV1, tool)
 	if err != nil {
@@ -865,7 +876,7 @@ func (s *collectorState) hashDataField(fieldName string, data spanData) (optiona
 		return optionalHash{}, nil
 	}
 	if len(value) > maxAttributeValueBytes {
-		return optionalHash{}, fmt.Errorf("fields.%s value exceeds %d bytes", fieldName, maxAttributeValueBytes)
+		return optionalHash{}, spanRejectedAttributeSize
 	}
 	hashValue, err := s.hashField(field, value)
 	if err != nil {
@@ -880,7 +891,10 @@ func (s *collectorState) hashField(field compiledField, value string) (uint64, e
 
 func (s *collectorState) hashCanonical(profile sketchcanon.Profile, domain sketchhash.Domain, value string) (uint64, error) {
 	if len(value) > maxAttributeValueBytes {
-		return 0, fmt.Errorf("hash input for %s exceeds %d bytes", domain, maxAttributeValueBytes)
+		return 0, spanRejectedAttributeSize
+	}
+	if !utf8.ValidString(value) {
+		return 0, spanRejectedUTF8
 	}
 	canonical, err := sketchcanon.CanonicalizeString(profile, value)
 	if err != nil {
@@ -956,7 +970,7 @@ func tokenTotals(spanAttrs pcommon.Map, cfg runtimeConfig) (spanTotals, error) {
 		observation := observations[field]
 		if observation.reported {
 			totals.tokenObservations[field][tokenStateReported] = 1
-		} else if field == tokenFieldInput || field == tokenFieldOutput {
+		} else if field == tokenFieldInput || field == tokenFieldOutput || observation.overLimit {
 			totals.tokenObservations[field][tokenStateMissing] = 1
 		}
 		if observation.invalid {
@@ -980,10 +994,8 @@ func observeTokenField(attributes pcommon.Map, sources []string) (tokenObservati
 			continue
 		}
 		parsed, valid, err := valueAsUint(value)
-		if err != nil {
-			return tokenObservation{}, fmt.Errorf("attribute %q: %w", source, err)
-		}
-		if !valid {
+		observation.overLimit = observation.overLimit || err != nil || parsed > maxPlausibleTokenValue
+		if err != nil || !valid || parsed > maxPlausibleTokenValue {
 			observation.invalid = true
 			continue
 		}
@@ -1125,6 +1137,9 @@ func valueAsUint(value pcommon.Value) (uint64, bool, error) {
 	case pcommon.ValueTypeStr:
 		parsed, err := strconv.ParseUint(value.Str(), 10, 64)
 		if err != nil {
+			if errors.Is(err, strconv.ErrRange) {
+				return 0, false, errors.New("token value exceeds supported range")
+			}
 			return 0, false, nil
 		}
 		if parsed > uint64(maxInt64Value) {
@@ -1187,6 +1202,8 @@ func (s *collectorState) buildMetrics(now time.Time) pmetric.Metrics {
 		}
 	}
 
+	s.rejections.appendMetrics(scopeMetrics, timestamp)
+	s.appendSaturationMetrics(scopeMetrics, timestamp, currentWindow)
 	return metrics
 }
 
@@ -1221,9 +1238,17 @@ func (s *collectorState) TopKSnapshot(now time.Time) (TopKSnapshot, error) {
 			continue
 		}
 		for i, key := range s.cfg.topKKeys {
+			if window.topKeySaturated[i] {
+				snapshot.Truncated = true
+				continue
+			}
 			if err := s.appendFrequentItemsSnapshot(&snapshot, slice, currentWindow, key.Field, key.Weight, window.topKeys[i]); err != nil {
 				return TopKSnapshot{}, err
 			}
+		}
+		if window.toolErrorSaturated {
+			snapshot.Truncated = true
+			continue
 		}
 		if err := s.appendFrequentItemsSnapshot(&snapshot, slice, currentWindow, fieldToolErrorKey, "", window.topToolErrors); err != nil {
 			return TopKSnapshot{}, err

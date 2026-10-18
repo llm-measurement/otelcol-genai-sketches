@@ -161,6 +161,9 @@ func (s *collectorState) summaryDocuments(e *summaryExporter, now time.Time) ([]
 		if err != nil {
 			return nil, err
 		}
+		if window.summarySuppressed() {
+			continue
+		}
 		sketches, err := s.summaryPayloads(window)
 		if err != nil {
 			return nil, err

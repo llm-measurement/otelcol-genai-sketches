@@ -19,7 +19,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
-func TestModelUsageBatchReviewByteBudgetRollback(t *testing.T) {
+func TestModelUsageBatchReviewByteBudgetSuppression(t *testing.T) {
 	for _, tc := range []struct {
 		identity string
 		dedup    bool
@@ -126,15 +126,12 @@ func TestModelUsageBatchReviewByteBudgetRollback(t *testing.T) {
 			refusedAt := -1
 			for i, attempt := range attempts {
 				_, ok, err := probe.ConsumeTraces(context.Background(), attempt)
-				if err != nil {
-					if !strings.Contains(err.Error(), "byte budget") || ok {
-						t.Fatalf("probe refused for wrong reason at %d: ok=%t err=%v", i, ok, err)
-					}
+				if err != nil || !ok {
+					t.Fatalf("capacity rejected batch at %d: ok=%t err=%v", i, ok, err)
+				}
+				if probe.summary.windows[start].saturation[saturationSummaryBytes] {
 					refusedAt = i
 					break
-				}
-				if !ok {
-					t.Fatalf("probe ignored relevant span %d", i)
 				}
 			}
 			if refusedAt < 2 {
@@ -153,21 +150,25 @@ func TestModelUsageBatchReviewByteBudgetRollback(t *testing.T) {
 					rs.At(i).CopyTo(batch.ResourceSpans().AppendEmpty())
 				}
 			}
-			originalSummary := s.summary
-			originalSlices, originalOverflows := maps.Clone(s.slices), maps.Clone(s.overflows)
-			for retry := range 2 {
-				_, ok, err := s.ConsumeTraces(context.Background(), batch)
-				if err == nil || !strings.Contains(err.Error(), "byte budget") || ok {
-					t.Fatalf("attempt %d: expected batch byte refusal, ok=%t err=%v", retry, ok, err)
-				}
-				if !bytes.Equal(before, modelUsageReviewState(t, s)) {
-					t.Fatalf("attempt %d changed counters, summary, cached bytes, sketches, dedup, routing, or retention", retry)
-				}
-				if s.summary != originalSummary || !maps.Equal(s.slices, originalSlices) || !maps.Equal(s.overflows, originalOverflows) || s.batchOwned != nil {
-					t.Fatalf("attempt %d published staged state", retry)
+			mustConsumeTraces(t, s, batch)
+			if !bytes.Equal(modelUsageReviewState(t, probe), modelUsageReviewState(t, s)) {
+				t.Fatal("batched capacity handling differs from individually accepted spans")
+			}
+			frozen := mustJSON(t, s.summary.windows[start].modelUsage)
+			for range 2 {
+				mustConsumeTraces(t, s, trace(n+newRows-1, "after-limit", 5))
+				if !bytes.Equal(frozen, mustJSON(t, s.summary.windows[start].modelUsage)) {
+					t.Fatal("suppressed model map kept allocating or changing")
 				}
 			}
-			t.Logf("valid envelope=%d/%d bytes; retained rows=%d; accepted probe prefix=%d; refusal and retry unchanged", baselineBytes, summary.MaxBytes, n, refusedAt)
+			docs, err = s.summaryDocuments(e, clk.now.Add(2*time.Second))
+			if err != nil || len(docs) != 1 || docs[0].WindowStart == start {
+				t.Fatalf("suppressed summary published or healthy retained window lost: count=%d err=%v", len(docs), err)
+			}
+			if _, err := docs[0].MarshalBinary(); err != nil {
+				t.Fatal(err)
+			}
+			t.Logf("valid envelope=%d/%d bytes; retained rows=%d; exact prefix=%d; only exhausted window suppressed", baselineBytes, summary.MaxBytes, n, refusedAt)
 		})
 	}
 }
@@ -181,24 +182,29 @@ func modelUsageReviewState(t *testing.T, s *collectorState) []byte {
 		Sketches   []string
 		Models     json.RawMessage
 		ModelBytes int
+		Saturation [saturationReasonCount]bool
+		TopKeys    [4]bool
+		ToolError  bool
 	}
 	type sliceSnapshot struct {
-		Counters             map[string]uint64
-		Name, Value, SortKey string
-		Overflow             bool
-		StartTime            pcommon.Timestamp
-		LastWindow, LRU      int64
-		Windows              map[int64]windowSnapshot
+		Counters                  map[string]uint64
+		Name, Value, SortKey      string
+		Overflow                  bool
+		StartTime                 pcommon.Timestamp
+		LastWindow, LRU           int64
+		Windows                   map[int64]windowSnapshot
+		Saturated, TotalSaturated bool
 	}
 	snapshotSlice := func(slice *sliceState) sliceSnapshot {
 		out := sliceSnapshot{
 			Counters: slice.accountingCounters.export(), Name: slice.label.name,
 			Value: slice.label.value, SortKey: slice.label.sortKey, Overflow: slice.label.overflow,
 			StartTime: slice.startTime, LastWindow: slice.lastWindow, LRU: slice.lruSequence,
-			Windows: make(map[int64]windowSnapshot),
+			Windows:   make(map[int64]windowSnapshot),
+			Saturated: slice.saturated, TotalSaturated: slice.totalSaturated,
 		}
 		for start, w := range slice.windows {
-			v := windowSnapshot{Models: mustJSON(t, w.modelUsage), ModelBytes: w.modelUsageBytes}
+			v := windowSnapshot{Models: mustJSON(t, w.modelUsage), ModelBytes: w.modelUsageBytes, Saturation: w.saturation, TopKeys: w.topKeySaturated, ToolError: w.toolErrorSaturated}
 			if w.counters != nil {
 				v.Counters = w.counters.export()
 			}
@@ -220,12 +226,15 @@ func modelUsageReviewState(t *testing.T, s *collectorState) []byte {
 		return out
 	}
 	out := struct {
-		NextLRU   int64
-		Batch     bool
-		Slices    map[string]sliceSnapshot
-		Overflows map[string]sliceSnapshot
-		Summary   sliceSnapshot
-	}{s.nextLRUSeq, s.batchOwned != nil, make(map[string]sliceSnapshot), make(map[string]sliceSnapshot), snapshotSlice(s.summary)}
+		NextLRU            int64
+		Batch              bool
+		Slices             map[string]sliceSnapshot
+		Overflows          map[string]sliceSnapshot
+		Summary            sliceSnapshot
+		Rejections         [spanRejectionCount]uint64
+		RejectionStart     pcommon.Timestamp
+		RejectionSaturated bool
+	}{s.nextLRUSeq, s.batchOwned != nil, make(map[string]sliceSnapshot), make(map[string]sliceSnapshot), snapshotSlice(s.summary), s.rejections.counts, s.rejections.start, s.rejections.saturated}
 	for key, slice := range s.slices {
 		out.Slices[key] = snapshotSlice(slice)
 	}

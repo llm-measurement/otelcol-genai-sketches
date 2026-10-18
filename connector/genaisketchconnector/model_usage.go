@@ -133,6 +133,9 @@ func (s *collectorState) prepareModelUsage(data spanData, update spanUpdate, pen
 		return nil, nil
 	}
 	p := pending[len(pending)-1]
+	if p.window.summarySuppressed() {
+		return nil, nil
+	}
 	rows := p.window.modelUsage
 	modelBytes := p.window.modelUsageBytes
 	var result *pendingModelUsage
@@ -151,7 +154,7 @@ func (s *collectorState) prepareModelUsage(data spanData, update spanUpdate, pen
 			}
 			if named >= s.cfg.maxSlices {
 				if s.cfg.modelUsage.identity == "" {
-					return nil, errors.New("summary model_usage model count exceeds slice budget")
+					return nil, errModelUsageCountBudget
 				}
 				id = "__overflow__"
 				previous, exists = rows[id]
@@ -212,7 +215,7 @@ func (s *collectorState) prepareModelUsage(data spanData, update spanUpdate, pen
 		return nil, err
 	}
 	if len(encoded)+modelBytes-2 > summary.MaxBytes-4096 {
-		return nil, errors.New("summary model_usage exceeds envelope byte budget")
+		return nil, errModelUsageByteBudget
 	}
 	return result, nil
 }
