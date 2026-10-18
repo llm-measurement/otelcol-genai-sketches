@@ -55,6 +55,22 @@ known window boundary, record the event, and allow old windows to expire.
 
 ## Compatibility
 
+### Served-Model Profiles In v0.5.0
+
+Pair collector v0.5.0 and chart 0.5.0 with fleetdiff v0.11.0. Existing
+request-model attribution remains the default. To opt in, review a pinned
+[served-model profile](MODEL_USAGE_SUMMARIES.md#served-identity-opt-in-in-v050)
+and its exact approved maps, then generate and explicitly approve its new
+`model_usage.contract_id`. Pass that ID to the reader. Keep legacy, standalone
+and combined-profile windows separate; switching a profile or map changes the
+contract, not the summary format or base accounting identity.
+
+For mixed LiteLLM 1.104.0 Chat and Responses traffic, use `litellm-1.104.0-v1`
+with the stock `otel` callback in latest-experimental GenAI mode. Streaming
+Chat identifies the gateway-selected model, not a confirmed provider snapshot.
+Messages is excluded. To roll back to v0.4.1, remove the identity and response-map
+options before restoring the binary, and retain each contract's exports separately.
+
 ### Per-Model Summaries In v0.4.1
 
 Upgrade every fleetdiff reader to v0.10.0 or later before enabling
@@ -139,8 +155,8 @@ sketchkit v0.3.0 is a separate upgrade requiring the
 
 ### Feature Availability
 
-Use collector v0.4.1 and chart 0.4.1 for the current fixes; see the
-[release notes](releases/v0.4.1.md) and [verified installation](DEPLOYMENT.md).
+Use collector v0.5.0 and chart 0.5.0 for the current profiles; see the
+[release notes](releases/v0.5.0.md) and [installation verification](DEPLOYMENT.md).
 The table records when each capability first became available, not a
 recommendation to deploy an older release.
 
@@ -154,6 +170,7 @@ recommendation to deploy an older release.
 | Summary storage, read-only reader, and JSON logging values | Chart 0.3.2 | [Summary export](SUMMARY_EXPORT_HELM.md) |
 | Local `scan` over retained windows and static config `diagnose` | fleetdiff v0.5.0 | [Scan and history retention](https://github.com/llm-measurement/fleetdiff/blob/main/docs/SCAN.md) |
 | Opt-in per-model component summaries and local repricing | Collector v0.4.1, fleetdiff v0.10.0 | [Per-model summaries](MODEL_USAGE_SUMMARIES.md) |
+| Opt-in served-model profiles, including mixed LiteLLM Chat and Responses | Collector v0.5.0, chart 0.5.0 | [Served-model profiles](MODEL_USAGE_SUMMARIES.md#served-identity-opt-in-in-v050) |
 
 Distinct gauges describe the current window. For a longer period, merge compatible
 summary state rather than adding gauges. Collect new ranking fields for complete

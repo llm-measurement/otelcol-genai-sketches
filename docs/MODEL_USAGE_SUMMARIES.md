@@ -7,7 +7,7 @@ or invalid detail. Existing metrics and base summary accounting are unchanged.
 
 ## Enable After Upgrading Readers
 
-Available in collector v0.4.1 and chart 0.4.1. Upgrade every summary reader to
+Available since collector v0.4.1 and chart 0.4.1. Upgrade every summary reader to
 fleetdiff v0.10.0 or later, with support for `model_usage` version 1 and
 `input-tiers-v1`, before enabling it. Older readers reject the added block.
 Keep the option absent during a rolling reader
@@ -46,7 +46,7 @@ Legacy requested-model mapping requires each observed name to identify one stabl
 public model. Do not assume this for dynamic aliases that can select different
 models through routing or fallback. Legacy request-model attribution remains the
 unchanged default when `model_usage.identity` is absent or empty; the served-model
-opt-in described below is not yet released.
+opt-in described below is available in v0.5.0.
 
 ## Helm Opt-In
 
@@ -78,13 +78,13 @@ values and the rendered ConfigMap contain them, while summary files contain only
 approved public IDs or fixed reserved buckets. Restrict access to configuration
 as well as summary storage.
 
-## UNRELEASED: Served Identity Opt-In
+## Served Identity Opt-In In v0.5.0
 
-The upcoming optional `model_usage.identity` selects a version-pinned served-model
+The optional `model_usage.identity` selects a version-pinned served-model
 profile; absent or empty keeps legacy request-model attribution. In Helm these
 fields are `summaryExport.modelUsage.identity` and `responseModels`; absent fields
-are omitted, and disabled settings leave rendering unchanged. This opt-in is not
-available in the released collector/chart pair documented above.
+are omitted, and disabled settings leave rendering unchanged. Use collector v0.5.0
+and chart 0.5.0, paired with fleetdiff v0.11.0, for the profiles below.
 
 | Identity | Exact input namespace for `models` |
 | --- | --- |
@@ -93,8 +93,9 @@ available in the released collector/chart pair documented above.
 | `litellm-1.104.0-chat-v1` | Span `litellm.provider.model` |
 | `litellm-1.104.0-chat-stream-v1` | Span `litellm.provider.model`, gateway-selected only |
 | `litellm-1.104.0-responses-v1` | Span `litellm.provider.model` |
+| `litellm-1.104.0-v1` | Span `litellm.provider.model`, with the matching Chat or Responses rule below |
 
-LiteLLM nonstreaming Chat and Responses additionally require a non-null
+LiteLLM nonstreaming Chat, Responses and the combined profile require a non-null
 `response_models` map (Helm: `responseModels`), which may be empty. Its keys are exact `gen_ai.response.model`
 values, separate from the primary map's namespace. A known selected provider model
 may be priced when the response-model attribute is absent; a present response must
@@ -106,7 +107,9 @@ routing. Verified raw and fallback provider responses can be priced when the map
 agree. The streaming Chat profile instead uses the gateway-selected model,
 provider snapshot not confirmed: its response-model attribute repeats the
 dispatch name even when the provider omits a model. It deliberately ignores that
-attribute. Omit `response_models` for streaming Chat, both other gateways and
+attribute. The combined profile retains the map for its nonstreaming Chat and
+Responses paths, but ignores it for streaming Chat. Omit `response_models` for
+the standalone streaming Chat profile, both other gateways and
 legacy mode. Both maps use the existing entry, name-length and public-ID limits.
 Approve dated snapshot
 names individually, with no prefix matching; missing, unmapped, ambiguous or
@@ -172,7 +175,31 @@ The agentgateway and Envoy profiles cover streaming and nonstreaming Chat,
 including recovery. Their pinned spans have no stream marker, so this widens the
 verified scope without changing either profile's behavior or contract ID.
 
-LiteLLM keeps separate request profiles:
+For a LiteLLM gateway serving mixed traffic, choose `litellm-1.104.0-v1`. One
+producer then uses one contract for nonstreaming Chat, streaming Chat and
+Responses. It requires the exact native call-type and route pair on every span,
+even when an operation name is present. For Chat, typed
+`gen_ai.request.stream=true` selects the streaming rule; false or absence selects
+the nonstreaming rule. Malformed, duplicate or conflicting markers remain
+unpriced. No span-name inference or cross-span identity lookup is used.
+
+```yaml
+model_usage:
+  slice: by_model
+  identity: litellm-1.104.0-v1
+  models:
+    openai/gpt-6.1-sol: gpt-6.1-sol
+  response_models:
+    gpt-6.1-sol: gpt-6.1-sol
+```
+
+Use the exact values emitted by the pinned gateway and approve any snapshot
+names explicitly. This fragment belongs under `summary_export`; keep the
+existing request-model slice. The combined contract binds all three rules and
+both maps. It differs from each standalone contract, so do not mix old and new
+summaries in one comparison. It does not yet cover Anthropic Messages.
+
+The individual rules and standalone profiles remain available:
 
 - `litellm-1.104.0-chat-v1` covers nonstreaming Chat. It continues to reject true
   or malformed stream flags. In intact spans from the required callback mode,

@@ -2,6 +2,21 @@
 
 Notable user-visible changes are recorded here.
 
+## v0.5.0 / Helm chart 0.5.0 - 2026-10-17
+
+See the [release notes](docs/releases/v0.5.0.md). Pair with fleetdiff v0.11.0
+and explicitly approve a new model-usage contract before enabling a profile.
+
+- Attribute per-model summaries through exact approved served-model maps for
+  pinned agentgateway, Envoy AI Gateway and LiteLLM versions, keeping unknown or
+  conflicting identities visibly unpriced.
+- Use one LiteLLM 1.104.0 profile for nonstreaming Chat, streaming Chat and
+  Responses. Streaming Chat records gateway selection, not provider confirmation;
+  Anthropic Messages remains excluded.
+- Preserve existing defaults, metrics, base accounting and summary formats.
+  Publish chart 0.5.0 with appVersion 0.5.0 through the runtime release, with no
+  separate chart tag.
+
 ## v0.4.1 / Helm chart 0.4.1 - 2026-10-16
 
 See the [release notes](docs/releases/v0.4.1.md). Completes the per-model summary

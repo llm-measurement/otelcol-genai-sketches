@@ -18,6 +18,7 @@ const (
 	modelIdentityLiteLLM          = "litellm-1.104.0-chat-v1"
 	modelIdentityLiteLLMStream    = "litellm-1.104.0-chat-stream-v1"
 	modelIdentityLiteLLMResponses = "litellm-1.104.0-responses-v1"
+	modelIdentityLiteLLMCombined  = "litellm-1.104.0-v1"
 	modelIdentityAgentGateway     = "agentgateway-1.6.0-chat-v1"
 	modelIdentityEnvoy            = "envoy-ai-gateway-1.1.0-chat-v1"
 )
@@ -32,7 +33,7 @@ func validateServedModelUsage(m *ModelUsageConfig) error {
 		if m.ResponseModels != nil {
 			return errors.New("summary_export.model_usage.response_models is not supported by the LiteLLM streaming Chat identity profile")
 		}
-	case modelIdentityLiteLLM, modelIdentityLiteLLMResponses:
+	case modelIdentityLiteLLM, modelIdentityLiteLLMResponses, modelIdentityLiteLLMCombined:
 		if m.ResponseModels == nil || len(m.ResponseModels) > modelusage.MaxModels {
 			return errors.New("summary_export.model_usage LiteLLM identity requires a bounded response_models map")
 		}
@@ -66,6 +67,8 @@ func servedModelUsageContract(accountingID string, m *ModelUsageConfig, routing 
 		sourceRule = "chat-stream-selected-exact-v1"
 	case modelIdentityLiteLLMResponses:
 		sourceRule = "responses-span-strict-exact-v1"
+	case modelIdentityLiteLLMCombined:
+		sourceRule = "native-disjoint-union-v1(chat-span-strict-exact-v1,chat-stream-selected-exact-v1,responses-span-strict-exact-v1)"
 	}
 	manifest := struct {
 		Domain         string            `json:"domain"`
@@ -114,6 +117,28 @@ func servedIdentityValue(attrs pcommon.Map, key string) (string, string) {
 }
 
 func (m *compiledModelUsage) servedModelID(attrs pcommon.Map) string {
+	if m.identity == modelIdentityLiteLLMCombined {
+		callType, callQuality := servedIdentityValue(attrs, "llm.request.type")
+		route, routeQuality := servedIdentityValue(attrs, "http.route")
+		if callQuality != "" || routeQuality != "" {
+			return "__unmapped__"
+		}
+		// Choose only from the pinned native markers, then reuse the complete
+		// per-path rule, including its typed/duplicate/conflicting stream checks.
+		profile := *m
+		switch {
+		case callType == "acompletion" && route == "/v1/chat/completions":
+			profile.identity = modelIdentityLiteLLM
+			if stream, ok := attrs.Get("gen_ai.request.stream"); ok && stream.Type() == pcommon.ValueTypeBool && stream.Bool() {
+				profile.identity = modelIdentityLiteLLMStream
+			}
+		case callType == "aresponses" && route == "/v1/responses":
+			profile.identity = modelIdentityLiteLLMResponses
+		default:
+			return "__unmapped__"
+		}
+		return profile.servedModelID(attrs)
+	}
 	operation, quality := servedIdentityValue(attrs, "gen_ai.operation.name")
 	_, operationPresent := attrs.Get("gen_ai.operation.name")
 	nativeMarkers := m.identity == modelIdentityLiteLLMStream || m.identity == modelIdentityLiteLLMResponses

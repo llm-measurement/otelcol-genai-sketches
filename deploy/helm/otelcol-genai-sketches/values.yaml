@@ -198,10 +198,13 @@ summaryExport:
     enabled: false
     slice: ""
     models: {}
-    # UNRELEASED: optional identity selects a pinned served-model profile.
+    # optional identity selects a pinned served-model profile.
     # Leave identity absent/empty for legacy request-model attribution.
     # responseModels is required for LiteLLM chat-v1 and responses-v1 ({} is valid).
     # Omit it for LiteLLM chat-stream-v1, which uses the gateway-selected model.
+    # litellm-1.104.0-v1 combines all three native LiteLLM paths.
+    # It requires responseModels ({} is valid), used for nonstreaming Chat and
+    # Responses, and ignored for streaming Chat. All identity profiles stay opt-in.
   # Mirror this BusyBox image into an internal registry if needed; keep a digest pin.
   utilityImage:
     repository: docker.io/library/busybox
