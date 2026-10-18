@@ -219,10 +219,10 @@ func TestChartReleaseWorkflow(t *testing.T) {
 			t.Fatalf("workflow tag boundary failed for %s", tc.tag)
 		}
 	}
-	if len(chart.Jobs) != 1 || len(chart.Jobs["chart"].Steps) == 0 {
-		t.Fatal("expected only a chart publishing job")
+	if len(chart.Jobs) != 5 || len(chart.Jobs["chart"].Steps) == 0 {
+		t.Fatal("expected separate chart verification, digest upload, scan, sign, and publication jobs")
 	}
-	if chart.Jobs["chart"].If != "github.event.repository.visibility == 'public'" {
+	if chart.Jobs["verify"].If != "github.event.repository.visibility == 'public'" {
 		t.Fatal("chart publication and public transparency must be guarded by public repository visibility")
 	}
 	pins := map[string]bool{}
@@ -232,7 +232,11 @@ func TestChartReleaseWorkflow(t *testing.T) {
 		}
 	}
 	var preflight, publish, packageScript string
-	for _, s := range chart.Jobs["chart"].Steps {
+	var chartSteps []step
+	for _, job := range []string{"verify", "chart", "scan", "sign", "publish"} {
+		chartSteps = append(chartSteps, chart.Jobs[job].Steps...)
+	}
+	for _, s := range chartSteps {
 		if s.Uses != "" && !pins[s.Uses] {
 			t.Fatalf("chart release added an action not pinned by the runtime release: %s", s.Uses)
 		}
@@ -319,12 +323,14 @@ func TestRuntimeReleaseUsesIndependentChartVersion(t *testing.T) {
 	if preflight == "" {
 		t.Fatal("runtime release is missing the chart overwrite guard")
 	}
-	for _, step := range workflow.Jobs["image"].Steps {
-		if strings.Contains(step.Run, "helm package") && (strings.Contains(step.Run, "--app-version") || strings.Contains(step.Run, "--version")) {
-			t.Fatal("runtime release must package checked-in chart metadata unchanged")
-		}
-		if strings.Contains(step.Run, "helm pull") && !strings.Contains(step.Run, `--version "${CHART_VERSION}"`) {
-			t.Fatal("public verification must use the independent chart version")
+	for name, job := range workflow.Jobs {
+		for _, step := range job.Steps {
+			if strings.Contains(step.Run, "helm package") && (strings.Contains(step.Run, "--app-version") || strings.Contains(step.Run, "--version")) {
+				t.Fatal("runtime release must package checked-in chart metadata unchanged")
+			}
+			if name == "publish" && strings.Contains(step.Run, "helm pull") && !strings.Contains(step.Run, `--version "${CHART_VERSION}"`) {
+				t.Fatal("public verification must use the independent chart version")
+			}
 		}
 	}
 	stub := `
