@@ -3,7 +3,8 @@
 name: commit-signatures
 
 on:
-  pull_request:
+  # Run the API-only check from trusted base code, never the PR's workflow.
+  pull_request_target:
     types: [opened, synchronize, reopened, ready_for_review, edited]
 
 permissions:
@@ -22,7 +23,8 @@ jobs:
             const event = context.payload.pull_request;
             const params = { ...context.repo, pull_number: event.number };
             const { data: before } = await github.rest.pulls.get(params);
-            if (before.head.sha !== event.head.sha || before.base.ref !== event.base.ref) {
+            if (before.head.sha !== event.head.sha || before.head.ref !== event.head.ref ||
+                before.base.ref !== event.base.ref) {
               throw new Error('PR changed since this run was requested; run the check on the current PR.');
             }
 
@@ -32,12 +34,14 @@ jobs:
             });
             const { data: after } = await github.rest.pulls.get(params);
             if (after.head.sha !== before.head.sha || after.base.sha !== before.base.sha ||
-                after.base.ref !== before.base.ref || after.commits !== before.commits) {
+                after.base.ref !== before.base.ref || after.head.ref !== before.head.ref ||
+                after.commits !== before.commits) {
               throw new Error('PR changed during verification; rerun the check.');
             }
             const shas = new Set(commits.map(commit => commit.sha));
-            if (!Number.isInteger(before.commits) || before.commits < 1 ||
+            if (!Number.isInteger(before.commits) || before.commits < 1 || before.commits > 250 ||
                 commits.length !== before.commits || shas.size !== before.commits ||
+                commits.some(commit => !/^[a-f0-9]{40}$/.test(commit.sha)) ||
                 !shas.has(before.head.sha)) {
               throw new Error('Could not verify the complete PR commit list. PRs over 250 commits must be split.');
             }

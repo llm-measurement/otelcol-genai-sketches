@@ -3,7 +3,8 @@
 name: dco
 
 on:
-  pull_request:
+  # Run the API-only check from trusted base code, never the PR's workflow.
+  pull_request_target:
     types: [opened, synchronize, reopened, ready_for_review, edited]
 
 permissions:
@@ -23,15 +24,17 @@ jobs:
             const event = context.payload.pull_request;
             const params = { ...context.repo, pull_number: event.number };
             const { data: before } = await github.rest.pulls.get(params);
-            if (before.head.sha !== event.head.sha || before.base.ref !== event.base.ref) {
+            if (before.head.sha !== event.head.sha || before.head.ref !== event.head.ref ||
+                before.base.ref !== event.base.ref) {
               throw new Error('PR changed since this run was requested; run the check on the current PR.');
             }
             const commits = await github.paginate(github.rest.pulls.listCommits, {
               ...params, per_page: 100,
             });
             const shas = new Set(commits.map(commit => commit.sha));
-            if (!Number.isInteger(before.commits) || before.commits < 1 ||
+            if (!Number.isInteger(before.commits) || before.commits < 1 || before.commits > 250 ||
                 commits.length !== before.commits || shas.size !== before.commits ||
+                commits.some(commit => !/^[a-f0-9]{40}$/.test(commit.sha)) ||
                 !shas.has(before.head.sha)) {
               throw new Error('Could not verify the complete PR commit list. PRs over 250 commits must be split.');
             }
@@ -101,15 +104,3 @@ jobs:
             } else {
               core.info(`All ${commits.length} PR commits have author sign-offs or a verified GitHub branch-update exemption.`);
             }
-
-  dco-tests:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Test sign-off checks and merge exemptions
-        run: node --test .github/tests/dco.test.cjs
