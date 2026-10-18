@@ -173,6 +173,11 @@ contains the synthetic identities. Do not share it as a sanitized report.**
 
 ## Limits
 
+The unreleased [served-identity profile](../../../docs/MODEL_USAGE_SUMMARIES.md#verified-request-scope)
+has also been checked on agentgateway 1.6.0 streaming Chat and recovery, using the
+same response-model contract as nonstreaming Chat. That section states the
+separate identity and usage-coverage limits.
+
 This is a synthetic functional test, not a load or billing study. Hashes are
 pseudonymous; the existing trace backend keeps its own data policy. Workflow values
 use the existing `user:v1` hash domain with a `workflow:` prefix in their own field,

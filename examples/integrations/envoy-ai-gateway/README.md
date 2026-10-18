@@ -68,6 +68,11 @@ The same collector forwards the original spans to the existing backend.
 
 ## Limits
 
+The unreleased [served-identity profile](../../../docs/MODEL_USAGE_SUMMARIES.md#verified-request-scope)
+has also been checked on Envoy AI Gateway 1.1.0 streaming Chat and recovery, using
+the same response-model contract as nonstreaming Chat. See that section for
+`include_usage`, interrupted-stream coverage and completion limits.
+
 The synthetic client supplies the user header in this isolated test. For real
 traffic, an authenticated trusted edge must remove caller-supplied identity headers
 and set the verified value; this recipe does not authenticate Envoy users. Treat
