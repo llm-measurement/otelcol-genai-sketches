@@ -21,19 +21,16 @@ env:
   CHART_NAME: ghcr.io/llm-measurement/charts/otelcol-genai-sketches
 
 jobs:
-  chart:
+  verify:
     if: github.event.repository.visibility == 'public'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
-      actions: read
-      artifact-metadata: write
-      attestations: write
-      contents: write
-      id-token: write
-      packages: write
+      contents: read
     env:
       GOWORK: "off"
+    outputs:
+      chart_version: ${{ steps.versions.outputs.chart_version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -41,16 +38,17 @@ jobs:
           persist-credentials: false
 
       - name: Require a stable chart tag on main
+        id: versions
         run: |
-          [[ "${GITHUB_REF_NAME}" =~ ^chart-v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "${GITHUB_REF_NAME}" =~ ^chart-v[0-9]+\.[0-9]+\.[0-9]+$ ]] || exit 1
           git merge-base --is-ancestor "${GITHUB_SHA}" origin/main
           test -f "docs/releases/${GITHUB_REF_NAME}.md"
+          printf 'chart_version=%s\n' "${GITHUB_REF_NAME#chart-v}" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: "1.26.9"
-          cache: true
-          cache-dependency-path: go.sum
+          cache: false
 
       - name: Set up Helm
         uses: Azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
@@ -66,10 +64,33 @@ jobs:
           make prometheus-rule-check
           HELM="$(command -v helm)" go test ./deploy/helm/tests -count=1 -v
 
-      - name: Package checked-in chart metadata
-        run: |
-          helm package deploy/helm/otelcol-genai-sketches --destination release
-          test -f "release/otelcol-genai-sketches-${GITHUB_REF_NAME#chart-v}.tgz"
+      - name: Set up ORAS
+        uses: oras-project/setup-oras@22ce207df3b08e061f537244349aac6ae1d214f6 # v1.2.4
+        with:
+          version: 1.3.0
+
+      - name: Verify Helm OCI digest round-trip without publication
+        run: RELEASE_OCI_TEST=1 go test ./scripts/collector-version -count=1
+
+  chart:
+    needs: [verify]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    env:
+      GOWORK: "off"
+      CHART_VERSION: ${{ needs.verify.outputs.chart_version }}
+    outputs:
+      digest: ${{ steps.chart.outputs.digest }}
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+      sums: ${{ steps.seal.outputs.sums }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Refuse an existing OCI chart version
         run: |
@@ -87,6 +108,148 @@ jobs:
             *) echo "Cannot establish chart availability (HTTP ${status})" >&2; exit 1 ;;
           esac
 
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.26.9"
+          cache: false
+
+      - name: Set up Helm
+        uses: Azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v4.2.4
+
+      - name: Set up ORAS
+        uses: oras-project/setup-oras@22ce207df3b08e061f537244349aac6ae1d214f6 # v1.2.4
+        with:
+          version: 1.3.0
+
+      - name: Package checked-in chart metadata
+        run: |
+          helm package deploy/helm/otelcol-genai-sketches --destination release
+          test -f "release/otelcol-genai-sketches-${GITHUB_REF_NAME#chart-v}.tgz"
+
+      - name: Log in to GHCR for digest upload
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push chart by digest only
+        id: chart
+        run: bash scripts/publish-chart-digest.sh
+
+      - name: Seal chart metadata
+        id: seal
+        run: |
+          (cd release && sha256sum chart-digest.txt *.tgz > SHA256SUMS)
+          printf 'sums=%s\n' "$(sha256sum release/SHA256SUMS | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload chart-digest-input
+        id: upload
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: chart-digest-input-${{ github.ref_name }}
+          path: release/
+          if-no-files-found: error
+          retention-days: 7
+
+  scan:
+    needs: [verify, chart]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: read
+    env:
+      CHART_VERSION: ${{ needs.verify.outputs.chart_version }}
+      CHART_DIGEST: ${{ needs.chart.outputs.digest }}
+      SUMS: ${{ needs.chart.outputs.sums }}
+    steps:
+      - name: Download exact chart artifact
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.chart.outputs.artifact_id }}
+          digest-mismatch: error
+          path: release
+
+      - name: Verify approved digest handoff
+        run: |
+          # Reject extra, hidden, nested, or linked publication inputs.
+          shopt -s nullglob dotglob
+          artifacts=(release/*)
+          [[ ${#artifacts[@]} == 3 ]] || exit 1
+          for artifact in "${artifacts[@]}"; do
+            [[ -f "$artifact" && ! -L "$artifact" ]] || exit 1
+            case "${artifact#release/}" in
+              SHA256SUMS|chart-digest.txt|otelcol-genai-sketches-*.tgz) ;;
+              *) echo "Unexpected release artifact" >&2; exit 1 ;;
+            esac
+          done
+          [[ "$CHART_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || exit 1
+          [[ "$SUMS" =~ ^[0-9a-f]{64}$ ]] || exit 1
+          printf '%s  release/SHA256SUMS\n' "$SUMS" | sha256sum -c -
+          (cd release && sha256sum -c SHA256SUMS)
+          printf '%s@%s\n' "$CHART_NAME" "$CHART_DIGEST" | cmp - release/chart-digest.txt
+
+      - name: Set up Helm
+        uses: Azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v4.2.4
+
+      - name: Verify digest-addressed chart bytes
+        run: |
+          mkdir -p "$RUNNER_TEMP/chart"
+          helm pull "oci://${CHART_NAME}@${CHART_DIGEST}" --destination "$RUNNER_TEMP/chart"
+          downloaded=("$RUNNER_TEMP/chart/"*.tgz)
+          [[ ${#downloaded[@]} == 1 && -f "${downloaded[0]}" ]] || exit 1
+          cmp "release/otelcol-genai-sketches-${CHART_VERSION}.tgz" "${downloaded[0]}"
+          helm lint "${downloaded[0]}"
+
+  sign:
+    needs: [verify, chart, scan]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      actions: read
+      artifact-metadata: write
+      attestations: write
+      contents: read
+      id-token: write
+      packages: write
+    env:
+      CHART_VERSION: ${{ needs.verify.outputs.chart_version }}
+      CHART_DIGEST: ${{ needs.chart.outputs.digest }}
+      SUMS: ${{ needs.chart.outputs.sums }}
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+    steps:
+      - name: Download exact chart artifact
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.chart.outputs.artifact_id }}
+          digest-mismatch: error
+          path: release
+
+      - name: Verify approved digest handoff
+        run: |
+          # Reject extra, hidden, nested, or linked publication inputs.
+          shopt -s nullglob dotglob
+          artifacts=(release/*)
+          [[ ${#artifacts[@]} == 3 ]] || exit 1
+          for artifact in "${artifacts[@]}"; do
+            [[ -f "$artifact" && ! -L "$artifact" ]] || exit 1
+            case "${artifact#release/}" in
+              SHA256SUMS|chart-digest.txt|otelcol-genai-sketches-*.tgz) ;;
+              *) echo "Unexpected release artifact" >&2; exit 1 ;;
+            esac
+          done
+          [[ "$CHART_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || exit 1
+          [[ "$SUMS" =~ ^[0-9a-f]{64}$ ]] || exit 1
+          printf '%s  release/SHA256SUMS\n' "$SUMS" | sha256sum -c -
+          (cd release && sha256sum -c SHA256SUMS)
+          printf '%s@%s\n' "$CHART_NAME" "$CHART_DIGEST" | cmp - release/chart-digest.txt
+
       - name: Install cosign
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
 
@@ -97,39 +260,188 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Publish and sign Helm chart
-        id: chart
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Sign and verify Helm chart
         run: |
-          version="${GITHUB_REF_NAME#chart-v}"
-          printf '%s' "${GH_TOKEN}" | helm registry login ghcr.io \
-            --username "${GITHUB_ACTOR}" --password-stdin
-          push_output="$(helm push "release/otelcol-genai-sketches-${version}.tgz" \
-            oci://ghcr.io/llm-measurement/charts 2>&1)"
-          printf '%s\n' "${push_output}"
-          chart_digest="$(printf '%s\n' "${push_output}" | awk '$1 == "Digest:" {print $2}' | tail -n 1)"
-          [[ "${chart_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
-          printf '%s@%s\n' "${CHART_NAME}" "${chart_digest}" > release/chart-digest.txt
-          printf 'digest=%s\n' "${chart_digest}" >> "${GITHUB_OUTPUT}"
-          cosign sign --yes "${CHART_NAME}@${chart_digest}"
+          cosign sign --yes "${CHART_NAME}@${CHART_DIGEST}"
           cosign verify \
             --certificate-identity "https://github.com/${GITHUB_REPOSITORY}/.github/workflows/chart-release.yml@${GITHUB_REF}" \
             --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-            "${CHART_NAME}@${chart_digest}"
-          (cd release && sha256sum chart-digest.txt *.tgz > SHA256SUMS)
+            "${CHART_NAME}@${CHART_DIGEST}"
 
       - name: Attest Helm chart provenance
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
         with:
           subject-name: ${{ env.CHART_NAME }}
-          subject-digest: ${{ steps.chart.outputs.digest }}
+          subject-digest: ${{ needs.chart.outputs.digest }}
           push-to-registry: true
+
+      - name: Attest chart checksums
+        id: attest-metadata
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-path: release/SHA256SUMS
+
+      - name: Verify chart metadata provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+          BUNDLE: ${{ steps.attest-metadata.outputs.bundle-path }}
+        run: |
+          cp "$BUNDLE" release/provenance.jsonl
+          gh attestation verify release/SHA256SUMS --repo "$GH_REPO" --bundle release/provenance.jsonl \
+            --signer-workflow "$GH_REPO/.github/workflows/chart-release.yml" \
+            --source-ref "refs/tags/$TAG" --source-digest "$GITHUB_SHA" --deny-self-hosted-runners
+
+      - name: Upload chart-release-metadata
+        id: upload
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: chart-release-metadata-${{ github.ref_name }}
+          path: release/
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: [verify, chart, scan, sign]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      actions: read
+      attestations: read
+      contents: write
+      packages: write
+    env:
+      CHART_VERSION: ${{ needs.verify.outputs.chart_version }}
+      CHART_DIGEST: ${{ needs.chart.outputs.digest }}
+      SUMS: ${{ needs.chart.outputs.sums }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Download exact sign artifact
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.sign.outputs.artifact_id }}
+          digest-mismatch: error
+          path: release
+
+      - name: Verify approved digest handoff
+        run: |
+          # Reject extra, hidden, nested, or linked publication inputs.
+          shopt -s nullglob dotglob
+          artifacts=(release/*)
+          [[ ${#artifacts[@]} == 4 ]] || exit 1
+          for artifact in "${artifacts[@]}"; do
+            [[ -f "$artifact" && ! -L "$artifact" ]] || exit 1
+            case "${artifact#release/}" in
+              SHA256SUMS|chart-digest.txt|otelcol-genai-sketches-*.tgz|provenance.jsonl) ;;
+              *) echo "Unexpected release artifact" >&2; exit 1 ;;
+            esac
+          done
+          [[ "$CHART_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || exit 1
+          [[ "$SUMS" =~ ^[0-9a-f]{64}$ ]] || exit 1
+          printf '%s  release/SHA256SUMS\n' "$SUMS" | sha256sum -c -
+          (cd release && sha256sum -c SHA256SUMS)
+          printf '%s@%s\n' "$CHART_NAME" "$CHART_DIGEST" | cmp - release/chart-digest.txt
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Set up ORAS
+        uses: oras-project/setup-oras@22ce207df3b08e061f537244349aac6ae1d214f6 # v1.2.4
+        with:
+          version: 1.3.0
+
+      - name: Set up Helm
+        uses: Azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v4.2.4
+
+      - name: Log in to GHCR for approved tags
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify Helm chart
+        run: |
+          cosign verify \
+            --certificate-identity "https://github.com/${GITHUB_REPOSITORY}/.github/workflows/chart-release.yml@${GITHUB_REF}" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            "${CHART_NAME}@${CHART_DIGEST}"
+
+      - name: Verify chart metadata provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh attestation verify release/SHA256SUMS --repo "$GH_REPO" --bundle release/provenance.jsonl \
+            --signer-workflow "$GH_REPO/.github/workflows/chart-release.yml" \
+            --source-ref "refs/tags/$TAG" --source-digest "$GITHUB_SHA" --deny-self-hosted-runners
+
+      - name: Verify existing OCI chart version matches approved digest
+        run: |
+          version="${GITHUB_REF_NAME#chart-v}"
+          pull_token="$(curl --fail --silent --show-error \
+            'https://ghcr.io/token?service=ghcr.io&scope=repository:llm-measurement/charts/otelcol-genai-sketches:pull' \
+            | jq -er '.token')"
+          status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+            --header "Authorization: Bearer ${pull_token}" \
+            --header 'Accept: application/vnd.oci.image.manifest.v1+json' \
+            "https://ghcr.io/v2/${CHART_NAME#ghcr.io/}/manifests/${version}")"
+          case "${status}" in
+            404) ;;
+            200)
+              existing_digest="$(oras resolve "${CHART_NAME}:${version}")"
+              if [[ "$existing_digest" != "$CHART_DIGEST" ]]; then
+                echo "Chart ${version} exists with a different digest; refusing to overwrite it" >&2
+                exit 1
+              fi
+              ;;
+            *) echo "Cannot establish chart availability (HTTP ${status})" >&2; exit 1 ;;
+          esac
+
+      - name: Create chart-only GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          source_commit="$(gh api --method GET "repos/${GITHUB_REPOSITORY}/commits/refs/tags/${GITHUB_REF_NAME}" --jq .sha)"
+          [[ "$source_commit" == "$GITHUB_SHA" ]] || exit 1
+          if metadata="$(gh release view "$GITHUB_REF_NAME" --json tagName,isDraft)"; then
+            jq -e --arg tag "$GITHUB_REF_NAME" \
+              '.tagName == $tag and .isDraft == false' <<< "$metadata" > /dev/null
+            existing="$(mktemp -d "$RUNNER_TEMP/chart-release.XXXXXX")"
+            trap 'rm -rf "$existing"' EXIT
+            gh release download "$GITHUB_REF_NAME" --dir "$existing"
+            shopt -s nullglob dotglob
+            local_assets=(release/*)
+            remote_assets=("$existing/"*)
+            [[ ${#remote_assets[@]} == ${#local_assets[@]} ]] || exit 1
+            for asset in "${local_assets[@]}"; do
+              previous="$existing/${asset#release/}"
+              [[ -f "$previous" && ! -L "$previous" ]] || exit 1
+              cmp "$asset" "$previous"
+            done
+          else
+            gh release create "${GITHUB_REF_NAME}" release/* \
+              --verify-tag --target "$GITHUB_SHA" --latest=false \
+              --title "Helm chart ${GITHUB_REF_NAME#chart-v}" \
+              --notes-file "docs/releases/${GITHUB_REF_NAME}.md"
+          fi
+      - name: Apply approved chart tag last
+        run: |
+          [[ "$CHART_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || exit 1
+          oras tag "${CHART_NAME}@${CHART_DIGEST}" "$CHART_VERSION"
+          test "$(oras resolve "${CHART_NAME}:${CHART_VERSION}")" = "$CHART_DIGEST"
 
       - name: Verify anonymous chart access
         run: |
           docker logout ghcr.io >/dev/null
-          helm registry logout ghcr.io >/dev/null
           mkdir -p /tmp/public-chart
           version="${GITHUB_REF_NAME#chart-v}"
           attempts=12
@@ -139,12 +451,3 @@ jobs:
             sleep 10
           done
           cmp "release/otelcol-genai-sketches-${version}.tgz" "/tmp/public-chart/otelcol-genai-sketches-${version}.tgz"
-
-      - name: Create chart-only GitHub release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release create "${GITHUB_REF_NAME}" release/* \
-            --verify-tag --latest=false \
-            --title "Helm chart ${GITHUB_REF_NAME#chart-v}" \
-            --notes-file "docs/releases/${GITHUB_REF_NAME}.md"

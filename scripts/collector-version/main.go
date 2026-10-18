@@ -4,7 +4,9 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"regexp"
 	"strings"
@@ -20,6 +22,18 @@ func main() {
 }
 
 func run() error {
+	if len(os.Args) == 2 && os.Args[1] == "--chart-oci-config" {
+		data, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			return err
+		}
+		config, err := chartOCIConfig(data)
+		if err != nil {
+			return err
+		}
+		_, err = os.Stdout.Write(config)
+		return err
+	}
 	if len(os.Args) == 3 && os.Args[1] == "--release-chart" {
 		data, err := os.ReadFile("deploy/helm/otelcol-genai-sketches/Chart.yaml")
 		if err != nil {
@@ -48,7 +62,7 @@ func run() error {
 		return os.WriteFile(os.Args[3], updated, 0644)
 	}
 	if len(os.Args) != 2 {
-		return fmt.Errorf("usage: go run ./scripts/collector-version v0.MINOR.PATCH | --distribution VERSION OUTPUT | --release-chart TAG")
+		return fmt.Errorf("usage: go run ./scripts/collector-version v0.MINOR.PATCH | --distribution VERSION OUTPUT | --release-chart TAG | --chart-oci-config")
 	}
 	target := os.Args[1]
 	data, err := os.ReadFile("builder.yaml")
@@ -63,6 +77,20 @@ func run() error {
 		return err
 	}
 	return os.WriteFile("otel.version", []byte(target+"\n"), 0644)
+}
+
+// Helm's OCI config is the packaged chart metadata encoded as JSON.
+func chartOCIConfig(data []byte) ([]byte, error) {
+	var metadata map[string]any
+	if err := yaml.Unmarshal(data, &metadata); err != nil {
+		return nil, err
+	}
+	for _, key := range []string{"apiVersion", "name", "version"} {
+		if value, ok := metadata[key].(string); !ok || value == "" {
+			return nil, fmt.Errorf("chart metadata requires string %s", key)
+		}
+	}
+	return json.Marshal(metadata)
 }
 
 // Chart versions advance independently; appVersion must match the runtime tag.
