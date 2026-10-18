@@ -18,6 +18,7 @@ const (
 	modelIdentityLiteLLM          = "litellm-1.104.0-chat-v1"
 	modelIdentityLiteLLMStream    = "litellm-1.104.0-chat-stream-v1"
 	modelIdentityLiteLLMResponses = "litellm-1.104.0-responses-v1"
+	modelIdentityLiteLLMMessages  = "litellm-1.104.0-messages-v1"
 	modelIdentityLiteLLMCombined  = "litellm-1.104.0-v1"
 	modelIdentityAgentGateway     = "agentgateway-1.6.0-chat-v1"
 	modelIdentityEnvoy            = "envoy-ai-gateway-1.1.0-chat-v1"
@@ -33,7 +34,7 @@ func validateServedModelUsage(m *ModelUsageConfig) error {
 		if m.ResponseModels != nil {
 			return errors.New("summary_export.model_usage.response_models is not supported by the LiteLLM streaming Chat identity profile")
 		}
-	case modelIdentityLiteLLM, modelIdentityLiteLLMResponses, modelIdentityLiteLLMCombined:
+	case modelIdentityLiteLLM, modelIdentityLiteLLMResponses, modelIdentityLiteLLMMessages, modelIdentityLiteLLMCombined:
 		if m.ResponseModels == nil || len(m.ResponseModels) > modelusage.MaxModels {
 			return errors.New("summary_export.model_usage LiteLLM identity requires a bounded response_models map")
 		}
@@ -67,6 +68,8 @@ func servedModelUsageContract(accountingID string, m *ModelUsageConfig, routing 
 		sourceRule = "chat-stream-selected-exact-v1"
 	case modelIdentityLiteLLMResponses:
 		sourceRule = "responses-span-strict-exact-v1"
+	case modelIdentityLiteLLMMessages:
+		sourceRule = "messages-native-nonstream-verified-stream-selected-exact-v1"
 	case modelIdentityLiteLLMCombined:
 		sourceRule = "native-disjoint-union-v1(chat-span-strict-exact-v1,chat-stream-selected-exact-v1,responses-span-strict-exact-v1)"
 	}
@@ -141,13 +144,16 @@ func (m *compiledModelUsage) servedModelID(attrs pcommon.Map) string {
 	}
 	operation, quality := servedIdentityValue(attrs, "gen_ai.operation.name")
 	_, operationPresent := attrs.Get("gen_ai.operation.name")
-	nativeMarkers := m.identity == modelIdentityLiteLLMStream || m.identity == modelIdentityLiteLLMResponses
+	nativeMarkers := m.identity == modelIdentityLiteLLMStream || m.identity == modelIdentityLiteLLMResponses || m.identity == modelIdentityLiteLLMMessages
 	if nativeMarkers || m.identity == modelIdentityLiteLLM && !operationPresent {
 		callType, callQuality := servedIdentityValue(attrs, "llm.request.type")
 		route, routeQuality := servedIdentityValue(attrs, "http.route")
 		wantCall, wantRoute := "acompletion", "/v1/chat/completions"
 		if m.identity == modelIdentityLiteLLMResponses {
 			wantCall, wantRoute = "aresponses", "/v1/responses"
+		}
+		if m.identity == modelIdentityLiteLLMMessages {
+			wantCall, wantRoute = "anthropic_messages", "/v1/messages"
 		}
 		matched := callQuality == "" && callType == wantCall && routeQuality == "" && route == wantRoute
 		if nativeMarkers && !matched {
@@ -186,6 +192,9 @@ func (m *compiledModelUsage) servedModelID(attrs pcommon.Map) string {
 	if m.identity == modelIdentityLiteLLMStream && (!seenStream || !stream) {
 		return "__unmapped__"
 	}
+	if m.identity == modelIdentityLiteLLMMessages && streaming && (!seenStream || !stream) {
+		return "__unmapped__"
+	}
 	attribute := "gen_ai.response.model"
 	if m.identity == modelIdentityLiteLLM || nativeMarkers {
 		attribute = "litellm.provider.model"
@@ -198,9 +207,10 @@ func (m *compiledModelUsage) servedModelID(attrs pcommon.Map) string {
 	if !ok {
 		return "__unmapped__"
 	}
-	// Streaming Chat's response field echoes dispatch, not an independent
-	// provider snapshot. Only chat-v1 and Responses verify response identity.
-	if m.identity != modelIdentityLiteLLM && m.identity != modelIdentityLiteLLMResponses {
+	// Streaming Chat and Messages echo dispatch, not an independent provider
+	// snapshot. Messages verifies a present response only for nonstreaming.
+	verifyResponse := m.identity == modelIdentityLiteLLM || m.identity == modelIdentityLiteLLMResponses || m.identity == modelIdentityLiteLLMMessages && !streaming
+	if !verifyResponse {
 		return id
 	}
 	response, quality := servedIdentityValue(attrs, "gen_ai.response.model")

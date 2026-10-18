@@ -256,3 +256,28 @@ cover pinned LiteLLM 1.104.0 nonstreaming Chat, streaming Chat and Responses.
 Choose `litellm-1.104.0-v1` for mixed traffic under one summary contract, or a
 standalone profile for a single traffic class. Review its selected/response-model maps and telemetry
 prerequisites before enabling per-model summaries.
+
+### Unreleased Native Messages Profile
+
+The separate [`litellm-1.104.0-messages-v1` profile](../../../docs/MODEL_USAGE_SUMMARIES.md#unreleased-native-messages-profile)
+is for evaluation with a reviewed source build and matching source chart only.
+Installed collector/image/chart v0.5.0 does not support it; the released combined
+profile remains unchanged and rejects Messages. No recipe version pin is changed.
+
+Use the stock `otel` callback with
+`OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental`. Native spans must have
+`llm.request.type=anthropic_messages` and `http.route=/v1/messages`; their "chat"
+span name is not a protocol marker. Map `litellm.provider.model` exactly, not the
+requested route or client response alias. Nonstreaming verifies a present
+response model through the required `response_models` map, or uses selected-only
+attribution when absent. Typed native `gen_ai.request.stream=true` selects the
+streaming rule, which ignores echoed response names. The map may be empty;
+malformed/duplicate/conflicting flags and legacy-only true remain unpriced.
+
+Pinned native default/raw Auto Routing and recovery retained selected dispatch;
+nonstreaming native responses retained provider snapshots even when client model
+names differed. No native deployment/API-base field was established. These
+synthetic observations do not prove actual Claude Code or translated-backend
+coverage. A malformed nonstreaming response without a model lost native telemetry,
+and pre-content recovery did not expose every physical attempt. The profile
+cannot fill missing spans/usage and makes no new streaming finality claim.

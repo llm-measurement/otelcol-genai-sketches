@@ -84,7 +84,7 @@ The optional `model_usage.identity` selects a version-pinned served-model
 profile; absent or empty keeps legacy request-model attribution. In Helm these
 fields are `summaryExport.modelUsage.identity` and `responseModels`; absent fields
 are omitted, and disabled settings leave rendering unchanged. Use collector v0.5.0
-and chart 0.5.0, paired with fleetdiff v0.11.0, for the profiles below.
+and chart 0.5.0, paired with fleetdiff v0.11.0, for the profiles in this table.
 
 | Identity | Exact input namespace for `models` |
 | --- | --- |
@@ -232,6 +232,71 @@ approve the new ID using the procedure below. Pass that exact ID to the reader
 with `--model-usage-contract`; a mismatched expected ID is rejected, and legacy
 and served contracts cannot be mixed. The unchanged format version is not approval
 of a new attribution contract.
+
+## Unreleased Native Messages Profile
+
+`litellm-1.104.0-messages-v1` is a separate, unreleased profile for native
+Anthropic Messages through pinned LiteLLM 1.104.0. Installed collector/image/chart
+v0.5.0 does **not** support it. Use a reviewed source build and matching source
+chart for evaluation; changing Helm values alone does not upgrade the runtime.
+The released combined `litellm-1.104.0-v1` profile and its contract are unchanged
+and still reject Messages.
+
+The same stock `otel` callback and `gen_ai_latest_experimental` setting described
+above are required. Every span must carry the exact native pair
+`llm.request.type=anthropic_messages` and `http.route=/v1/messages`, even when a
+Chat operation name is present. A span named "chat", a client header, or a
+resource attribute cannot supply either missing marker. Map the span-local
+`litellm.provider.model` exactly through `models`, without prefix removal or
+requested-route fallback.
+
+- Nonstreaming: false or absent `gen_ai.request.stream` selects this rule. A
+  present `gen_ai.response.model` must map to the same approved public ID through
+  `response_models`; an absent attribute permits selected-model-only attribution.
+- Streaming: a typed `gen_ai.request.stream=true` is required. Attribution is
+  selected-model-only and ignores `gen_ai.response.model`, which echoed dispatch
+  rather than independently confirming the provider snapshot in the pinned probe.
+- Malformed, duplicate or conflicting native/legacy stream flags stay unpriced.
+  A legacy-only `llm.is_streaming=true` is not enough to establish streaming.
+
+`response_models` (Helm: `responseModels`) is required and may be `{}`; it has the
+same 5,000-entry, 256-byte-name and public-ID bounds as other response maps. An
+empty map leaves present nonstreaming responses unpriced, but does not prevent
+selected-only attribution for absent responses or valid native streaming.
+
+```yaml
+# Unreleased: reviewed source build only; not collector v0.5.0.
+model_usage:
+  slice: by_model
+  identity: litellm-1.104.0-messages-v1
+  models:
+    anthropic/approved-dispatch: approved-public-model
+  response_models:
+    approved-provider-snapshot: approved-public-model
+```
+
+This fragment belongs under `summary_export`; placeholders must be replaced by
+individually approved exact names. Review and approve the new contract ID using
+the procedure below. Do not mix Messages and combined/other-profile summaries.
+
+Pinned native ordinary, default/raw Auto Routing and recovery observations kept
+selected dispatch visible. Nonstreaming default Auto Routing preserved the
+provider snapshot in native telemetry even when the client saw a route alias;
+the Chat/Responses alias behavior above must not be projected onto Messages.
+Recovery uses the selected recovery model and, for nonstreaming, its separately
+approved response snapshot. Native spans did not expose a deployment/API-base
+field, so this profile neither requires one nor infers deployment identity.
+
+The probe also found a completed, deliberately malformed nonstreaming provider
+response without a `model` field that produced neither a correlated inference
+span nor an exact spend row. The collector's absent-response rule only applies
+to spans it actually receives; it cannot repair that telemetry gap. Pre-content
+stream recovery did not export every failed physical attempt as an inference
+span. An interrupted stream had no final provider usage receipt. Selected model,
+reported token completeness and request completion remain separate facts: this
+profile adds no streaming completion/finality guarantee and does not invent
+missing usage. Translated backends, other providers/versions, and actual Claude
+Code traffic are not established by these synthetic native-path checks.
 
 ## Obtain The Expected Contract
 
