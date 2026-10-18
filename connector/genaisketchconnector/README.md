@@ -39,7 +39,7 @@ manifest:
 
 ```yaml
 connectors:
-  - gomod: github.com/llm-measurement/otelcol-genai-sketches/connector/genaisketchconnector v0.6.0
+  - gomod: github.com/llm-measurement/otelcol-genai-sketches/connector/genaisketchconnector v0.6.1
 ```
 
 Use `genaisketch` as a traces-pipeline exporter and a metrics-pipeline receiver,

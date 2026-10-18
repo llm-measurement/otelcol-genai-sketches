@@ -2,6 +2,20 @@
 
 Notable user-visible changes are recorded here.
 
+## v0.6.1 / Helm chart 0.6.1 - 2026-10-18
+
+See the [release notes](docs/releases/v0.6.1.md). Keep valid span accounting
+available when input is malformed or counters are exhausted.
+
+- Treat token fields above 1,000,000,000 as invalid, missing usage; retain
+  requests and other valid fields. Saturate counters with explicit diagnostics.
+- Reject malformed identities one span at a time with fixed reason labels,
+  instead of rejecting valid peers in the batch.
+- Apply every batch transactionally. Do not request trace replay after a
+  downstream metric-delivery error once accounting has committed.
+- Preserve normal-input output and existing identity and summary contracts.
+  Exhausted summary windows and ranking bounds are explicitly unavailable.
+
 ## v0.6.0 / Helm chart 0.6.0 - 2026-10-18
 
 See the [release notes](docs/releases/v0.6.0.md). Use one opt-in producer for
