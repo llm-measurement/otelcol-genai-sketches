@@ -46,7 +46,7 @@ Legacy requested-model mapping requires each observed name to identify one stabl
 public model. Do not assume this for dynamic aliases that can select different
 models through routing or fallback. Legacy request-model attribution remains the
 unchanged default when `model_usage.identity` is absent or empty; the served-model
-opt-in described below is available in v0.5.0.
+opt-in began in v0.5.0. Native Messages and combined LiteLLM v2 require v0.6.0.
 
 ## Helm Opt-In
 
@@ -175,7 +175,8 @@ The agentgateway and Envoy profiles cover streaming and nonstreaming Chat,
 including recovery. Their pinned spans have no stream marker, so this widens the
 verified scope without changing either profile's behavior or contract ID.
 
-For a LiteLLM gateway serving mixed traffic, choose `litellm-1.104.0-v1`. One
+For a LiteLLM gateway serving mixed Chat and Responses traffic, choose
+`litellm-1.104.0-v1`; use [v2](#combined-litellm-v2-in-v060) when including Messages. One
 producer then uses one contract for nonstreaming Chat, streaming Chat and
 Responses. It requires the exact native call-type and route pair on every span,
 even when an operation name is present. For Chat, typed
@@ -197,7 +198,7 @@ Use the exact values emitted by the pinned gateway and approve any snapshot
 names explicitly. This fragment belongs under `summary_export`; keep the
 existing request-model slice. The combined contract binds all three rules and
 both maps. It differs from each standalone contract, so do not mix old and new
-summaries in one comparison. It does not yet cover Anthropic Messages.
+summaries in one comparison. V1 remains unchanged and rejects Anthropic Messages.
 
 The individual rules and standalone profiles remain available:
 
@@ -233,14 +234,59 @@ with `--model-usage-contract`; a mismatched expected ID is rejected, and legacy
 and served contracts cannot be mixed. The unchanged format version is not approval
 of a new attribution contract.
 
-## Unreleased Native Messages Profile
+## Combined LiteLLM v2 In v0.6.0
 
-`litellm-1.104.0-messages-v1` is a separate, unreleased profile for native
-Anthropic Messages through pinned LiteLLM 1.104.0. Installed collector/image/chart
-v0.5.0 does **not** support it. Use a reviewed source build and matching source
-chart for evaluation; changing Helm values alone does not upgrade the runtime.
-The released combined `litellm-1.104.0-v1` profile and its contract are unchanged
-and still reject Messages.
+Collector/image v0.6.0 and chart 0.6.0 add `litellm-1.104.0-v2`: one producer and
+one contract for the disjoint union of the four existing standalone LiteLLM
+rules. Every span must have an exact, unique native call-type/route pair:
+
+| Native `llm.request.type` | Native `http.route` | Existing rule selected |
+| --- | --- | --- |
+| `acompletion` | `/v1/chat/completions` | Chat; typed native `gen_ai.request.stream=true` selects streaming Chat |
+| `aresponses` | `/v1/responses` | Responses, in either stream mode |
+| `anthropic_messages` | `/v1/messages` | Messages, with its nonstreaming/streaming distinction below |
+
+Missing, malformed, duplicate or crossed native markers reject attribution even
+when `gen_ai.operation.name=chat` is present. The selected rule retains all its
+typed, duplicate and conflicting stream-flag checks. There is no fallback to
+span names, resource attributes, request aliases or route groups for identity.
+
+```yaml
+# Requires collector/image v0.6.0 and chart 0.6.0.
+model_usage:
+  slice: by_model
+  identity: litellm-1.104.0-v2
+  models:
+    openai/approved-dispatch: approved-chat-model
+    anthropic/approved-dispatch: approved-messages-model
+  response_models:
+    approved-chat-snapshot: approved-chat-model
+    approved-messages-snapshot: approved-messages-model
+```
+
+Place this fragment under `summary_export`, retain the existing request-model
+slice, and replace placeholders with individually approved exact names. In Helm,
+set `summaryExport.modelUsage.identity` and `responseModels`. The bounded,
+non-null response map is required, and `{}` is valid. Nonstreaming Chat,
+Responses (including streaming), and nonstreaming Messages verify a present
+response against it; streaming Chat and streaming Messages ignore response-model
+echoes and use selected identity only. Absent responses retain each rule's
+selected-only behavior.
+
+V2 binds all four rules and both exact maps in a new contract. Approve its ID
+before comparison; do not combine v2 summaries with v1, standalone or legacy
+summaries. V1's contract and behavior, all standalone rules, default outputs and
+the summary format remain unchanged. V0.5.0 does **not** support v2; changing
+Helm values alone does not upgrade a runtime. This union adds identity coverage,
+not new usage completeness or streaming completion guarantees.
+
+## Native Messages Profile In v0.6.0
+
+`litellm-1.104.0-messages-v1` is the standalone profile for native Anthropic
+Messages through pinned LiteLLM 1.104.0. Use collector/image v0.6.0 and chart
+0.6.0; installed v0.5.0 does **not** support it. The same rule is included in
+combined v2. Combined `litellm-1.104.0-v1` and its contract remain unchanged and
+still reject Messages.
 
 The same stock `otel` callback and `gen_ai_latest_experimental` setting described
 above are required. Every span must carry the exact native pair
@@ -265,7 +311,7 @@ empty map leaves present nonstreaming responses unpriced, but does not prevent
 selected-only attribution for absent responses or valid native streaming.
 
 ```yaml
-# Unreleased: reviewed source build only; not collector v0.5.0.
+# Requires collector/image v0.6.0 and chart 0.6.0; not collector v0.5.0.
 model_usage:
   slice: by_model
   identity: litellm-1.104.0-messages-v1

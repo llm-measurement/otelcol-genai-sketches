@@ -15,13 +15,14 @@ import (
 )
 
 const (
-	modelIdentityLiteLLM          = "litellm-1.104.0-chat-v1"
-	modelIdentityLiteLLMStream    = "litellm-1.104.0-chat-stream-v1"
-	modelIdentityLiteLLMResponses = "litellm-1.104.0-responses-v1"
-	modelIdentityLiteLLMMessages  = "litellm-1.104.0-messages-v1"
-	modelIdentityLiteLLMCombined  = "litellm-1.104.0-v1"
-	modelIdentityAgentGateway     = "agentgateway-1.6.0-chat-v1"
-	modelIdentityEnvoy            = "envoy-ai-gateway-1.1.0-chat-v1"
+	modelIdentityLiteLLM           = "litellm-1.104.0-chat-v1"
+	modelIdentityLiteLLMStream     = "litellm-1.104.0-chat-stream-v1"
+	modelIdentityLiteLLMResponses  = "litellm-1.104.0-responses-v1"
+	modelIdentityLiteLLMMessages   = "litellm-1.104.0-messages-v1"
+	modelIdentityLiteLLMCombined   = "litellm-1.104.0-v1"
+	modelIdentityLiteLLMCombinedV2 = "litellm-1.104.0-v2"
+	modelIdentityAgentGateway      = "agentgateway-1.6.0-chat-v1"
+	modelIdentityEnvoy             = "envoy-ai-gateway-1.1.0-chat-v1"
 )
 
 func validateServedModelUsage(m *ModelUsageConfig) error {
@@ -34,7 +35,7 @@ func validateServedModelUsage(m *ModelUsageConfig) error {
 		if m.ResponseModels != nil {
 			return errors.New("summary_export.model_usage.response_models is not supported by the LiteLLM streaming Chat identity profile")
 		}
-	case modelIdentityLiteLLM, modelIdentityLiteLLMResponses, modelIdentityLiteLLMMessages, modelIdentityLiteLLMCombined:
+	case modelIdentityLiteLLM, modelIdentityLiteLLMResponses, modelIdentityLiteLLMMessages, modelIdentityLiteLLMCombined, modelIdentityLiteLLMCombinedV2:
 		if m.ResponseModels == nil || len(m.ResponseModels) > modelusage.MaxModels {
 			return errors.New("summary_export.model_usage LiteLLM identity requires a bounded response_models map")
 		}
@@ -72,6 +73,8 @@ func servedModelUsageContract(accountingID string, m *ModelUsageConfig, routing 
 		sourceRule = "messages-native-nonstream-verified-stream-selected-exact-v1"
 	case modelIdentityLiteLLMCombined:
 		sourceRule = "native-disjoint-union-v1(chat-span-strict-exact-v1,chat-stream-selected-exact-v1,responses-span-strict-exact-v1)"
+	case modelIdentityLiteLLMCombinedV2:
+		sourceRule = "native-disjoint-union-v2(chat-span-strict-exact-v1,chat-stream-selected-exact-v1,responses-span-strict-exact-v1,messages-native-nonstream-verified-stream-selected-exact-v1)"
 	}
 	manifest := struct {
 		Domain         string            `json:"domain"`
@@ -120,7 +123,7 @@ func servedIdentityValue(attrs pcommon.Map, key string) (string, string) {
 }
 
 func (m *compiledModelUsage) servedModelID(attrs pcommon.Map) string {
-	if m.identity == modelIdentityLiteLLMCombined {
+	if m.identity == modelIdentityLiteLLMCombined || m.identity == modelIdentityLiteLLMCombinedV2 {
 		callType, callQuality := servedIdentityValue(attrs, "llm.request.type")
 		route, routeQuality := servedIdentityValue(attrs, "http.route")
 		if callQuality != "" || routeQuality != "" {
@@ -137,6 +140,8 @@ func (m *compiledModelUsage) servedModelID(attrs pcommon.Map) string {
 			}
 		case callType == "aresponses" && route == "/v1/responses":
 			profile.identity = modelIdentityLiteLLMResponses
+		case m.identity == modelIdentityLiteLLMCombinedV2 && callType == "anthropic_messages" && route == "/v1/messages":
+			profile.identity = modelIdentityLiteLLMMessages
 		default:
 			return "__unmapped__"
 		}
