@@ -32,6 +32,9 @@ func TestModelUsageDisabledRenderingUnchanged(t *testing.T) {
 			{"summaryExport.modelUsage.identity=litellm-1.104.0-chat-stream-v1"},
 			{"summaryExport.modelUsage.identity=litellm-1.104.0-responses-v1", "summaryExport.modelUsage.responseModels={}"},
 			{"summaryExport.modelUsage.identity=litellm-1.104.0-responses-v1", `summaryExport.modelUsage.responseModels={"PRIVATE_RESPONSE":"public-model"}`},
+			{"summaryExport.modelUsage.identity=litellm-1.104.0-v1"},
+			{"summaryExport.modelUsage.identity=litellm-1.104.0-v1", "summaryExport.modelUsage.responseModels={}"},
+			{"summaryExport.modelUsage.identity=litellm-1.104.0-v1", `summaryExport.modelUsage.responseModels={"PRIVATE_RESPONSE":"public-model"}`},
 		} {
 			settings := append(append([]string{}, base...),
 				"summaryExport.modelUsage.enabled=false",
@@ -41,7 +44,7 @@ func TestModelUsageDisabledRenderingUnchanged(t *testing.T) {
 			if err != nil || !bytes.Equal(original, disabled) {
 				t.Fatalf("disabled settings changed rendered manifests for %v: %v", profile, err)
 			}
-			for _, sentinel := range []string{"model_usage", "PRIVATE_ALIAS", "PRIVATE_RESPONSE", "response_models", "chat-v1", "chat-stream-v1", "responses-v1"} {
+			for _, sentinel := range []string{"model_usage", "PRIVATE_ALIAS", "PRIVATE_RESPONSE", "response_models", "chat-v1", "chat-stream-v1", "responses-v1", "litellm-1.104.0-v1"} {
 				if bytes.Contains(disabled, []byte(sentinel)) {
 					t.Fatalf("disabled configuration escaped into manifests: %s", sentinel)
 				}
@@ -62,7 +65,7 @@ func TestModelUsageEmptyIdentityPreservesLegacyRendering(t *testing.T) {
 }
 
 func TestModelUsageIdentityRendering(t *testing.T) {
-	for _, identity := range []string{"agentgateway-1.6.0-chat-v1", "envoy-ai-gateway-1.1.0-chat-v1", "litellm-1.104.0-chat-v1", "litellm-1.104.0-chat-stream-v1", "litellm-1.104.0-responses-v1"} {
+	for _, identity := range []string{"agentgateway-1.6.0-chat-v1", "envoy-ai-gateway-1.1.0-chat-v1", "litellm-1.104.0-chat-v1", "litellm-1.104.0-chat-stream-v1", "litellm-1.104.0-responses-v1", "litellm-1.104.0-v1"} {
 		t.Run(identity, func(t *testing.T) {
 			for _, mapping := range []map[string]string{
 				{},
@@ -78,7 +81,7 @@ func TestModelUsageIdentityRendering(t *testing.T) {
 				for name, public := range mapping {
 					want["models"].(map[string]any)[name] = public
 				}
-				if identity == "litellm-1.104.0-chat-v1" || identity == "litellm-1.104.0-responses-v1" {
+				if identity == "litellm-1.104.0-chat-v1" || identity == "litellm-1.104.0-responses-v1" || identity == "litellm-1.104.0-v1" {
 					responses := map[string]string{}
 					for name, public := range mapping {
 						responses["response-"+name] = public
@@ -122,6 +125,9 @@ func TestModelUsageIdentityRejectsInvalidValues(t *testing.T) {
 		{"litellm-stream-response-map", []string{"summaryExport.modelUsage.identity=litellm-1.104.0-chat-stream-v1", `summaryExport.modelUsage.responseModels={"PRIVATE_RESPONSE":"public-model"}`}},
 		{"litellm-responses-missing-response-map", []string{"summaryExport.modelUsage.identity=litellm-1.104.0-responses-v1"}},
 		{"litellm-responses-null-response-map", []string{"summaryExport.modelUsage.identity=litellm-1.104.0-responses-v1", "summaryExport.modelUsage.responseModels=null"}},
+		{"litellm-combined-missing-response-map", []string{"summaryExport.modelUsage.identity=litellm-1.104.0-v1"}},
+		{"litellm-combined-null-response-map", []string{"summaryExport.modelUsage.identity=litellm-1.104.0-v1", "summaryExport.modelUsage.responseModels=null"}},
+		{"litellm-combined-wrong-version", []string{"summaryExport.modelUsage.identity=litellm-1.104.1-v1", "summaryExport.modelUsage.responseModels={}"}},
 		{"litellm-stream-wrong-version", []string{"summaryExport.modelUsage.identity=litellm-1.104.1-chat-stream-v1"}},
 		{"litellm-responses-wrong-version", []string{"summaryExport.modelUsage.identity=litellm-1.104.1-responses-v1"}},
 		{"response-slice", []string{"summaryExport.modelUsage.identity=agentgateway-1.6.0-chat-v1", `connector.slices=[{"name":"by_model","keys":["gen_ai.response.model"]}]`}},
@@ -154,7 +160,7 @@ func TestModelUsageResponseMapRejectsInvalidValues(t *testing.T) {
 		{"nonpublic-id", `{"response":"https://host/?secret=value"}`},
 		{"long-id", `{"response":"` + strings.Repeat("a", 129) + `"}`},
 	} {
-		for _, identity := range []string{"litellm-1.104.0-chat-v1", "litellm-1.104.0-responses-v1"} {
+		for _, identity := range []string{"litellm-1.104.0-chat-v1", "litellm-1.104.0-responses-v1", "litellm-1.104.0-v1"} {
 			t.Run(identity+"/"+tc.name, func(t *testing.T) {
 				if output, err := render(t, modelUsageSettings("summaryExport.modelUsage.identity="+identity,
 					"summaryExport.modelUsage.responseModels="+tc.mapping)...); err == nil {

@@ -251,7 +251,8 @@ accounting, disjoint-partition merge, and privacy scans. Separate live mock and
 real-provider runs are recorded in [Validation](VALIDATION.md), with versions,
 results, and scope. Canonical attributes pass directly to the connector.
 
-For dynamic routing, the unreleased [served-identity profiles](../../../docs/MODEL_USAGE_SUMMARIES.md#verified-request-scope)
-separately cover pinned LiteLLM 1.104.0 nonstreaming Chat, streaming Chat and
-Responses. Review that profile's selected/response-model maps and telemetry
+For dynamic routing, collector v0.5.0's [served-identity profiles](../../../docs/MODEL_USAGE_SUMMARIES.md#verified-request-scope)
+cover pinned LiteLLM 1.104.0 nonstreaming Chat, streaming Chat and Responses.
+Choose `litellm-1.104.0-v1` for mixed traffic under one summary contract, or a
+standalone profile for a single traffic class. Review its selected/response-model maps and telemetry
 prerequisites before enabling per-model summaries.
