@@ -313,7 +313,7 @@ func TestReleasePublicationRetryNeverOverwrites(t *testing.T) {
 				t.Fatalf("publication can overwrite: %s", forbidden)
 			}
 		}
-		for _, scenario := range []string{"fresh", "fresh-wrong-source", "fresh-missing-source", "fresh-tag-lookup-failure", "retry-before-tag", "existing-tag", "partial-create", "wrong-tag", "wrong-source", "missing-source", "tag-lookup-failure", "draft", "changed-asset", "missing-asset", "extra-asset", "download-failure", "view-failure"} {
+		for _, scenario := range []string{"fresh", "fresh-wrong-source", "fresh-missing-source", "fresh-tag-lookup-failure", "retry-before-tag", "existing-tag", "existing-tag-different", "existing-tag-lookup-failure", "partial-create", "wrong-tag", "wrong-source", "missing-source", "tag-lookup-failure", "draft", "changed-asset", "missing-asset", "extra-asset", "download-failure", "view-failure"} {
 			t.Run(workflow+"/"+scenario, func(t *testing.T) {
 				_, dir := chartPublishWorkspace(t)
 				for _, name := range []string{"SHA256SUMS", "chart-digest.txt", "otelcol-genai-sketches-1.2.3.tgz", "provenance.jsonl"} {
@@ -377,13 +377,14 @@ case "$1" in
   tag)
     [[ "$FAILURE" != tag ]] || exit 31
     if [[ "$2" == "$CHART_NAME@$CHART_DIGEST" ]]; then
-      [[ ! -f chart-tag ]] || exit 32
+      if [[ -f chart-tag ]]; then [[ "$(cat chart-tag)" == "$CHART_DIGEST" ]] || exit 32; fi
       printf '%s\n' "$CHART_DIGEST" > chart-tag
     else
       [[ "$2" == "$IMAGE_NAME@$DIGEST" ]] || exit 33
     fi
     ;;
   resolve)
+    [[ "$FAILURE" != existing-tag-lookup-failure ]] || exit 34
     if [[ "$2" == "$CHART_NAME:"* ]]; then cat chart-tag; else printf '%s\n' "$DIGEST"; fi
     ;;
   *) exit 99 ;;
@@ -443,7 +444,7 @@ esac
 					if err := publish(scenario); err == nil {
 						t.Fatal("partial upload succeeded")
 					}
-				} else if scenario == "existing-tag" {
+				} else if strings.HasPrefix(scenario, "existing-tag") {
 					if err := publish(""); err != nil {
 						t.Fatal(err)
 					}
@@ -456,6 +457,8 @@ esac
 					t.Fatalf("first attempt did not create the release: %v", err)
 				}
 				switch scenario {
+				case "existing-tag-different":
+					writePipelineFile(t, filepath.Join(dir, "chart-tag"), []byte("sha256:"+strings.Repeat("d", 64)+"\n"))
 				case "wrong-tag":
 					metadata["tagName"] = "chart-v9.9.9"
 				case "wrong-source":
@@ -503,14 +506,15 @@ esac
 				publishedBefore := remoteSnapshot()
 				before, _ := os.ReadFile(filepath.Join(dir, "oras.calls"))
 				err := publish(scenario)
-				if (err == nil) != (scenario == "retry-before-tag") {
+				accepted := scenario == "retry-before-tag" || scenario == "existing-tag"
+				if (err == nil) != accepted {
 					t.Fatalf("retry: %v", err)
 				}
 				if publishedBefore != remoteSnapshot() {
 					t.Fatal("retry changed published release assets or metadata")
 				}
 				after, _ := os.ReadFile(filepath.Join(dir, "oras.calls"))
-				if scenario != "retry-before-tag" && !bytes.Equal(before, after) {
+				if !accepted && bytes.Count(before, []byte("tag ")) != bytes.Count(after, []byte("tag ")) {
 					t.Fatal("rejected retry attempted a tag")
 				}
 				calls, err := os.ReadFile(filepath.Join(dir, "gh.calls"))

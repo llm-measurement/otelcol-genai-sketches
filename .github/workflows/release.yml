@@ -595,7 +595,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=sha
 
-      - name: Refuse an existing OCI chart version
+      - name: Verify existing OCI chart version matches approved digest
         env:
           VERSION: ${{ needs.verify.outputs.chart_version }}
         run: |
@@ -608,7 +608,13 @@ jobs:
             "https://ghcr.io/v2/${CHART_NAME#ghcr.io/}/manifests/${VERSION}")"
           case "${status}" in
             404) ;;
-            200) echo "Chart ${VERSION} already exists; refusing to overwrite it" >&2; exit 1 ;;
+            200)
+              existing_digest="$(oras resolve "${CHART_NAME}:${VERSION}")"
+              if [[ "$existing_digest" != "$CHART_DIGEST" ]]; then
+                echo "Chart ${VERSION} exists with a different digest; refusing to overwrite it" >&2
+                exit 1
+              fi
+              ;;
             *) echo "Cannot establish chart availability (HTTP ${status})" >&2; exit 1 ;;
           esac
 

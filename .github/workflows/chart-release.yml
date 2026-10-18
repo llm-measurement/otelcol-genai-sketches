@@ -384,7 +384,7 @@ jobs:
             --signer-workflow "$GH_REPO/.github/workflows/chart-release.yml" \
             --source-ref "refs/tags/$TAG" --source-digest "$GITHUB_SHA" --deny-self-hosted-runners
 
-      - name: Refuse an existing OCI chart version
+      - name: Verify existing OCI chart version matches approved digest
         run: |
           version="${GITHUB_REF_NAME#chart-v}"
           pull_token="$(curl --fail --silent --show-error \
@@ -396,7 +396,13 @@ jobs:
             "https://ghcr.io/v2/${CHART_NAME#ghcr.io/}/manifests/${version}")"
           case "${status}" in
             404) ;;
-            200) echo "Chart ${version} already exists; refusing to overwrite it" >&2; exit 1 ;;
+            200)
+              existing_digest="$(oras resolve "${CHART_NAME}:${version}")"
+              if [[ "$existing_digest" != "$CHART_DIGEST" ]]; then
+                echo "Chart ${version} exists with a different digest; refusing to overwrite it" >&2
+                exit 1
+              fi
+              ;;
             *) echo "Cannot establish chart availability (HTTP ${status})" >&2; exit 1 ;;
           esac
 

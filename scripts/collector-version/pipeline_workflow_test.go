@@ -449,6 +449,62 @@ oras() {
 	}
 }
 
+func TestChartPublicationRetryRequiresIdenticalDigest(t *testing.T) {
+	for _, workflow := range []string{"release.yml", "chart-release.yml"} {
+		p := readPipeline(t, workflow)
+		steps := p.Jobs["publish"].Steps
+		guard := slices.IndexFunc(steps, func(s pipelineStep) bool {
+			return s.Name == "Verify existing OCI chart version matches approved digest"
+		})
+		if guard < 0 {
+			t.Fatal("missing chart publication retry guard")
+		}
+		for i, s := range steps {
+			if (strings.Contains(s.Run, "gh release create") || strings.Contains(s.Run, "oras tag")) && i < guard {
+				t.Fatal("publication before chart version check")
+			}
+		}
+		for _, scenario := range []string{"absent", "identical", "different", "empty", "resolve-error", "token-error", "transport-error", "401", "403", "429", "500"} {
+			t.Run(workflow+"/"+scenario, func(t *testing.T) {
+				stub := `
+curl() {
+  if [[ "$*" == *"https://ghcr.io/token?"* ]]; then
+    [[ "$SCENARIO" != token-error ]] || return 22
+    printf '%s' '{"token":"test-token"}'
+  elif [[ "$*" == *"/manifests/1.2.3"* ]]; then
+    case "$SCENARIO" in
+      absent) printf 404 ;;
+      transport-error) return 23 ;;
+      401|403|429|500) printf '%s' "$SCENARIO" ;;
+      *) printf 200 ;;
+    esac
+  else
+    return 24
+  fi
+}
+jq() { cat >/dev/null; printf '%s' 'test-token'; }
+oras() {
+  [[ "$1" == resolve && "$2" == "$CHART_NAME:1.2.3" ]] || return 25
+  case "$SCENARIO" in
+    identical) printf '%s\n' "$CHART_DIGEST" ;;
+    different) printf 'sha256:%064d\n' 0 ;;
+    empty) return 0 ;;
+    *) return 26 ;;
+  esac
+}
+`
+				cmd := exec.Command("bash", "-euo", "pipefail", "-c", stub+steps[guard].Run)
+				cmd.Env = append(os.Environ(), "SCENARIO="+scenario, "VERSION=1.2.3", "GITHUB_REF_NAME=chart-v1.2.3",
+					"CHART_NAME=ghcr.io/llm-measurement/charts/otelcol-genai-sketches", "CHART_DIGEST=sha256:"+strings.Repeat("a", 64))
+				output, err := cmd.CombinedOutput()
+				if (err == nil) != (scenario == "absent" || scenario == "identical") {
+					t.Fatalf("chart retry guard: %v\n%s", err, output)
+				}
+			})
+		}
+	}
+}
+
 func pipelineScript(t *testing.T, p pipeline, job, contains string) string {
 	t.Helper()
 	for _, step := range p.Jobs[job].Steps {
