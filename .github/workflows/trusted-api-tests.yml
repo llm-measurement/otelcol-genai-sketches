@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: Apache-2.0
+# Code authors: Vijay and Codex
+name: trusted-api-tests
+
+on:
+  # These tests execute PR code and must never run on pull_request_target.
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+
+permissions:
+  contents: read
+
+jobs:
+  trusted-api-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Test trusted API checks and workflow boundaries
+        run: node --test .github/tests/trusted-api.test.cjs
