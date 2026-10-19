@@ -3,8 +3,7 @@
 // Run with Node.js, Ruby (YAML parser), and Git: node --test .github/tests/trusted-api.test.cjs
 const assert = require('node:assert/strict');
 const { execFileSync } = require('node:child_process');
-const { createHash } = require('node:crypto');
-const { readFileSync } = require('node:fs');
+const { existsSync } = require('node:fs');
 const path = require('node:path');
 const { test } = require('node:test');
 const vm = require('node:vm');
@@ -16,7 +15,6 @@ function readWorkflow(name) {
 }
 const checkNames = ['dco', 'commit-signatures'];
 const workflows = Object.fromEntries(checkNames.map(name => [name, readWorkflow(`${name}-trusted`)]));
-const legacyWorkflows = Object.fromEntries(checkNames.map(name => [name, readWorkflow(name)]));
 const testsWorkflow = readWorkflow('trusted-api-tests');
 const checks = Object.fromEntries(Object.entries(workflows).map(([name, workflow]) => {
   const script = workflow.jobs[`${name}-trusted`].steps[0].with.script;
@@ -174,32 +172,18 @@ test('PR-controlled test execution stays in an unprivileged pull_request workflo
   });
 });
 
-// Step 1 must not replace the existing required checks or their regression suite.
-for (const [file, expected] of Object.entries({
-  'workflows/dco.yml': '701651fcbaeda521718895d90e6b524fbbd477eeb90fe1775e93bc273f12f4a2',
-  'workflows/commit-signatures.yml': 'b8c21d39b66eddb2a1775127a8f4e0279b5a34c7e45961d2f945e461ea6127fc',
-  'tests/dco.test.cjs': '6f4c064af973ef5695e6e7aa801be518e8980431d0ae028001c230cd82894e58',
-})) {
-  test(`step 1 preserves ${file} byte-for-byte`, () => {
-    const bytes = readFileSync(path.join(__dirname, '..', file));
-    assert.equal(createHash('sha256').update(bytes).digest('hex'), expected);
+// After activation and the required-check switch, only trusted API checks remain.
+for (const file of ['workflows/dco.yml', 'workflows/commit-signatures.yml', 'tests/dco.test.cjs']) {
+  test(`step 3 retires ${file}`, () => {
+    assert.equal(existsSync(path.join(__dirname, '..', file)), false);
   });
 }
 
-for (const [name, workflow] of Object.entries(legacyWorkflows)) {
-  test(`${name}: existing required checks retain their PR triggers and job names`, () => {
-    assert.equal(workflow.name, name);
-    assert.deepEqual(workflow.on ?? workflow.true, { pull_request: { types: eventTypes } });
-    assert.deepEqual(Object.keys(workflow.jobs), name === 'dco' ? ['dco', 'dco-tests'] : [name]);
-  });
-}
-
-test('new trusted and test jobs cannot shadow existing required check names', () => {
-  const all = [...Object.values(legacyWorkflows), ...Object.values(workflows), testsWorkflow];
+test('trusted and test jobs retain unique activated check names without legacy names', () => {
+  const all = [...Object.values(workflows), testsWorkflow];
   const names = all.flatMap(workflow => Object.entries(workflow.jobs).map(([id, job]) => job.name ?? id));
   assert.equal(new Set(names).size, names.length);
-  assert.deepEqual(names.sort(), ['commit-signatures', 'commit-signatures-trusted',
-    'dco', 'dco-tests', 'dco-trusted', 'trusted-api-tests']);
+  assert.deepEqual(names.sort(), ['commit-signatures-trusted', 'dco-trusted', 'trusted-api-tests']);
 });
 
 const messages = [

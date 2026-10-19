@@ -3,7 +3,6 @@
 name: commit-signatures-trusted
 
 on:
-  # Add the trusted check alongside the existing PR check during staged rollout.
   pull_request_target:
     types: [opened, synchronize, reopened, ready_for_review, edited]
 

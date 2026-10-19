@@ -17,9 +17,14 @@ Every pull-request commit needs both:
   have the right to contribute the work under this project's Apache-2.0 license.
 
 A signature and a sign-off serve different purposes; neither replaces the other.
-The `commit-signatures` and `dco` checks name every failing commit. A passing final
-commit does not cover earlier commits. The DCO check exempts only GitHub's own
-verified branch-update merge commits; ordinary merges and bots still need sign-offs.
+The `commit-signatures-trusted` and `dco-trusted` checks name every failing commit.
+A passing final commit does not cover earlier commits. The DCO check exempts only
+GitHub's own verified branch-update merge commits; ordinary merges and bots still
+need sign-offs.
+
+The trusted checks use read-only GitHub API data and the base branch's workflow;
+they never check out or execute pull-request code. Their regression suite runs
+separately as `trusted-api-tests` on the pull request.
 
 ### Set up SSH signing
 
@@ -66,8 +71,9 @@ The rebase command rewrites commits even when the branch is already up to date.
 These commands change commit IDs. Coordinate before rewriting a shared branch.
 Use the name and email matching your commit author identity, and ask other authors
 to fix their own commits; do not add their certification for them. After pushing,
-confirm **Verified** on each commit and passing `commit-signatures` and `dco`
-checks. Both checks reject incomplete API results, including PRs over 250 commits.
+confirm **Verified** on each commit and passing `commit-signatures-trusted` and
+`dco-trusted` checks. Both checks reject incomplete API results, including PRs
+over 250 commits.
 
 See GitHub's [SSH signing setup](https://docs.github.com/en/authentication/managing-commit-signature-verification/telling-git-about-your-signing-key#telling-git-about-your-ssh-key),
 [adding an SSH signing key](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account),
