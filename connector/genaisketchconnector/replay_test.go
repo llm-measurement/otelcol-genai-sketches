@@ -28,7 +28,7 @@ import (
 
 func TestReplayMatchesLiveConnectorBytes(t *testing.T) {
 	ctx := context.Background()
-	t.Setenv("GENAI_SKETCH_SECRET", "synthetic-test-key-0123456789-abcdef")
+	setConnectorTestSecret(t)
 	start := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
 	epoch := "0123456789abcdef0123456789abcdef"
 	var input strings.Builder
@@ -137,7 +137,7 @@ func TestReplayMatchesLiveConnectorBytes(t *testing.T) {
 }
 
 func TestReplayRejectsOutOfOrder(t *testing.T) {
-	t.Setenv("GENAI_SKETCH_SECRET", "synthetic-test-key-0123456789-abcdef")
+	setConnectorTestSecret(t)
 	cfg := defaultConfig()
 	cfg.SummaryExport = SummaryExportConfig{Directory: t.TempDir(), ProducerID: "a", ScopeID: "b", KeyID: "c", Interval: time.Second}
 	if err := os.Chmod(cfg.SummaryExport.Directory, 0700); err != nil {
