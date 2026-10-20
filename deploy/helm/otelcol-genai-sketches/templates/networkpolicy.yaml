@@ -12,8 +12,27 @@ spec:
     matchLabels:
       {{- include "otelcol-genai-sketches.selectorLabels" . | nindent 6 }}
   policyTypes: [Ingress, Egress]
-  ingress:
-    {{- toYaml .Values.networkPolicy.ingress | nindent 4 }}
-  egress:
-    {{- toYaml .Values.networkPolicy.egress | nindent 4 }}
+  {{- $otlp := .Values.networkPolicy.otlpFrom }}
+  {{- if .Values.networkPolicy.allowSameNamespace }}
+  {{- $otlp = append $otlp (dict "podSelector" (dict)) }}
+  {{- end }}
+  {{- $ingress := .Values.networkPolicy.ingress }}
+  {{- if $otlp }}
+  {{- $ingress = append $ingress (dict "from" $otlp "ports" (list
+      (dict "protocol" "TCP" "port" .Values.service.otlpGrpcPort)
+      (dict "protocol" "TCP" "port" .Values.service.otlpHTTPPort))) }}
+  {{- end }}
+  {{- if .Values.networkPolicy.metricsFrom }}
+  {{- $ingress = append $ingress (dict "from" .Values.networkPolicy.metricsFrom "ports" (list
+      (dict "protocol" "TCP" "port" .Values.service.metricsPort))) }}
+  {{- end }}
+  ingress: {{ $ingress | toJson }}
+  {{- $egress := .Values.networkPolicy.egress }}
+  {{- if .Values.networkPolicy.allowDNS }}
+  {{- $egress = append $egress (dict "to" (list (dict
+      "namespaceSelector" (dict "matchLabels" (dict "kubernetes.io/metadata.name" "kube-system"))
+      "podSelector" (dict "matchLabels" (dict "k8s-app" "kube-dns"))))
+      "ports" (list (dict "protocol" "UDP" "port" 53) (dict "protocol" "TCP" "port" 53))) }}
+  {{- end }}
+  egress: {{ $egress | toJson }}
 {{- end }}

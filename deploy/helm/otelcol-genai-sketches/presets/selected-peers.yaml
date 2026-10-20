@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: Apache-2.0
+# Code authors: Vijay and Codex
+# Replace these namespace and workload labels before installation.
+networkPolicy:
+  enabled: true
+  allowSameNamespace: false
+  otlpFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: applications
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: telemetry-sender
+  metricsFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: monitoring
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: prometheus

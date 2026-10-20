@@ -5,7 +5,6 @@ secretKey: secret
 
 image:
   repository: ghcr.io/llm-measurement/otelcol-genai-sketches
-  digest: ""
 
 serviceMonitor:
   enabled: false
