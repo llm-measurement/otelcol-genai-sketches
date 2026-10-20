@@ -28,7 +28,7 @@ services:
     user: '${TRIAL_UID:?use run.py}:${TRIAL_GID:?use run.py}'
     command: [--config=/config/collector.yaml]
     environment:
-      GENAI_SKETCH_SECRET: synthetic-trial-only-not-for-customer-data-20260927
+      GENAI_SKETCH_SECRET: '${TRIAL_HASH_SECRET:?use run.py}'
     volumes:
       - ./collector.yaml:/config/collector.yaml:ro
       - ${TRIAL_OUTPUT:?use run.py}/summaries:/summaries

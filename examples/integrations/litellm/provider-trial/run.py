@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import platform
+import secrets
 import shutil
 import subprocess
 import sys
@@ -17,6 +18,13 @@ import uuid
 SOURCE = Path(__file__).resolve().parent
 REPO = SOURCE.parents[3]
 MANIFEST = json.loads((SOURCE / 'manifest.json').read_text())
+
+
+def private_output(path):
+    path = Path(path).resolve()
+    if path.is_relative_to((Path.home() / 'Work').resolve()) or path == (Path.home() / '.cache').resolve():
+        raise ValueError('private evidence must be a new run directory outside Work')
+    return path
 
 
 def spending_limit(value):
@@ -70,7 +78,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--run-paid-trial', action='store_true', help='allow real, billable OpenAI calls')
     parser.add_argument('--max-estimated-usd', type=spending_limit, help='required for a paid run; not a provider spend cap')
-    parser.add_argument('--output', type=Path, help='new evidence directory under the repository .cache')
+    parser.add_argument('--output', type=Path, help='new private run directory outside Work; default ~/.cache')
     parser.add_argument('--fleetdiff', default=shutil.which('fleetdiff'), help='path to the v0.2.0 binary')
     args = parser.parse_args()
     if not args.run_paid_trial or not args.max_estimated_usd:
@@ -86,15 +94,13 @@ def main():
         parser.error('This experiment pins fleetdiff v0.2.0')
     os.umask(0o077)
     run_id = 'provider-trial-' + uuid.uuid4().hex[:12]
-    root = (args.output or REPO / '.cache' / run_id).resolve()
-    if REPO / '.cache' not in root.parents:
-        parser.error('Keep evidence under this repository\'s ignored .cache directory')
+    root = private_output(args.output or Path.home() / '.cache' / run_id)
     root.mkdir(mode=0o700, parents=True, exist_ok=False)
     for name in ('evidence', 'results', 'summaries', 'fleetdiff'):
         (root / name).mkdir(mode=0o700)
     os.environ.update(TRIAL_OUTPUT=str(root), TRIAL_MAX_ESTIMATED_USD=args.max_estimated_usd,
                       TRIAL_UID=str(os.getuid()), TRIAL_GID=str(os.getgid()),
-                      TRIAL_FLEETDIFF=binary)
+                      TRIAL_FLEETDIFF=binary, TRIAL_HASH_SECRET=secrets.token_hex(32))
     files = [p for p in SOURCE.iterdir() if p.suffix in ('.py', '.yaml', '.json')]
     files += [SOURCE.parent / name for name in ('provenance_callback.py', 'usage_provenance.py')]
     hashes = {str(p.relative_to(SOURCE.parent)): hashlib.sha256(p.read_bytes()).hexdigest() for p in files}
