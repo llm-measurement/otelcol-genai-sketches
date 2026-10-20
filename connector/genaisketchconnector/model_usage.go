@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	sketchfi "github.com/llm-measurement/llm-sketchkit/go/sketchkit/frequentitems"
+	"github.com/llm-measurement/llm-sketchkit/go/sketchkit/hllpp"
 	"github.com/llm-measurement/llm-sketchkit/go/sketchkit/modelusage"
 	"github.com/llm-measurement/llm-sketchkit/go/sketchkit/summary"
 )
@@ -29,6 +30,7 @@ type compiledModelUsage struct {
 	models         map[string]string
 	identity       string
 	responseModels map[string]string
+	fixedBytes     int
 }
 
 type pendingModelUsage struct {
@@ -187,37 +189,61 @@ func (s *collectorState) prepareModelUsage(data spanData, update spanUpdate, pen
 		}
 		result = &pendingModelUsage{id: id, row: row, bytes: modelBytes}
 	}
-	block := modelUsageBlock("model-usage-v1:"+strings.Repeat("0", 64), map[string]modelusage.Model{})
-	preview := cloneSummaryWindow(p.window)
-	if p.prepared.deduped {
-		preview.counters.dedupSuppressed++
-	} else {
-		if err := s.applyErrorCheckedSketches(preview, p.prepared); err != nil {
-			return nil, err
-		}
-		s.applyNoErrorSketches(preview, p.prepared)
-		preview.counters.addCounters(update, p.prepared)
+	if s.cfg.modelUsage.fixedBytes+modelBytes-2 > summary.MaxBytes-4096 {
+		return nil, errModelUsageByteBudget
 	}
-	counters := preview.counters.export()
-	sketches, err := s.summaryPayloads(preview)
+	return result, nil
+}
+
+// Reserve maximum sketch/counter JSON once, rather than cloning and encoding
+// the live window for every span. The 4096-byte envelope metadata allowance is
+// separate; model rows retain their exact incremental byte accounting.
+func (s *collectorState) modelUsageFixedBytes() (int, error) {
+	w, err := s.summary.newWindow(s)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
-	// The bounded 128-byte identities, six int64 timestamps/counters, contract
-	// counters and all fixed member names fit this reserved metadata allowance.
-	// Actual sketch and model payloads are measured after the staged update.
+	// Materialize the optional MCP sketches before computing their bounds.
+	if _, err := s.summaryPayloads(w); err != nil {
+		return 0, err
+	}
+	for _, h := range []*hllpp.Sketch{w.distinctUsers, w.distinctPrompts, w.distinctDocs,
+		w.distinctMCPSessions, w.distinctMCPMethods, w.distinctMCPResources} {
+		if h != nil {
+			// Sparse entries use at most 8 bytes each and promote at 2^(p-4);
+			// the 2^p dense register bytes dominate every supported profile.
+			h.ForceDense()
+		}
+	}
+	sketches, err := s.summaryPayloads(w)
+	if err != nil {
+		return 0, err
+	}
+	reserveFrequent := func(name string, sketch *sketchfi.Sketch) {
+		p := sketches[name]
+		// Each protobuf entry fits in 32 bytes (fixed64 hash, two positive
+		// int64s and framing). 32 extra bytes cover the two body counters
+		// and growth of the enclosing length prefix.
+		p.Data = make([]byte, len(p.Data)+32*(sketch.MapSize()+1))
+		sketches[name] = p
+	}
+	for i, sketch := range w.topKeys {
+		reserveFrequent(s.cfg.topKKeys[i].measurement(), sketch)
+	}
+	if w.topToolErrors != nil {
+		reserveFrequent("top_tool_errors", w.topToolErrors)
+	}
+	counters := w.counters.export()
+	counters["dedup_overflow"] = 0
+	for key := range counters {
+		counters[key] = uint64(maxInt64Value)
+	}
 	encoded, err := json.Marshal(struct {
 		Counters   map[string]uint64          `json:"counters"`
 		ModelUsage *modelusage.Block          `json:"model_usage"`
 		Sketches   map[string]summary.Payload `json:"sketches"`
-	}{counters, block, sketches})
-	if err != nil {
-		return nil, err
-	}
-	if len(encoded)+modelBytes-2 > summary.MaxBytes-4096 {
-		return nil, errModelUsageByteBudget
-	}
-	return result, nil
+	}{counters, modelUsageBlock("model-usage-v1:"+strings.Repeat("0", 64), map[string]modelusage.Model{}), sketches})
+	return len(encoded), err
 }
 
 func cloneSummaryWindow(w *windowState) *windowState {

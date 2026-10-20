@@ -61,9 +61,9 @@ func TestModelUsageBatchReviewByteBudgetSuppression(t *testing.T) {
 			w := s.summary.windows[start]
 			row := w.modelUsage[publicID(0)]
 			entryBytes := len(mustJSON(t, row)) + len(mustJSON(t, publicID(0))) + 2
-			// Reserve legacy payload space and two rows. The probe below verifies
-			// this fixture is near the real guard, without duplicating its logic.
-			n := (summary.MaxBytes-4096-10000)/entryBytes - 2
+			// Reserve the compiled worst-case sketch/counter budget and two rows.
+			// The probe below verifies accepted prefixes at the capacity guard.
+			n := (summary.MaxBytes-4096-s.cfg.modelUsage.fixedBytes)/entryBytes - 2
 			const newRows = 16
 			if n < 2 || n+newRows > modelusage.MaxModels {
 				t.Fatalf("fixture needs %d retained rows, outside configured budget", n)
@@ -113,8 +113,10 @@ func TestModelUsageBatchReviewByteBudgetSuppression(t *testing.T) {
 					baselineBytes = len(encoded)
 				}
 			}
-			if baselineBytes < summary.MaxBytes-32*1024 || baselineBytes > summary.MaxBytes-4096 {
-				t.Fatalf("fixture is not safely near the byte limit: %d bytes", baselineBytes)
+			budgetedBytes := w.modelUsageBytes + s.cfg.modelUsage.fixedBytes - 2 + 4096
+			if budgetedBytes < summary.MaxBytes-32*1024 || budgetedBytes > summary.MaxBytes ||
+				baselineBytes > budgetedBytes {
+				t.Fatalf("fixture is not safely near the reserved byte limit: actual=%d reserved=%d", baselineBytes, budgetedBytes)
 			}
 
 			attempts := []ptrace.Traces{trace(0, "batch-prefix", 1)}

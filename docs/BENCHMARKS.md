@@ -5,6 +5,42 @@ The fleet-shaped run accepted and exported 36 million spans in 60 minutes at
 accounting. All runs below used one Apple M4 Max. The dated records describe
 those workloads and configurations; use the commands to size your own deployment.
 
+## Opt-In Accounting
+
+Recorded 2026-10-20 on Apple M4 Max, 16 logical CPUs, 64 GiB RAM, Darwin 27.0.0,
+Go 1.26.9 (arm64). Precomputing the model-usage byte reserve reduced median
+processing time from 142.19 to 17.13 microseconds per span with small profiles,
+and from 193.22 to 19.34 with default profiles in this workload.
+
+The baseline is commit `303b86637cc33e9624194d758b4be10ba8a16b59`.
+[Raw samples, source hashes and commands](benchmarks/accounting-performance.txt)
+bind both implementations to the same benchmark fixture. The serial runs used
+`GOMAXPROCS=1`, five one-second samples per case, and batches of 100 spans.
+Initialization is excluded. Both start with dense HLLs, occupied frequent-item
+maps, one model/team, the two default slices and one top-k key.
+
+| Sketch profiles | Path | Before, us/span | After, us/span | Before, bytes/batch | After, bytes/batch |
+| --- | --- | ---: | ---: | ---: | ---: |
+| small (configuration default) | Default | 6.18 | 6.34 | 629,257 | 629,257 |
+| small | Summary export | 8.77 | 8.92 | 1,014,504 | 1,014,536 |
+| small | Model usage | 142.19 | 17.13 | 35,285,685 | 2,076,578 |
+| default | Default | 8.85 | 9.07 | 844,459 | 844,459 |
+| default | Summary export | 11.36 | 11.67 | 1,337,304 | 1,337,336 |
+| default | Model usage | 193.22 | 19.34 | 64,596,258 | 2,399,345 |
+
+Default-path median time was 2.5% higher, with identical allocation counts.
+These are in-process measurements, not OTLP throughput or deployment capacity.
+The raw log also includes deduplication at its design limit: the repaired path
+counts every later request, while the baseline increasingly suppresses them, so
+that timing comparison does not represent equivalent accounting work.
+
+```bash
+cd connector/genaisketchconnector
+GOTOOLCHAIN=local GOWORK=off GOPROXY=off GOSUMDB=off GOMAXPROCS=1 CGO_ENABLED=1 \
+  go test -p 1 -run '^$' -bench '^BenchmarkAccountingPerformance$' \
+  -benchmem -benchtime=1s -count=5 -cpu=1
+```
+
 ## In-Process Connector Load
 
 Recorded 2026-07-05 on an Apple M4 Max with 16 logical CPUs and 64 GiB RAM, running
