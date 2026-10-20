@@ -215,10 +215,81 @@ copy.
 
 ## Receiver TLS
 
-For TLS or mutual TLS, create a Secret containing `tls.crt`, `tls.key`, and,
-optionally, a client CA. Set `receiverTLS.enabled=true` and
-`receiverTLS.existingSecret`. The chart mounts the files read-only. Network policy,
-certificate issuance, and rotation remain cluster responsibilities.
+For TLS, create a Secret containing `tls.crt` and `tls.key`, then set
+`receiverTLS.enabled=true` and `receiverTLS.existingSecret`. For mutual TLS (mTLS),
+also include the client CA and set `receiverTLS.clientCAKey` to its Secret key.
+mTLS authenticates clients on both OTLP/gRPC and OTLP/HTTP; server TLS alone
+encrypts traffic but does not authenticate senders. The chart mounts the files
+read-only. Certificate issuance and rotation remain cluster responsibilities.
+
+```yaml
+receiverTLS:
+  enabled: true
+  existingSecret: receiver-tls
+  clientCAKey: ca.crt
+```
+
+## Chart 0.7.0 Network Policy Migration
+
+**The next minor chart, 0.7.0, enables NetworkPolicy by default.** Collector
+appVersion remains 0.6.1. Chart 0.6.x leaves NetworkPolicy off by default.
+Before upgrading, configure allowed senders, Prometheus peers and shadow-backend
+egress. Reusing old values without the new defaults can preserve the old opt-out;
+review the merged values and rendered policy before applying the upgrade.
+
+The default allows OTLP on the configured gRPC and HTTP TCP ports from pods in
+the release's namespace. Metrics ingress is denied until `metricsFrom` is set.
+Egress is limited to TCP/UDP 53 toward pods labeled `k8s-app: kube-dns` in
+`kube-system`. Other ingress and egress are denied. The cluster's network plugin
+must enforce Kubernetes NetworkPolicy. Node-local DNS and clusters with other DNS
+labels need explicit egress rules; set `allowDNS: false` when replacing the preset.
+
+Use the chart's [selected-peers preset](../deploy/helm/otelcol-genai-sketches/presets/selected-peers.yaml)
+as a starting point, replacing its namespace and workload labels. A peer's
+`namespaceSelector` and `podSelector` are combined with AND; separate peer entries
+are alternatives. A `podSelector` alone selects pods in the release's namespace.
+Empty selectors deliberately select all matching pods or namespaces.
+
+```bash
+helm template genai-sketches deploy/helm/otelcol-genai-sketches \
+  --namespace observability \
+  --values deploy/helm/otelcol-genai-sketches/presets/selected-peers.yaml
+```
+
+`allowSameNamespace: false` removes the same-namespace OTLP rule. With both peer
+lists and `ingress` empty, ingress is denied. `allowDNS: false` with empty
+`egress` denies egress. Raw `ingress` and `egress` rules are appended to presets;
+`{}` is an explicit allow-all rule. Other policies selecting the same pods can
+also grant access because Kubernetes combines their allow rules.
+
+Shadow forwarding needs an `egress` rule for the backend's destination and port;
+enabling `shadow` does not open egress automatically. For example:
+
+```yaml
+networkPolicy:
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: tracing
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: trace-backend
+      ports:
+        - protocol: TCP
+          port: 4317
+```
+
+For a deliberate opt-out, set `networkPolicy.enabled: false`. This removes the
+chart's policy; it does not remove other cluster policies. NetworkPolicy limits
+reachability, not sender identity. Use mTLS when client authentication is needed.
+
+Chart 0.7.0 also pins the published 0.6.1 multi-platform collector image by digest
+and enforces non-root execution, dropped capabilities, no privilege escalation
+and a read-only root filesystem even when summary export is disabled. Unknown
+top-level and security-related values now fail validation instead of being ignored.
+When changing the runtime image, set its verified `image.digest`; to deliberately
+use `image.tag`, clear `image.digest` as well. A configured digest takes priority.
 
 ## Sidecar
 
@@ -239,8 +310,7 @@ Prometheus target label; do not add pod IDs to connector slice labels.
 - `pprof`, `zpages`, and public debug endpoints are absent. Top-k remains a bounded
   structured-log surface and should be routed to restricted log storage. Set
   `connector.topK=0` to disable that surface and its frequent-items state.
-- NetworkPolicy is opt-in because namespace selectors differ by cluster. Enabling it
-  with empty rules denies ingress and egress.
+- Chart 0.7.0 enables NetworkPolicy by default with the allow-list described above.
 
 ## Air-Gapped Registry Mirror
 

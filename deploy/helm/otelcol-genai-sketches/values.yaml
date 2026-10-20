@@ -6,7 +6,8 @@ image:
   repository: ghcr.io/llm-measurement/otelcol-genai-sketches
   pullPolicy: IfNotPresent
   tag: ""
-  digest: ""
+  # Published collector v0.6.1 multi-platform image index.
+  digest: sha256:b17b3489b65c27a622402982e8e61ee44c7ada247ff3168efacc63a3867c7818
 
 imagePullSecrets: []
 nameOverride: ""
@@ -175,7 +176,15 @@ shadow:
     key: authorization
 
 networkPolicy:
-  enabled: false
+  # Chart 0.7.0 enables isolation by default; see docs/DEPLOYMENT.md before upgrading.
+  enabled: true
+  # OTLP only, from pods in this release's namespace. Metrics need explicit peers.
+  allowSameNamespace: true
+  otlpFrom: []
+  metricsFrom: []
+  # CoreDNS/kube-dns in kube-system, TCP and UDP 53. Override for other DNS layouts.
+  allowDNS: true
+  # Additional Kubernetes NetworkPolicy rules, appended to the presets.
   ingress: []
   egress: []
 
