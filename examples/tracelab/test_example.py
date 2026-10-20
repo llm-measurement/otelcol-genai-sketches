@@ -6,6 +6,7 @@ import datetime as dt
 import gzip
 import io
 import json
+import secrets
 from pathlib import Path
 import tempfile
 from types import SimpleNamespace
@@ -13,10 +14,21 @@ import unittest
 from unittest.mock import patch
 
 from audit import audit, timestamp, verify
-from run import COUNTERS, check_report, download, identity_hash, run
+from run import COUNTERS, check_report, download, identity_hash, private_path, run
 
 
 class ExampleTests(unittest.TestCase):
+    def test_output_and_cache_refuse_work_and_symlink_routes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            (home / "Work").mkdir()
+            (home / ".cache").symlink_to(home / "Work", target_is_directory=True)
+            with patch.object(Path, "home", return_value=home):
+                for path in (home / "Work/run", home / ".cache/run"):
+                    with self.assertRaises(ValueError):
+                        private_path(path)
+                self.assertEqual(private_path(home / "private-run"), (home / "private-run").resolve())
+
     def test_checksum_fails_closed(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "data.gz"
@@ -68,7 +80,7 @@ class ExampleTests(unittest.TestCase):
             check_report(bad, truth, truth)
 
     def test_hash_separation(self):
-        secret = "test-key-at-least-32-bytes-123456789"
+        secret = secrets.token_hex(32)
         self.assertNotEqual(identity_hash(secret, "user:v1", "id"), identity_hash(secret, "session:v1", "id"))
         self.assertEqual(identity_hash(secret, "user:v1", "  e\u0301\r\n"), identity_hash(secret, "user:v1", "\u00e9"))
 
@@ -106,7 +118,7 @@ class ExampleTests(unittest.TestCase):
             root = Path(tmp).resolve()
             binary = root / "fleetdiff"
             binary.write_bytes(b"test binary; never executed")
-            args = SimpleNamespace(fleetdiff=binary, cache=root / "cache", out=root / "out")
+            args = SimpleNamespace(fleetdiff=binary, cache=root / "cache", out=root / "out", key_id="fixture-key-label")
 
             def execute(cmd, **kwargs):
                 if cmd[0] == "go":
@@ -115,6 +127,7 @@ class ExampleTests(unittest.TestCase):
                     Path(cmd[cmd.index("-o") + 1]).write_bytes(b"test replay; never executed")
                     output = ""
                 elif Path(cmd[0]).name == "tracelab-replay":
+                    self.assertEqual(cmd[-2:], ["--key-id", args.key_id])
                     windows = args.out / "windows"
                     windows.mkdir()
                     counters = dict(truth["counters"], **{"token_observations.reasoning_output.subset_violation": 0})
@@ -145,6 +158,7 @@ class ExampleTests(unittest.TestCase):
                 "counter_values_checked": 14, "returned_bounds_checked": 0})
             self.assertNotIn("scan", result)
             self.assertNotIn("rolling_scan", result)
+            self.assertEqual(result["key_id"], args.key_id)
             self.assertEqual({p.name for p in args.out.iterdir()}, {"ATTRIBUTION.txt", "hash-key.txt",
                 "audit.json", "source-oracle.json", "tracelab-replay", "replay.txt", "windows",
                 "investigate.txt", "regression", "run.json"})

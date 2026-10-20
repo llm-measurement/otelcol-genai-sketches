@@ -16,6 +16,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"time"
 
 	connector "github.com/llm-measurement/otelcol-genai-sketches/connector/genaisketchconnector"
@@ -39,14 +41,21 @@ func main() {
 func run() error {
 	input := flag.String("input", "", "verified v0.0.2 JSONL.gz")
 	out := flag.String("out", "", "new private output directory")
+	keyID := flag.String("key-id", "", "required operator-assigned opaque non-secret key label; never a key digest")
 	startText := flag.String("start", "2025-09-23", "first UTC day, inclusive")
 	endText := flag.String("end", "2026-07-25", "last UTC boundary, exclusive")
 	flag.Parse()
 	start, e1 := time.Parse("2006-01-02", *startText)
 	end, e2 := time.Parse("2006-01-02", *endText)
-	if *input == "" || *out == "" || e1 != nil || e2 != nil || !end.After(start) || flag.NArg() != 0 {
-		return errors.New("provide --input, --out and an increasing UTC date range")
+	validID, _ := regexp.MatchString(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`, *keyID)
+	if *input == "" || *out == "" || !validID || e1 != nil || e2 != nil || !end.After(start) || flag.NArg() != 0 {
+		return errors.New("provide --input, --out, an opaque --key-id and an increasing UTC date range")
 	}
+	resolved, err := privateOutput(*out)
+	if err != nil {
+		return err
+	}
+	*out = resolved
 	secret := os.Getenv("GENAI_SKETCH_SECRET")
 	if len(secret) < 32 {
 		return errors.New("set GENAI_SKETCH_SECRET to a private random key of at least 32 bytes")
@@ -94,8 +103,7 @@ func run() error {
 	cfg.Slices = []connector.SliceConfig{{Name: "app", Keys: []string{"service.name"}, FromResourceAttributes: []string{"service.name"}}}
 	cfg.TopK = 100
 	cfg.TopKKeys = []connector.TopKKeyConfig{{Field: "user_key", Weight: "tokens"}, {Field: "session_key", Weight: "tokens"}}
-	keyID := sha256.Sum256([]byte(secret))
-	cfg.SummaryExport = connector.SummaryExportConfig{Directory: scratch, ProducerID: "tracelab", ScopeID: "tracelab-v0.0.2", KeyID: hex.EncodeToString(keyID[:16]), Interval: time.Second}
+	cfg.SummaryExport = connector.SummaryExportConfig{Directory: scratch, ProducerID: "tracelab", ScopeID: "tracelab-v0.0.2", KeyID: *keyID, Interval: time.Second}
 	epoch := sha256.Sum256([]byte(tracelab.SHA256 + tracelab.MappingVersion + *startText + *endText + cfg.SummaryExport.KeyID))
 	i, consumed, windows := 0, 0, 0
 	for i < len(rows) && rows[i].At.Before(start) {
@@ -132,6 +140,34 @@ func run() error {
 	}
 	fmt.Printf("Replayed %d steps into %d daily windows.\n", consumed, windows)
 	return nil
+}
+
+func privateOutput(path string) (string, error) {
+	absolute, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	parent, err := filepath.EvalSymlinks(filepath.Dir(absolute))
+	if err != nil {
+		return "", errors.New("output requires an existing private parent")
+	}
+	absolute = filepath.Join(parent, filepath.Base(absolute))
+	if resolved, err := filepath.EvalSymlinks(absolute); err == nil {
+		absolute = resolved
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	work := filepath.Join(home, "Work")
+	if resolved, err := filepath.EvalSymlinks(work); err == nil {
+		work = resolved
+	}
+	rel, err := filepath.Rel(work, absolute)
+	if err != nil || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))) {
+		return "", errors.New("private output must be outside Work")
+	}
+	return absolute, nil
 }
 
 func newReplayRunner(cfg *connector.Config) (replay.Runner, error) {

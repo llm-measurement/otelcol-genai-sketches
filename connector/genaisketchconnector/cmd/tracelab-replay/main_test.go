@@ -7,8 +7,12 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"flag"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -18,7 +22,11 @@ import (
 )
 
 func TestFactoryReplay(t *testing.T) {
-	t.Setenv("GENAI_SKETCH_SECRET", "synthetic-test-key-0123456789-abcdef")
+	var secret [32]byte
+	if _, err := rand.Read(secret[:]); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("GENAI_SKETCH_SECRET", hex.EncodeToString(secret[:]))
 	cfg := connector.NewFactory().CreateDefaultConfig().(*connector.Config)
 	cfg.SummaryExport = connector.SummaryExportConfig{
 		Directory: t.TempDir(), ProducerID: "tracelab", ScopeID: "test", KeyID: "test", Interval: time.Second,
@@ -43,5 +51,38 @@ func TestFactoryReplay(t *testing.T) {
 		})
 	if err != nil || saved != 1 {
 		t.Fatalf("replay: saved=%d err=%v", saved, err)
+	}
+}
+
+func TestOpaqueKeyIDRequiredBeforeInput(t *testing.T) {
+	oldFlags, oldArgs := flag.CommandLine, os.Args
+	t.Cleanup(func() { flag.CommandLine, os.Args = oldFlags, oldArgs })
+	for _, id := range []string{"", "not opaque"} {
+		flag.CommandLine = flag.NewFlagSet("test", flag.ContinueOnError)
+		os.Args = []string{"test", "--input", "missing", "--out", filepath.Join(t.TempDir(), "windows"), "--key-id", id}
+		if err := run(); err == nil || !strings.Contains(err.Error(), "opaque --key-id") {
+			t.Fatalf("missing/invalid key ID was not refused: %v", err)
+		}
+	}
+}
+
+func TestPrivateOutputRejectsWorkAndSymlink(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	work := filepath.Join(home, "Work")
+	if err := os.Mkdir(work, 0700); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(home, "escape")
+	if err := os.Symlink(work, link); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{filepath.Join(work, "output"), filepath.Join(link, "output")} {
+		if _, err := privateOutput(path); err == nil {
+			t.Fatal("Work output accepted")
+		}
+	}
+	if _, err := privateOutput(filepath.Join(home, "private-run")); err != nil {
+		t.Fatal(err)
 	}
 }
