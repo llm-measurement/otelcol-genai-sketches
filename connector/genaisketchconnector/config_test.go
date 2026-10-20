@@ -142,6 +142,35 @@ func TestValidateRequiresMCPForToolErrors(t *testing.T) {
 	}
 }
 
+func TestValidateRejectsIdentityLabelsAfterHashedSourcesMove(t *testing.T) {
+	for _, key := range []string{"request.id", "gen_ai.response.id", "enduser.id", "user.id", "session.id", "gen_ai.conversation.id", "gen_ai.request.prompt", "gen_ai.prompt.name", "gen_ai.prompt_template.id", "retrieval.doc_id"} {
+		t.Run(key, func(t *testing.T) {
+			cfg := defaultConfig()
+			for name, field := range cfg.Fields {
+				field.FromAttributes = []string{"private." + name}
+				field.FromResourceAttributes = nil
+				cfg.Fields[name] = field
+			}
+			cfg.Slices = []SliceConfig{{Name: "unsafe", Keys: []string{key}, FromResourceAttributes: []string{key}}}
+			err := cfg.Validate()
+			if err == nil || !strings.Contains(err.Error(), "must be hashed, not exported as a slice label") {
+				t.Fatalf("identity label escaped validation: %v", err)
+			}
+		})
+	}
+}
+
+func TestValidateRejectsCustomDedupSourceAsLabel(t *testing.T) {
+	cfg := defaultConfig()
+	cfg.Dedup.Enabled = true
+	cfg.Dedup.RequestIDFrom = []string{"private.attempt"}
+	cfg.Slices = []SliceConfig{{Name: "unsafe", Keys: []string{"private.attempt"}}}
+	err := cfg.Validate()
+	if err == nil || !strings.Contains(err.Error(), "slice keys overlap sensitive hashed-field source attributes") {
+		t.Fatalf("dedup identity escaped validation: %v", err)
+	}
+}
+
 func TestValidateRejectsSliceResourceSourceOutsideKeys(t *testing.T) {
 	cfg := defaultConfig()
 	cfg.Slices = []SliceConfig{

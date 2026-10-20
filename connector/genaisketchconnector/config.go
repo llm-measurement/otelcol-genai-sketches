@@ -307,7 +307,7 @@ func validateSlice(index int, slice SliceConfig, seenSlices map[string]struct{})
 		} else if len(key) > maxAttributeKeyBytes {
 			errs = append(errs, fmt.Errorf("%s.keys[%d] must be <= %d bytes", prefix, j, maxAttributeKeyBytes))
 		}
-		if isSensitiveMCPSliceKey(key) {
+		if isSensitiveSliceKey(key) {
 			errs = append(errs, fmt.Errorf("%s.keys[%d] %q is sensitive and must be hashed, not exported as a slice label", prefix, j, key))
 		}
 		keySet[key] = struct{}{}
@@ -419,9 +419,12 @@ func validateTokenSources(weights WeightsConfig) error {
 	return errors.Join(errs...)
 }
 
-func isSensitiveMCPSliceKey(key string) bool {
+func isSensitiveSliceKey(key string) bool {
 	switch key {
-	case "mcp.session.id", "mcp.resource.uri", "jsonrpc.request.id":
+	case "mcp.session.id", "mcp.resource.uri", "jsonrpc.request.id",
+		"request.id", "gen_ai.response.id", "enduser.id", "user.id", "session.id",
+		"gen_ai.conversation.id", "gen_ai.prompt", "gen_ai.request.prompt", "gen_ai.prompt.name",
+		"gen_ai.prompt_template.id", "retrieval.doc_id":
 		return true
 	default:
 		return false
@@ -438,6 +441,9 @@ func (cfg *Config) SensitiveSliceHashedFieldOverlaps() []string {
 
 func (cfg *Config) sliceHashedFieldOverlaps(sensitiveOnly bool) []string {
 	hashedSources := make(map[string]struct{})
+	for _, attr := range cfg.Dedup.RequestIDFrom {
+		hashedSources[attr] = struct{}{}
+	}
 	for name, field := range cfg.Fields {
 		if sensitiveOnly && !isSensitiveHashedField(name) {
 			continue
