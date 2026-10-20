@@ -4,6 +4,7 @@
 from decimal import Decimal
 import io
 import json
+import secrets
 from pathlib import Path
 import tempfile
 import threading
@@ -17,6 +18,7 @@ import live_anthropic as live
 from test_live import SlowStream
 
 NONCE = "a" * 32
+TEST_KEY = secrets.token_hex(32)
 
 
 def config(mode="drain", cap=12):
@@ -77,12 +79,12 @@ class AnthropicGuards(unittest.TestCase):
             protocol.checked_body(body, "cache_write", NONCE)
 
     def test_credential_is_file_only_and_never_echoed(self):
-        key = "sk-ant-" + "synthetic" * 5
+        key = "sk-ant-" + secrets.token_hex(32)
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "key"
             path.write_text("ANTHROPIC_API_KEY=" + key)
             self.assertEqual(live.credential(path), key)
-            for text in (key + "\n" + key + "2", "sk-other-secret", "x" * 65537):
+            for text in (key + "\n" + key + "2", "sk-" + secrets.token_hex(32), "x" * 65537):
                 path.write_text(text)
                 with self.assertRaisesRegex(ValueError, "expected one Anthropic credential"):
                     live.credential(path)
@@ -127,7 +129,7 @@ class AnthropicGuards(unittest.TestCase):
 class AnthropicRelayHTTP(unittest.TestCase):
     def test_injected_retry_never_reaches_provider(self):
         with tempfile.TemporaryDirectory() as directory:
-            server = live.LiveServer(("127.0.0.1", 0), directory, config(), "synthetic-secret")
+            server = live.LiveServer(("127.0.0.1", 0), directory, config(), TEST_KEY)
             server.case = "retry429"
             thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
             thread.start()
@@ -145,7 +147,7 @@ class AnthropicRelayHTTP(unittest.TestCase):
 
     def test_rejected_request_cannot_reach_provider(self):
         with tempfile.TemporaryDirectory() as directory:
-            server = live.LiveServer(("127.0.0.1", 0), directory, config(), "synthetic-secret")
+            server = live.LiveServer(("127.0.0.1", 0), directory, config(), TEST_KEY)
             thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
             thread.start()
             try:
@@ -178,7 +180,7 @@ class AnthropicRelayHTTP(unittest.TestCase):
             raw = b"".join(("event: " + e["type"] + "\ndata: " + json.dumps(e) + "\n\n").encode() for e in events)
         response = SlowStream(raw)
         with tempfile.TemporaryDirectory() as directory:
-            server = live.LiveServer(("127.0.0.1", 0), directory, config(mode), "synthetic-secret")
+            server = live.LiveServer(("127.0.0.1", 0), directory, config(mode), TEST_KEY)
             server.case = case
             thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
             thread.start()
@@ -197,7 +199,7 @@ class AnthropicRelayHTTP(unittest.TestCase):
                     self.assertEqual(request.full_url, "https://api.anthropic.com/v1/messages")
                     self.assertEqual(request.get_header("Anthropic-version"), protocol.API_VERSION)
                     rows = [json.loads(line) for line in (Path(directory) / "provider.jsonl").read_text().splitlines()]
-                    self.assertNotIn("synthetic-secret", json.dumps(rows))
+                    self.assertNotIn(TEST_KEY, json.dumps(rows))
                     return result, rows, list(server.history)
             finally:
                 server.shutdown()

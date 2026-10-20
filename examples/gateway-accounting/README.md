@@ -14,7 +14,7 @@ or Python packages are needed. Run from the repository root:
 
 ```sh
 python3 -B -m unittest discover -s examples/gateway-accounting -p 'test_*.py'
-RUN=".cache/gateway-study-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+RUN="$HOME/.cache/gateway-study-$(date -u +%Y%m%dT%H%M%SZ)-$$"
 python3 -B examples/gateway-accounting/run.py --output "$RUN"
 python3 -B examples/gateway-accounting/verify.py "$RUN"
 ```
@@ -116,7 +116,7 @@ or an `OPENAI_API_KEY=...` assignment; the file is parsed, never executed.
 Use a dedicated project/key with no unrelated traffic, and revoke it afterwards.
 
 ```sh
-RUN=".cache/gateway-live-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+RUN="$HOME/.cache/gateway-live-$(date -u +%Y%m%dT%H%M%SZ)-$$"
 python3 -B examples/gateway-accounting/run.py --live \
   --key-file "$HOME/.config/gateway-study/openai-key" \
   --max-estimated-usd 10 --protocols openai \
@@ -145,7 +145,7 @@ five-minute cache writes, cache reads, and output. Prices and model availability
 are documented on [Anthropic's model page](https://platform.claude.com/docs/en/models/sonnet-4-6/overview).
 
 ```sh
-RUN=".cache/gateway-claude-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+RUN="$HOME/.cache/gateway-claude-$(date -u +%Y%m%dT%H%M%SZ)-$$"
 python3 -B examples/gateway-accounting/run.py --live \
   --key-file "$HOME/.config/gateway-study/anthropic-key" \
   --max-estimated-usd 4 --protocols anthropic --client-protocol openai \
@@ -188,9 +188,11 @@ The relay's credential is sent only to the fixed HTTPS provider endpoint;
 redirects and environment proxies are disabled.
 
 Containers have read-only root filesystems, dropped capabilities and resource
-limits. Run folders are private (`0700`, `umask 077`) and must stay under ignored
-`.cache/`. Raw gateway diagnostics may contain synthetic prompts and dummy keys;
-do not publish or attach raw folders. The analysis uses allowlisted fields.
+limits. Run folders are private (`0700`, `umask 077`) and default to `~/.cache/`.
+Explicit paths and symlink routes into `~/Work` are refused. Only the run folder,
+not the host cache, is mounted as evidence. Raw gateway diagnostics may contain
+synthetic prompts and dummy keys; do not publish or attach raw folders. Analysis
+uses allowlisted fields and scans serialized JSON and Markdown before writing.
 
 Manifests record image digests, cases, deadlines, machine, protocol, and source
 hashes. Stop editing harness files while a retained run is underway. Changed-source

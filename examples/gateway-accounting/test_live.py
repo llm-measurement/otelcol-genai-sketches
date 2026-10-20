@@ -6,6 +6,7 @@ import http.client
 import io
 import json
 import os
+import secrets
 from pathlib import Path
 import tempfile
 import threading
@@ -18,6 +19,7 @@ import gateways
 import live
 import driver
 import analyze
+import run
 
 
 def body(stream=False):
@@ -31,6 +33,17 @@ def config(mode="drain", cap=12):
 
 
 class LiveGuards(unittest.TestCase):
+    def test_output_refuses_work_and_symlink_routes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            (home / "Work").mkdir()
+            (home / ".cache").symlink_to(home / "Work", target_is_directory=True)
+            with patch.object(Path, "home", return_value=home):
+                for path in (home / "Work/run", home / ".cache/run"):
+                    with self.assertRaises(ValueError):
+                        run.private_output(path)
+                self.assertEqual(run.private_output(home / "private-run"), (home / "private-run").resolve())
+
     def test_only_fixed_synthetic_requests(self):
         self.assertFalse(live.checked_body(body())["store"])
         for change in ({"model": "unapproved"}, {"max_completion_tokens": 513},
@@ -46,7 +59,7 @@ class LiveGuards(unittest.TestCase):
             live.checked_body(value)
 
     def test_credential_not_echoed_or_left_in_environment(self):
-        secret = "sk-" + "synthetic" * 5
+        secret = "sk-" + secrets.token_hex(32)
         with patch.dict(os.environ, {"OPENAI_API_KEY": secret}):
             self.assertEqual(live.credential("not-read"), secret)
             self.assertNotIn("OPENAI_API_KEY", os.environ)
