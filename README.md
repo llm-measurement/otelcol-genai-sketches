@@ -84,7 +84,7 @@ The connector counts model attempts separately from agent, tool, retrieval, and
 MCP spans.
 The connector counts missing token usage separately, while the
 [pinned standard token metrics](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/gen-ai/gen-ai-token-metrics.md)
-recommend `0` when a response or its usage is absent.
+record `0` with `gen_ai.token.modality` set to `unknown` when a response or its usage is absent.
 It uses [llm-sketchkit](https://github.com/llm-measurement/llm-sketchkit) to hash
 configured identities, estimate distinct activity, and rank heavy contributors.
 Compatible summary files let [fleetdiff](https://github.com/llm-measurement/fleetdiff)
