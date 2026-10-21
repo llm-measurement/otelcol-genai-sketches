@@ -276,13 +276,12 @@ class Reconciliation(unittest.TestCase):
                 (root / name).mkdir()
             (root / 'evidence/ledger.jsonl').write_text('')
             with self.assertRaises(ValueError):
-                analyze.analyze(root, None)
+                analyze.check_privacy(root, b'{}', None)
             (root / 'fleetdiff/report.json').write_text(client.SENTINEL)
             secret = secrets.token_hex(32)
             (root / 'stack-logs.txt').write_text(secret)
-            report = analyze.analyze(root, secret)
-            self.assertEqual(report['privacy']['secret_hit_files'], ['stack-logs.txt'])
-            self.assertEqual(report['privacy']['prompt_sentinel_hit_files'], ['fleetdiff/report.json'])
+            with self.assertRaises(ValueError):
+                analyze.check_privacy(root, b'{}', secret)
 
     def test_report_self_scan_precedes_write(self):
         secret, hash_secret = secrets.token_hex(32), secrets.token_hex(32)
@@ -306,8 +305,8 @@ class Reconciliation(unittest.TestCase):
             secret, hash_secret = secrets.token_hex(32), secrets.token_hex(32)
             (root / 'stack-logs.txt').write_text(hash_secret)
             (root / 'analysis.json').write_text(secret)
-            report = analyze.analyze(root, secret, hash_secret)
-            self.assertEqual(set(report['privacy']['secret_hit_files']), {'stack-logs.txt', 'analysis.json'})
+            with self.assertRaises(ValueError):
+                analyze.check_privacy(root, b'{}', secret, hash_secret)
             with self.assertRaises(ValueError):
                 analyze.write_report(root, secret, hash_secret)
 

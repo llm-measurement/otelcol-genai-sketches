@@ -8,7 +8,8 @@ import os
 from relay import RUN_ID, PRIOR_COST, budget_used, usage_cost
 from client import SENTINEL
 
-def analyze(root, secret, hash_secret=None):
+def analyze(root):
+    """Build accounting data; write_report performs the privacy check before publishing."""
     ledger = [json.loads(line) for line in (root / 'evidence/ledger.jsonl').read_text().splitlines()]
     ledger = [e for e in ledger if e.get('run_id') == RUN_ID]
     price = sum(usage_cost(e['usage']) for e in ledger if e.get('usage'))
@@ -51,38 +52,33 @@ def analyze(root, secret, hash_secret=None):
                                'provider_usage': provider, 'provider_events': provider_events,
                                'collector': selected, 'model_spans': spans})
 
-    # Only print counts and paths on failure; never print secrets or captured values.
+    return report
+
+
+def check_privacy(root, serialized, secret, hash_secret=None):
+    """Refuse contaminated evidence or output without returning scan data to the report."""
     if not secret:
         raise ValueError('Secret scan requires OPENAI_API_KEY')
-    secrets = [value.encode() for value in (secret, hash_secret or os.environ.get('TRIAL_HASH_SECRET')) if value]
-    sentinel = SENTINEL.encode()
-    secret_hits, sentinel_hits = [], []
+    values = (secret, hash_secret or os.environ.get('TRIAL_HASH_SECRET'), SENTINEL)
+    forbidden = [encoded for value in values if value
+                 for encoded in (value.encode(), json.dumps(value)[1:-1].encode())]
+    if any(value in serialized for value in forbidden):
+        raise ValueError('Privacy scan failed; no analysis report written')
     for path in (list((root / 'evidence').rglob('*')) + list((root / 'results').rglob('*'))
                  + list((root / 'summaries').rglob('*')) + list((root / 'fleetdiff').rglob('*'))
                  + list(root.glob('*.txt')) + list(root.glob('*.json'))):
         if path.is_file():
             data = path.read_bytes()
-            if any(value in data for value in secrets):
-                secret_hits.append(str(path.relative_to(root)))
-            if sentinel in data:
-                sentinel_hits.append(str(path.relative_to(root)))
-    report['privacy'] = {'secret_hit_files': secret_hits, 'prompt_sentinel_hit_files': sentinel_hits}
-    serialized = json.dumps(report, indent=2).encode()
-    if any(value in serialized for value in secrets):
-        report['privacy']['secret_hit_files'].append('analysis.json')
-    if sentinel in serialized:
-        report['privacy']['prompt_sentinel_hit_files'].append('analysis.json')
-    return report
+            if any(value in data for value in forbidden):
+                raise ValueError('Privacy scan failed; no analysis report written')
 
 
 def write_report(root, secret, hash_secret=None):
-    report = analyze(root, secret, hash_secret)
-    serialized = json.dumps(report, indent=2)
-    values = (secret, hash_secret or os.environ.get('TRIAL_HASH_SECRET'), SENTINEL)
-    if (report['privacy']['secret_hit_files'] or report['privacy']['prompt_sentinel_hit_files'] or
-            any(value and (value in serialized or json.dumps(value)[1:-1] in serialized) for value in values)):
-        raise ValueError('Privacy scan failed; no analysis report written')
-    (root / 'analysis.json').write_text(serialized)
+    report = analyze(root)
+    report['privacy'] = {'secret_hit_files': [], 'prompt_sentinel_hit_files': []}
+    serialized = json.dumps(report, indent=2).encode()
+    check_privacy(root, serialized, secret, hash_secret)
+    (root / 'analysis.json').write_bytes(serialized)
     return report
 
 
