@@ -98,7 +98,7 @@ changelog entry fails CI.
 
 ### Local checks
 
-Use Go 1.26.9 or later and Make. Docker with Compose v2 is needed for the demo
+Use Go 1.26.10 or later and Make. Docker with Compose v2 is needed for the demo
 and container checks; Helm is needed for chart checks. Run from the repository
 root with parent Go workspaces disabled:
 
