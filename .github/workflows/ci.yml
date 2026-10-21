@@ -284,8 +284,8 @@ jobs:
       - name: Run deterministic gateway cases (no provider credentials)
         run: |
           python3 -B examples/gateway-accounting/run.py \
-            --gateways '${{ matrix.gateway }}' --output .cache/gateway-study-ci
-          python3 -B examples/gateway-accounting/verify.py .cache/gateway-study-ci
+            --gateways '${{ matrix.gateway }}' --output "$RUNNER_TEMP/gateway-study-ci"
+          python3 -B examples/gateway-accounting/verify.py "$RUNNER_TEMP/gateway-study-ci"
       # Captures can contain diagnostic and security-sensitive material. Keep
       # them off public logs and do not upload raw results as CI artifacts.
 
