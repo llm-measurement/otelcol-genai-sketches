@@ -55,6 +55,20 @@ known window boundary, record the event, and allow old windows to expire.
 
 ## Compatibility
 
+### Hash-Key And Label Hardening (Unreleased)
+
+Startup now requires a private hash key of at least 32 bytes and refuses the
+repository's published example keys. Keep an existing private key that meets
+this requirement: its keyed identities and healthy accounting output do not
+change. If an older key is shorter or public, generate a replacement with
+`openssl rand -hex 32` and begin a new comparison period at a window boundary.
+
+Known user, session, request, response, prompt and document identities cannot be
+raw slice labels, even after field mappings change. Custom deduplication sources
+are also protected. Replace such labels with non-sensitive model, team or route
+dimensions. Invalid UTF-8 label values reject only their span under the existing
+bounded `invalid_utf8` rejection reason.
+
 ### Mixed LiteLLM Traffic In v0.6.0
 
 Collector v0.6.0 and chart 0.6.0 add `litellm-1.104.0-v2` for gateways serving

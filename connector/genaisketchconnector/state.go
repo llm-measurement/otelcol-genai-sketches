@@ -404,6 +404,17 @@ func (s *collectorState) visitRelevantSpans(traces ptrace.Traces, now time.Time,
 }
 
 func (s *collectorState) validateHashedInputs(data spanData, update spanUpdate) error {
+	for _, slice := range s.cfg.slices {
+		for _, key := range slice.Keys {
+			value, ok := lookupStringInMap(data.spanAttrs, []string{key})
+			if !ok && sliceAllowsResourceKey(slice, key) {
+				value, ok = lookupStringInMap(data.resourceAttrs, []string{key})
+			}
+			if ok && !utf8.ValidString(value) {
+				return spanRejectedUTF8
+			}
+		}
+	}
 	if update.request {
 		if s.cfg.dedupEnabled {
 			if requestID, ok := lookupRequestID(data, s.cfg.requestIDAttrs); ok {

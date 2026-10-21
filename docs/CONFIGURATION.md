@@ -22,9 +22,9 @@ connectors:
         from_resource_attributes: [gen_ai.request.model]
 ```
 
-`GENAI_SKETCH_SECRET` must contain at least 16 bytes. Generate at least 128 bits of
-entropy and keep the value out of configuration files, images, logs, and source
-control.
+`GENAI_SKETCH_SECRET` must contain at least 32 bytes. Generate a private key with
+`openssl rand -hex 32`; published example keys are refused at startup. Keep the
+value out of configuration files, images, logs, and source control.
 
 When using the standalone connector with the OpenTelemetry Collector Builder,
 configure `genaisketch` as an exporter from the traces pipeline and a receiver in
@@ -70,9 +70,11 @@ that key is listed in `from_resource_attributes`. Missing parts use the fixed `<
 value; oversized label parts use `<too_long>`.
 
 Slice values are plaintext Prometheus labels. Restrict them to operator-chosen,
-bounded, non-sensitive dimensions. `mcp.session.id`, `mcp.resource.uri`, and
-`jsonrpc.request.id` are rejected as slice keys. A slice key that overlaps a
-configured hashed-field source is also rejected.
+bounded, non-sensitive dimensions. User, session, request, response and prompt
+identity keys, plus `mcp.session.id`, `mcp.resource.uri` and `jsonrpc.request.id`,
+are rejected even when hashed-field mappings change. A slice key that overlaps a
+configured sensitive hashed-field source is also rejected. Invalid UTF-8 label
+values reject only their span and increment the fixed `invalid_utf8` reason.
 
 ## Operation Filter
 

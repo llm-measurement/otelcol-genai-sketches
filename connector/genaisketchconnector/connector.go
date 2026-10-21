@@ -69,6 +69,9 @@ func (c *tracesConnector) Start(context.Context, component.Host) error {
 }
 
 func (c *tracesConnector) start(background bool) error {
+	if err := validateConnectorSecret(c.cfg.Hashing.SecretEnv); err != nil {
+		return err
+	}
 	secret, err := sketchhash.SecretFromEnv(c.cfg.Hashing.SecretEnv)
 	if err != nil {
 		return err
