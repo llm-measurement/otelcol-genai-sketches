@@ -32,7 +32,7 @@ func TestCommittedTracesDoNotRetryAfterMetricsFailure(t *testing.T) {
 		"canceled":  context.Canceled,
 	} {
 		t.Run(name, func(t *testing.T) {
-			t.Setenv("GENAI_SKETCH_SECRET", "test-secret-32-bytes-for-unit-tests")
+			setConnectorTestSecret(t)
 			cfg := defaultConfig()
 			cfg.TopK = 0
 			logsCore, logs := observer.New(zap.WarnLevel)

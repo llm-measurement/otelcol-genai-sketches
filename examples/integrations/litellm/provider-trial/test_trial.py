@@ -7,6 +7,8 @@ from decimal import Decimal
 import gzip
 import io
 import json
+import os
+import secrets
 from pathlib import Path
 import tempfile
 import threading
@@ -28,6 +30,58 @@ def request():
 
 
 class Boundaries(unittest.TestCase):
+    def test_output_refuses_checkout_and_symlink_routes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory).resolve()
+            checkout = home / 'checkout'
+            checkout.mkdir()
+            (home / 'alias').symlink_to(checkout, target_is_directory=True)
+            (home / '.cache').symlink_to(checkout, target_is_directory=True)
+            with patch.object(Path, 'home', return_value=home), patch.object(run, 'REPO', checkout), \
+                 patch.dict(os.environ, {}, clear=True):
+                for path in (checkout, checkout / 'run', home / 'alias/run', home / '.cache/run'):
+                    with self.subTest(path=path), self.assertRaises(ValueError):
+                        run.private_output(path)
+
+    def test_cache_roots_refused_and_unrelated_work_path_allowed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory).resolve()
+            xdg = home / 'xdg'
+            xdg.mkdir()
+            (home / 'cache-link').symlink_to(xdg, target_is_directory=True)
+            with patch.object(Path, 'home', return_value=home):
+                for configured in ('', str(home / 'cache-link')):
+                    with patch.dict(os.environ, {'XDG_CACHE_HOME': configured}, clear=True):
+                        roots = [home / '.cache', run.cache_home()]
+                        if configured:
+                            roots += [xdg, home / 'cache-link']
+                        for path in roots:
+                            with self.subTest(cache=configured, path=path), self.assertRaises(ValueError):
+                                run.private_output(path)
+                        allowed = home / 'Work/run'
+                        self.assertEqual(run.private_output(allowed), allowed.resolve())
+                        self.assertEqual(run.private_output(run.cache_home() / 'run'), (run.cache_home() / 'run').resolve())
+
+    def test_cli_defaults_follow_xdg_or_home_cache(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory).resolve()
+            for configured in ('', str(home / 'xdg')):
+                with self.subTest(cache=configured), patch.object(Path, 'home', return_value=home), \
+                     patch.dict(os.environ, {'XDG_CACHE_HOME': configured,
+                                            'OPENAI_API_KEY': 'sk-' + secrets.token_hex(32)}, clear=True), \
+                     patch('sys.argv', ['run.py', '--run-paid-trial', '--max-estimated-usd', '1',
+                                        '--fleetdiff', 'fixture']), \
+                     patch.object(run.os, 'umask'), \
+                     patch.object(run.subprocess, 'check_output', return_value='fleetdiff v0.2.0 fixture'), \
+                     patch.object(run, 'private_output', side_effect=ValueError('stop before writes')) as output, \
+                     patch.object(run.subprocess, 'run') as process:
+                    with self.assertRaisesRegex(ValueError, 'stop before writes'):
+                        run.main()
+                    expected = Path(configured) if configured else home / '.cache'
+                    self.assertEqual(output.call_args.args[0].parent, expected)
+                    self.assertTrue(output.call_args.args[0].name.startswith('provider-trial-'))
+                    process.assert_not_called()
+
     def test_request_allowlist(self):
         relay.validate(request())
         for delta in ({'model': 'arbitrary'}, {'n': 2}, {'max_completion_tokens': 0},
@@ -89,7 +143,8 @@ class RelayFaults(unittest.TestCase):
         self.addCleanup(self.directory.cleanup)
         self.root = Path(self.directory.name)
         self.local = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-        for name, value in (('ROOT', self.root), ('BUDGET', Decimal('2')), ('KEY', 'SYNTHETIC_SECRET')):
+        self.key = secrets.token_hex(32)
+        for name, value in (('ROOT', self.root), ('BUDGET', Decimal('2')), ('KEY', self.key)):
             context = patch.object(relay, name, value)
             context.start()
             self.addCleanup(context.stop)
@@ -126,10 +181,10 @@ class RelayFaults(unittest.TestCase):
         self.assertEqual(opener.open.call_count, 1)
         req = opener.open.call_args.args[0]
         self.assertEqual(req.full_url, 'https://api.openai.com/v1/chat/completions')
-        self.assertEqual(req.get_header('Authorization'), 'Bearer SYNTHETIC_SECRET')
+        self.assertEqual(req.get_header('Authorization'), 'Bearer ' + self.key)
         self.assertIs(json.loads(req.data)['store'], False)
         data = (self.root / 'ledger.jsonl').read_text()
-        for forbidden in ('SYNTHETIC_SECRET', client.SENTINEL, 'SYNTHETIC_RESPONSE'):
+        for forbidden in (self.key, client.SENTINEL, 'SYNTHETIC_RESPONSE'):
             self.assertNotIn(forbidden, data)
 
     def test_timeout_is_after_provider_work(self):
@@ -263,12 +318,49 @@ class Reconciliation(unittest.TestCase):
                 (root / name).mkdir()
             (root / 'evidence/ledger.jsonl').write_text('')
             with self.assertRaises(ValueError):
-                analyze.analyze(root, None)
+                analyze.check_privacy(root, b'{}', None)
             (root / 'fleetdiff/report.json').write_text(client.SENTINEL)
-            (root / 'stack-logs.txt').write_text('SYNTHETIC_SECRET')
-            report = analyze.analyze(root, 'SYNTHETIC_SECRET')
-            self.assertEqual(report['privacy']['secret_hit_files'], ['stack-logs.txt'])
-            self.assertEqual(report['privacy']['prompt_sentinel_hit_files'], ['fleetdiff/report.json'])
+            secret = secrets.token_hex(32)
+            (root / 'stack-logs.txt').write_text(secret)
+            with self.assertRaises(ValueError):
+                analyze.check_privacy(root, b'{}', secret)
+
+    def test_report_self_scan_precedes_write(self):
+        secret, hash_secret = secrets.token_hex(32), secrets.token_hex(32)
+        for value in (secret, hash_secret, client.SENTINEL):
+            with self.subTest(value_length=len(value)), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                target = root / 'analysis.json'
+                target.write_text('preserved')
+                report = {'privacy': {'secret_hit_files': [], 'prompt_sentinel_hit_files': []},
+                          'untrusted': value}
+                with patch.object(analyze, 'analyze', return_value=report), self.assertRaises(ValueError):
+                    analyze.write_report(root, secret, hash_secret)
+                self.assertEqual(target.read_text(), 'preserved')
+
+    def test_hash_secret_and_prior_analysis_are_scanned(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in ('results', 'summaries', 'fleetdiff', 'evidence'):
+                (root / name).mkdir()
+            (root / 'evidence/ledger.jsonl').write_text('')
+            secret, hash_secret = secrets.token_hex(32), secrets.token_hex(32)
+            (root / 'stack-logs.txt').write_text(hash_secret)
+            (root / 'analysis.json').write_text(secret)
+            with self.assertRaises(ValueError):
+                analyze.check_privacy(root, b'{}', secret, hash_secret)
+            with self.assertRaises(ValueError):
+                analyze.write_report(root, secret, hash_secret)
+
+    def test_clean_report_and_compose_hash_secret_binding(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in ('results', 'summaries', 'fleetdiff', 'evidence'):
+                (root / name).mkdir()
+            (root / 'evidence/ledger.jsonl').write_text('')
+            report = analyze.write_report(root, secrets.token_hex(32), secrets.token_hex(32))
+            self.assertEqual(json.loads((root / 'analysis.json').read_text()), report)
+            self.assertIn('${TRIAL_HASH_SECRET:?use run.py}', (run.SOURCE / 'compose.yaml').read_text())
 
     def test_incomplete_suite_cannot_pass(self):
         with self.assertRaises(AssertionError):

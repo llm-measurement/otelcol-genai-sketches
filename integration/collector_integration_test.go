@@ -8,6 +8,8 @@ package integration
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"net"
@@ -28,7 +30,13 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-const testSketchSecret = "integration-test-secret-32-bytes"
+var testSketchSecret = func() string {
+	var value [32]byte
+	if _, err := rand.Read(value[:]); err != nil {
+		panic(err)
+	}
+	return hex.EncodeToString(value[:])
+}()
 
 func TestOTLPTraceProducesPrometheusMetric(t *testing.T) {
 	repo := repoRoot(t)

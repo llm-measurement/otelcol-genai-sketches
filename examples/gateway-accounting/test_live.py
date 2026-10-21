@@ -6,6 +6,7 @@ import http.client
 import io
 import json
 import os
+import secrets
 from pathlib import Path
 import tempfile
 import threading
@@ -18,6 +19,7 @@ import gateways
 import live
 import driver
 import analyze
+import run
 
 
 def body(stream=False):
@@ -31,6 +33,54 @@ def config(mode="drain", cap=12):
 
 
 class LiveGuards(unittest.TestCase):
+    def test_output_refuses_checkout_and_symlink_routes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory).resolve()
+            checkout = home / "checkout"
+            checkout.mkdir()
+            (home / "alias").symlink_to(checkout, target_is_directory=True)
+            (home / ".cache").symlink_to(checkout, target_is_directory=True)
+            with patch.object(Path, "home", return_value=home), patch.object(run, "REPO", checkout), \
+                 patch.dict(os.environ, {}, clear=True):
+                for path in (checkout, checkout / "run", home / "alias/run", home / ".cache/run"):
+                    with self.subTest(path=path), self.assertRaises(ValueError):
+                        run.private_output(path)
+
+    def test_cache_roots_refused_and_unrelated_work_path_allowed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory).resolve()
+            xdg = home / "xdg"
+            xdg.mkdir()
+            (home / "cache-link").symlink_to(xdg, target_is_directory=True)
+            with patch.object(Path, "home", return_value=home):
+                for configured in ("", str(home / "cache-link")):
+                    with patch.dict(os.environ, {"XDG_CACHE_HOME": configured}, clear=True):
+                        roots = [home / ".cache", run.cache_home()]
+                        if configured:
+                            roots += [xdg, home / "cache-link"]
+                        for path in roots:
+                            with self.subTest(cache=configured, path=path), self.assertRaises(ValueError):
+                                run.private_output(path)
+                        allowed = home / "Work/run"
+                        self.assertEqual(run.private_output(allowed), allowed.resolve())
+                        self.assertEqual(run.private_output(run.cache_home() / "run"), (run.cache_home() / "run").resolve())
+
+    def test_cli_defaults_follow_xdg_or_home_cache(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory).resolve()
+            for configured in ("", str(home / "xdg")):
+                with self.subTest(cache=configured), patch.object(Path, "home", return_value=home), \
+                     patch.dict(os.environ, {"XDG_CACHE_HOME": configured}, clear=True), \
+                     patch("sys.argv", ["run.py"]), patch.object(run.os, "umask"), \
+                     patch.object(run, "private_output", side_effect=ValueError("stop before writes")) as output, \
+                     patch.object(run, "run_pair") as pair:
+                    with self.assertRaisesRegex(ValueError, "stop before writes"):
+                        run.main()
+                    expected = Path(configured) if configured else home / ".cache"
+                    self.assertEqual(output.call_args.args[0].parent, expected)
+                    self.assertTrue(output.call_args.args[0].name.startswith("gateway-study-"))
+                    pair.assert_not_called()
+
     def test_only_fixed_synthetic_requests(self):
         self.assertFalse(live.checked_body(body())["store"])
         for change in ({"model": "unapproved"}, {"max_completion_tokens": 513},
@@ -46,7 +96,7 @@ class LiveGuards(unittest.TestCase):
             live.checked_body(value)
 
     def test_credential_not_echoed_or_left_in_environment(self):
-        secret = "sk-" + "synthetic" * 5
+        secret = "sk-" + secrets.token_hex(32)
         with patch.dict(os.environ, {"OPENAI_API_KEY": secret}):
             self.assertEqual(live.credential("not-read"), secret)
             self.assertNotIn("OPENAI_API_KEY", os.environ)
