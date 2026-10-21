@@ -13,7 +13,7 @@ summaries against the released trace rows.
 
 ## Run It
 
-From this repository's root, use Go 1.26.9+, Python 3.11+, curl and
+From this repository's root, use Go 1.26.10+, Python 3.11+, curl and
 [GitHub CLI](https://cli.github.com/). No provider account or Docker is needed.
 Install the checksum- and attestation-verified fleetdiff release:
 
