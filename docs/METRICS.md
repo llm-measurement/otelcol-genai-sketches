@@ -23,7 +23,7 @@ low-cardinality and non-sensitive. `gen_ai_sketch_active_slices` has only its fi
 | `gen_ai_sketch_usage_provenance_total` | Input/output field observations by declared source: provider-reported, inferred, unavailable, or unknown; not token counts |
 | `gen_ai_sketch_dedup_suppressed_total` | Probable duplicates suppressed when optional deduplication is enabled |
 | `gen_ai_sketch_dedup_key_missing_total` | Requests counted without a configured deduplication key |
-| `gen_ai_sketch_dedup_overflow_total` | Requests counted after the per-window Bloom design capacity; emitted only when nonzero |
+| `gen_ai_sketch_dedup_overflow_total` | Requests counted after the per-window Bloom design capacity; Prometheus only, emitted when nonzero, not included in summary exports |
 | `gen_ai_sketch_rejected_spans_total` | Malformed identity spans excluded from sketch accounting without rejecting valid peers in the batch |
 
 Counters use reported numeric fields. Missing-usage and provenance counters show

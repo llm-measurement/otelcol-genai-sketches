@@ -47,7 +47,6 @@ func TestModelUsageFixedBound(t *testing.T) {
 					t.Fatal(err)
 				}
 				counters := w.counters.export()
-				counters["dedup_overflow"] = 0
 				for k := range counters {
 					counters[k] = uint64(maxInt64Value)
 				}
@@ -192,7 +191,10 @@ func TestDedupFloodDoesNotSuppressLaterRequests(t *testing.T) {
 		t.Fatal("overflow not reported or summary suppressed")
 	}
 	doc := exportDocs(t, s, e, clk.now.Add(time.Second))[0]
-	if doc.Counters["dedup_overflow"] != w.counters.dedupOverflow ||
+	if _, ok := doc.Counters["dedup_overflow"]; ok {
+		t.Fatal("Prometheus-only overflow diagnostic changed summary counters")
+	}
+	if doc.Counters["requests"] != w.counters.requests ||
 		doc.ModelUsage.Models["public-model"].Requests != w.counters.requests {
 		t.Fatal("summary/model usage did not count bypassed requests")
 	}

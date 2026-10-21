@@ -234,7 +234,6 @@ func (s *collectorState) modelUsageFixedBytes() (int, error) {
 		reserveFrequent("top_tool_errors", w.topToolErrors)
 	}
 	counters := w.counters.export()
-	counters["dedup_overflow"] = 0
 	for key := range counters {
 		counters[key] = uint64(maxInt64Value)
 	}

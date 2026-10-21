@@ -245,7 +245,8 @@ Each filter stops accepting inserts at its profile's design capacity: 10,000
 deduplication key bypass both lookup and insertion for the rest of that window.
 They are counted normally, including possible duplicates, and increment
 `gen_ai_sketch_dedup_overflow_total`. The next window starts with a fresh filter.
-Summary exports include a `dedup_overflow` counter only when it is nonzero.
+Overflow is a Prometheus metric only; summary exports keep their existing counter
+set so normal and overflowed windows remain compatible.
 
 ## MCP
 
