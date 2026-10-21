@@ -21,10 +21,14 @@ ROOT = Path(__file__).resolve().parent
 REPO = ROOT.parents[1]
 
 
+def cache_home():
+    return Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache").resolve()
+
+
 def private_output(path):
     path = Path(path).resolve()
-    if path.is_relative_to((Path.home() / "Work").resolve()) or path == (Path.home() / ".cache").resolve():
-        raise ValueError("private evidence must be a new run directory outside Work")
+    if path.is_relative_to(REPO.resolve()) or path in {cache_home(), (Path.home() / ".cache").resolve()}:
+        raise ValueError("private evidence must be outside the checkout and cannot be a cache root")
     return path
 
 
@@ -138,7 +142,7 @@ def main():
     if cache_cases:
         cases += ["cache_write", "cache_read"]
     os.umask(0o077)
-    root = private_output(args.output or Path.home() / ".cache" / ("gateway-study-" + uuid.uuid4().hex[:12]))
+    root = private_output(args.output or cache_home() / ("gateway-study-" + uuid.uuid4().hex[:12]))
     root.mkdir(mode=0o700, parents=True, exist_ok=False)
     sources = {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest()
                for p in ROOT.rglob("*") if p.is_file() and p.suffix in (".py", ".json", ".md", ".yaml")}

@@ -38,10 +38,14 @@ def require(condition, message):
         raise AssertionError(message)
 
 
+def cache_home():
+    return Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache").resolve()
+
+
 def private_path(path):
     path = Path(path).resolve()
-    if path.is_relative_to((Path.home() / "Work").resolve()) or path == (Path.home() / ".cache").resolve():
-        raise ValueError("private cache and run paths must be outside Work")
+    if path.is_relative_to(ROOT.resolve()) or path in {cache_home(), (Path.home() / ".cache").resolve()}:
+        raise ValueError("private cache and run paths must be outside the checkout and cannot be a cache root")
     return path
 
 
@@ -207,14 +211,18 @@ def run(args):
     print(json.dumps({"checks": counts}, indent=2))
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--fleetdiff", type=Path, required=True)
     parser.add_argument("--key-id", required=True, help="operator-assigned opaque non-secret label; never hash the secret")
-    parser.add_argument("--cache", type=Path, default=Path.home() / ".cache/tracelab-v0.0.2")
-    parser.add_argument("--out", type=Path, default=Path.home() / ".cache/tracelab-v0.0.2/run")
+    parser.add_argument("--cache", type=Path, default=cache_home() / "tracelab-v0.0.2")
+    parser.add_argument("--out", type=Path, default=cache_home() / "tracelab-v0.0.2/run")
     try:
         run(parser.parse_args())
     except (ValueError, RuntimeError, OSError, AssertionError) as error:
         print(f"TraceLab example failed: {error}", file=sys.stderr)
         sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

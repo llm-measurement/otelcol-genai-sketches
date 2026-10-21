@@ -36,9 +36,11 @@ Allow roughly 10-15 minutes: cases wait for complete arrival-time windows, even
 when generation is fast. The runner prints progress, always attempts to stop its
 own Compose project on exit, and retains failures as well as successes. It never
 reuses an existing output directory. An optional `--fleetdiff PATH` selects the
-pinned binary; `--output "$HOME/.cache/my-trial"` selects a new private directory.
-The default is `~/.cache/provider-trial-*`. Explicit paths and symlinks into
-`~/Work` are refused; only per-run directories, never the host cache, are mounted.
+pinned binary; `--output "${XDG_CACHE_HOME:-$HOME/.cache}/my-trial"` selects a new
+private directory. The default is a `provider-trial-*` subdirectory of
+`XDG_CACHE_HOME` when set, otherwise `~/.cache`. Paths are resolved through
+symlinks; this checkout and the cache root itself are refused. Only per-run
+directories, never the host cache, are mounted.
 
 No ports are published to the host. Only the relay has provider network access
 and receives the key through its environment. The proxy has a dummy
@@ -50,7 +52,8 @@ The key is never written into the source or evidence files.
 
 ## Read The Result
 
-Each run writes to a new private `~/.cache/provider-trial-*` directory:
+Each run writes to a new private `provider-trial-*` directory under the selected
+cache root:
 
 - `source-hashes.json`: source hashes, pinned versions, platform, chosen limit,
   Fleetdiff binary hash, and the exact Compose project name.

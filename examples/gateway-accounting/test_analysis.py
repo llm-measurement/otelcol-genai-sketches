@@ -548,6 +548,13 @@ class Analysis(unittest.TestCase):
             with self.subTest(value_length=len(value)), self.assertRaises(ValueError):
                 analyze.check_report_privacy(json.dumps({"value": value}), private)
 
+    def test_report_scan_allows_task_identifiers_but_rejects_keys(self):
+        suffix = secrets.token_hex(32)
+        analyze.check_report_privacy(json.dumps({"task": "task-" + suffix}))
+        for prefix in ("sk-", "sk-ant-"):
+            with self.subTest(prefix=prefix), self.assertRaisesRegex(ValueError, "privacy scan"):
+                analyze.check_report_privacy(json.dumps({"value": prefix + suffix}))
+
 
 if __name__ == "__main__":
     unittest.main()

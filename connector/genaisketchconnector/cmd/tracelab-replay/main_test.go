@@ -9,6 +9,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"flag"
 	"io"
 	"os"
@@ -66,23 +67,92 @@ func TestOpaqueKeyIDRequiredBeforeInput(t *testing.T) {
 	}
 }
 
-func TestPrivateOutputRejectsWorkAndSymlink(t *testing.T) {
+func TestPrivateOutputRejectsCheckoutAndSymlink(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	work := filepath.Join(home, "Work")
-	if err := os.Mkdir(work, 0700); err != nil {
+	t.Setenv("XDG_CACHE_HOME", "")
+	checkout := filepath.Join(home, "checkout")
+	if err := os.Mkdir(checkout, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(checkout, "go.mod"), []byte("// Repository fixture.\n\nmodule \"github.com/llm-measurement/otelcol-genai-sketches\"\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	link := filepath.Join(home, "escape")
-	if err := os.Symlink(work, link); err != nil {
+	if err := os.Symlink(checkout, link); err != nil {
 		t.Fatal(err)
 	}
-	for _, path := range []string{filepath.Join(work, "output"), filepath.Join(link, "output")} {
+	for _, path := range []string{checkout, filepath.Join(checkout, "output"), filepath.Join(link, "new", "output")} {
 		if _, err := privateOutput(path); err == nil {
-			t.Fatal("Work output accepted")
+			t.Fatalf("checkout output accepted: %s", path)
 		}
 	}
-	if _, err := privateOutput(filepath.Join(home, "private-run")); err != nil {
+	if _, err := privateOutput(filepath.Join(home, "Work", "private-run")); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestPrivateOutputCacheRoots(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CACHE_HOME", "")
+	defaultCache := filepath.Join(home, ".cache")
+	want, err := resolvePath(defaultCache)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := cacheDirectory(); err != nil || got != want {
+		t.Fatalf("default cache: got %s, err %v", got, err)
+	}
+	xdg := filepath.Join(home, "custom-cache")
+	if err := os.Mkdir(xdg, 0700); err != nil {
+		t.Fatal(err)
+	}
+	alias := filepath.Join(home, "cache-link")
+	if err := os.Symlink(xdg, alias); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("XDG_CACHE_HOME", alias)
+	want, err = resolvePath(xdg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := cacheDirectory(); err != nil || got != want {
+		t.Fatalf("XDG cache: got %s, err %v", got, err)
+	}
+	for _, path := range []string{defaultCache, xdg, alias} {
+		if _, err := privateOutput(path); err == nil {
+			t.Fatalf("cache root accepted: %s", path)
+		}
+	}
+	if _, err := privateOutput(filepath.Join(alias, "new", "run")); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestOutputDefaultsToUserCache(t *testing.T) {
+	oldFlags, oldArgs := flag.CommandLine, os.Args
+	t.Cleanup(func() { flag.CommandLine, os.Args = oldFlags, oldArgs })
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("GENAI_SKETCH_SECRET", strings.Repeat("x", 32))
+	for _, configured := range []string{"", filepath.Join(home, "custom-cache")} {
+		t.Setenv("XDG_CACHE_HOME", configured)
+		flag.CommandLine = flag.NewFlagSet("test", flag.ContinueOnError)
+		os.Args = []string{"test", "--input", filepath.Join(home, "missing"), "--key-id", "test"}
+		if err := run(); err == nil || err.Error() != "cannot open dataset" {
+			t.Fatalf("default output rejected before input: %v", err)
+		}
+		cache, err := cacheDirectory()
+		if err != nil {
+			t.Fatal(err)
+		}
+		out := flag.CommandLine.Lookup("out").Value.String()
+		if filepath.Dir(out) != cache || !strings.HasPrefix(filepath.Base(out), "tracelab-replay-") {
+			t.Fatalf("default output %s is not a run under %s", out, cache)
+		}
+		if _, err := os.Stat(out); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("invalid input created output: %v", err)
+		}
 	}
 }

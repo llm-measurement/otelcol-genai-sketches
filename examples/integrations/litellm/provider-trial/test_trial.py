@@ -7,6 +7,7 @@ from decimal import Decimal
 import gzip
 import io
 import json
+import os
 import secrets
 from pathlib import Path
 import tempfile
@@ -29,16 +30,57 @@ def request():
 
 
 class Boundaries(unittest.TestCase):
-    def test_output_refuses_work_and_symlink_routes(self):
+    def test_output_refuses_checkout_and_symlink_routes(self):
         with tempfile.TemporaryDirectory() as directory:
-            home = Path(directory)
-            (home / 'Work').mkdir()
-            (home / '.cache').symlink_to(home / 'Work', target_is_directory=True)
-            with patch.object(Path, 'home', return_value=home):
-                for path in (home / 'Work/run', home / '.cache/run'):
-                    with self.assertRaises(ValueError):
+            home = Path(directory).resolve()
+            checkout = home / 'checkout'
+            checkout.mkdir()
+            (home / 'alias').symlink_to(checkout, target_is_directory=True)
+            (home / '.cache').symlink_to(checkout, target_is_directory=True)
+            with patch.object(Path, 'home', return_value=home), patch.object(run, 'REPO', checkout), \
+                 patch.dict(os.environ, {}, clear=True):
+                for path in (checkout, checkout / 'run', home / 'alias/run', home / '.cache/run'):
+                    with self.subTest(path=path), self.assertRaises(ValueError):
                         run.private_output(path)
-                self.assertEqual(run.private_output(home / 'private-run'), (home / 'private-run').resolve())
+
+    def test_cache_roots_refused_and_unrelated_work_path_allowed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory).resolve()
+            xdg = home / 'xdg'
+            xdg.mkdir()
+            (home / 'cache-link').symlink_to(xdg, target_is_directory=True)
+            with patch.object(Path, 'home', return_value=home):
+                for configured in ('', str(home / 'cache-link')):
+                    with patch.dict(os.environ, {'XDG_CACHE_HOME': configured}, clear=True):
+                        roots = [home / '.cache', run.cache_home()]
+                        if configured:
+                            roots += [xdg, home / 'cache-link']
+                        for path in roots:
+                            with self.subTest(cache=configured, path=path), self.assertRaises(ValueError):
+                                run.private_output(path)
+                        allowed = home / 'Work/run'
+                        self.assertEqual(run.private_output(allowed), allowed.resolve())
+                        self.assertEqual(run.private_output(run.cache_home() / 'run'), (run.cache_home() / 'run').resolve())
+
+    def test_cli_defaults_follow_xdg_or_home_cache(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory).resolve()
+            for configured in ('', str(home / 'xdg')):
+                with self.subTest(cache=configured), patch.object(Path, 'home', return_value=home), \
+                     patch.dict(os.environ, {'XDG_CACHE_HOME': configured,
+                                            'OPENAI_API_KEY': 'sk-' + secrets.token_hex(32)}, clear=True), \
+                     patch('sys.argv', ['run.py', '--run-paid-trial', '--max-estimated-usd', '1',
+                                        '--fleetdiff', 'fixture']), \
+                     patch.object(run.os, 'umask'), \
+                     patch.object(run.subprocess, 'check_output', return_value='fleetdiff v0.2.0 fixture'), \
+                     patch.object(run, 'private_output', side_effect=ValueError('stop before writes')) as output, \
+                     patch.object(run.subprocess, 'run') as process:
+                    with self.assertRaisesRegex(ValueError, 'stop before writes'):
+                        run.main()
+                    expected = Path(configured) if configured else home / '.cache'
+                    self.assertEqual(output.call_args.args[0].parent, expected)
+                    self.assertTrue(output.call_args.args[0].name.startswith('provider-trial-'))
+                    process.assert_not_called()
 
     def test_request_allowlist(self):
         relay.validate(request())

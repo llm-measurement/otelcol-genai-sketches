@@ -18,13 +18,14 @@ From this repository's root, use Go 1.26.9+, Python 3.11+, curl and
 Install the checksum- and attestation-verified fleetdiff release:
 
 ```sh
-mkdir -p "$HOME/.cache"
+CACHE="${XDG_CACHE_HOME:-$HOME/.cache}"
+mkdir -p "$CACHE"
 curl --fail --location --proto '=https' --proto-redir '=https' \
   https://raw.githubusercontent.com/llm-measurement/fleetdiff/v0.5.0/scripts/install.sh \
-  -o "$HOME/.cache/install-fleetdiff.sh"
-printf '%s  %s\n' 'f561e95b7599485f32c2d07f1a5288a4c836ca4b9a816938991ba7e08b24a70e' "$HOME/.cache/install-fleetdiff.sh" | shasum -a 256 -c -
-sh "$HOME/.cache/install-fleetdiff.sh" v0.5.0 "$HOME/.cache/fleetdiff-recipe"
-python3 examples/tracelab/run.py --fleetdiff "$HOME/.cache/fleetdiff-recipe/fleetdiff" --key-id tracelab-run-01
+  -o "$CACHE/install-fleetdiff.sh"
+printf '%s  %s\n' 'f561e95b7599485f32c2d07f1a5288a4c836ca4b9a816938991ba7e08b24a70e' "$CACHE/install-fleetdiff.sh" | shasum -a 256 -c -
+sh "$CACHE/install-fleetdiff.sh" v0.5.0 "$CACHE/fleetdiff-recipe"
+python3 examples/tracelab/run.py --fleetdiff "$CACHE/fleetdiff-recipe/fleetdiff" --key-id tracelab-run-01
 ```
 
 The runner reuses the cached release, or downloads it when absent, and verifies
@@ -32,8 +33,10 @@ its checksum before parsing. It builds the replay tool from this checkout,
 creates a private random hash key, writes daily summary windows, checks source
 totals and ranking bounds, and saves investigations. It refuses to reuse an
 output directory. For another run, add
-`--out "$HOME/.cache/tracelab-v0.0.2/another-run"`. Cache and output paths,
-including symlinks, must stay outside `~/Work`.
+`--out "${XDG_CACHE_HOME:-$HOME/.cache}/tracelab-v0.0.2/another-run"`.
+Defaults use `XDG_CACHE_HOME` when set, otherwise `~/.cache`. Cache and output
+paths are resolved through symlinks and must stay outside this checkout. The
+cache root itself cannot be used as a cache or run directory; use a subdirectory.
 
 `--key-id` is required in both this wrapper and the replay binary. Assign an
 opaque non-secret label for the generated key; never use the key or its digest.
@@ -43,9 +46,10 @@ Identity hashing is unchanged. Use a new label for each newly generated key.
 Open the worked comparison separately:
 
 ```sh
-"$HOME/.cache/fleetdiff-recipe/fleetdiff" investigate \
-  --before "$HOME/.cache/tracelab-v0.0.2/run/windows/2026-06-01.json" \
-  --after "$HOME/.cache/tracelab-v0.0.2/run/windows/2026-06-02.json" --expected tracelab
+CACHE="${XDG_CACHE_HOME:-$HOME/.cache}"
+"$CACHE/fleetdiff-recipe/fleetdiff" investigate \
+  --before "$CACHE/tracelab-v0.0.2/run/windows/2026-06-01.json" \
+  --after "$CACHE/tracelab-v0.0.2/run/windows/2026-06-02.json" --expected tracelab
 ```
 
 The runner builds the source tool with `-tags tracelab_replay`. Replay code and
@@ -116,7 +120,7 @@ Generated runs carry an attribution notice; these published observations have th
 [attribution](derived/ATTRIBUTION.md).
 
 - Release data, the hash key, source oracle, windows and full reports stay in
-  private `~/.cache/` directories. Derived run files stay local;
+  private per-run directories under the selected cache root. Derived run files stay local;
   network access is for release/tool/module downloads only. Keep `hash-key.txt`
   private; deleting it prevents reproducing that run's hashes.
 - These are one lab's released records of its own Claude Code and Codex use.

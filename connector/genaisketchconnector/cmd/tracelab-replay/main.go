@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"syscall"
 	"time"
 
 	connector "github.com/llm-measurement/otelcol-genai-sketches/connector/genaisketchconnector"
@@ -39,8 +40,13 @@ func main() {
 }
 
 func run() error {
+	cache, err := cacheDirectory()
+	if err != nil {
+		return err
+	}
+	defaultOut := filepath.Join(cache, "tracelab-replay-"+time.Now().UTC().Format("20060102T150405.000000000"))
 	input := flag.String("input", "", "verified v0.0.2 JSONL.gz")
-	out := flag.String("out", "", "new private output directory")
+	out := flag.String("out", defaultOut, "new private output directory; defaults to a run under the user cache directory")
 	keyID := flag.String("key-id", "", "required operator-assigned opaque non-secret key label; never a key digest")
 	startText := flag.String("start", "2025-09-23", "first UTC day, inclusive")
 	endText := flag.String("end", "2026-07-25", "last UTC boundary, exclusive")
@@ -49,7 +55,7 @@ func run() error {
 	end, e2 := time.Parse("2006-01-02", *endText)
 	validID, _ := regexp.MatchString(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`, *keyID)
 	if *input == "" || *out == "" || !validID || e1 != nil || e2 != nil || !end.After(start) || flag.NArg() != 0 {
-		return errors.New("provide --input, --out, an opaque --key-id and an increasing UTC date range")
+		return errors.New("provide --input, an opaque --key-id and an increasing UTC date range")
 	}
 	resolved, err := privateOutput(*out)
 	if err != nil {
@@ -82,6 +88,11 @@ func run() error {
 	rows, readErr := tracelab.Read(io.LimitReader(gz, 4<<30))
 	if err = errors.Join(readErr, gz.Close()); err != nil {
 		return err
+	}
+	if *out == defaultOut {
+		if err = os.MkdirAll(filepath.Dir(*out), 0700); err != nil {
+			return errors.New("cannot create user cache directory")
+		}
 	}
 	if err = os.Mkdir(*out, 0700); err != nil {
 		return errors.New("output must be a new directory under an existing parent")
@@ -143,31 +154,73 @@ func run() error {
 }
 
 func privateOutput(path string) (string, error) {
-	absolute, err := filepath.Abs(path)
+	absolute, err := resolvePath(path)
 	if err != nil {
 		return "", err
 	}
-	parent, err := filepath.EvalSymlinks(filepath.Dir(absolute))
+	cache, err := cacheDirectory()
 	if err != nil {
-		return "", errors.New("output requires an existing private parent")
-	}
-	absolute = filepath.Join(parent, filepath.Base(absolute))
-	if resolved, err := filepath.EvalSymlinks(absolute); err == nil {
-		absolute = resolved
+		return "", err
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
 	}
-	work := filepath.Join(home, "Work")
-	if resolved, err := filepath.EvalSymlinks(work); err == nil {
-		work = resolved
+	defaultCache, err := resolvePath(filepath.Join(home, ".cache"))
+	if err != nil {
+		return "", err
 	}
-	rel, err := filepath.Rel(work, absolute)
-	if err != nil || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))) {
-		return "", errors.New("private output must be outside Work")
+	if absolute == cache || absolute == defaultCache {
+		return "", errors.New("output must be a run directory, not the cache root")
+	}
+	for dir := absolute; ; dir = filepath.Dir(dir) {
+		data, err := os.ReadFile(filepath.Join(dir, "go.mod"))
+		if err == nil {
+			for _, line := range strings.Split(string(data), "\n") {
+				fields := strings.Fields(line)
+				if len(fields) >= 2 && fields[0] == "module" && strings.Trim(fields[1], `"`) == "github.com/llm-measurement/otelcol-genai-sketches" {
+					return "", errors.New("private output must be outside the repository checkout")
+				}
+			}
+		} else if !errors.Is(err, os.ErrNotExist) && !errors.Is(err, syscall.ENOTDIR) {
+			return "", errors.New("cannot check output repository ancestry")
+		}
+		if filepath.Dir(dir) == dir {
+			break
+		}
 	}
 	return absolute, nil
+}
+
+func cacheDirectory() (string, error) {
+	if path := os.Getenv("XDG_CACHE_HOME"); path != "" {
+		return resolvePath(path)
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return resolvePath(filepath.Join(home, ".cache"))
+}
+
+// Resolve existing ancestors too, so a new directory cannot hide a symlink hop.
+func resolvePath(path string) (string, error) {
+	absolute, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	resolved, err := filepath.EvalSymlinks(absolute)
+	if err == nil {
+		return resolved, nil
+	}
+	if !errors.Is(err, os.ErrNotExist) || filepath.Dir(absolute) == absolute {
+		return "", err
+	}
+	parent, err := resolvePath(filepath.Dir(absolute))
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(parent, filepath.Base(absolute)), nil
 }
 
 func newReplayRunner(cfg *connector.Config) (replay.Runner, error) {

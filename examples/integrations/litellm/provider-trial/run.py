@@ -20,10 +20,14 @@ REPO = SOURCE.parents[3]
 MANIFEST = json.loads((SOURCE / 'manifest.json').read_text())
 
 
+def cache_home():
+    return Path(os.environ.get('XDG_CACHE_HOME') or Path.home() / '.cache').resolve()
+
+
 def private_output(path):
     path = Path(path).resolve()
-    if path.is_relative_to((Path.home() / 'Work').resolve()) or path == (Path.home() / '.cache').resolve():
-        raise ValueError('private evidence must be a new run directory outside Work')
+    if path.is_relative_to(REPO.resolve()) or path in {cache_home(), (Path.home() / '.cache').resolve()}:
+        raise ValueError('private evidence must be outside the checkout and cannot be a cache root')
     return path
 
 
@@ -78,7 +82,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--run-paid-trial', action='store_true', help='allow real, billable OpenAI calls')
     parser.add_argument('--max-estimated-usd', type=spending_limit, help='required for a paid run; not a provider spend cap')
-    parser.add_argument('--output', type=Path, help='new private run directory outside Work; default ~/.cache')
+    parser.add_argument('--output', type=Path, help='new private directory outside the checkout; default XDG_CACHE_HOME or ~/.cache')
     parser.add_argument('--fleetdiff', default=shutil.which('fleetdiff'), help='path to the v0.2.0 binary')
     args = parser.parse_args()
     if not args.run_paid_trial or not args.max_estimated_usd:
@@ -94,7 +98,7 @@ def main():
         parser.error('This experiment pins fleetdiff v0.2.0')
     os.umask(0o077)
     run_id = 'provider-trial-' + uuid.uuid4().hex[:12]
-    root = private_output(args.output or Path.home() / '.cache' / run_id)
+    root = private_output(args.output or cache_home() / run_id)
     root.mkdir(mode=0o700, parents=True, exist_ok=False)
     for name in ('evidence', 'results', 'summaries', 'fleetdiff'):
         (root / name).mkdir(mode=0o700)

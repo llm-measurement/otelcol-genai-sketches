@@ -590,7 +590,7 @@ def render_report(report):
 def check_report_privacy(text, private_values=()):
     values = [*private_values, *(os.environ.get(name, "") for name in
               ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GENAI_SKETCH_SECRET", "TRIAL_HASH_SECRET"))]
-    if (re.search(r"sk-(?:ant-)?[A-Za-z0-9_-]{16,}", text) or
+    if (re.search(r"\bsk-(?:ant-)?[A-Za-z0-9_-]{16,}", text) or
             any(value and (value in text or json.dumps(value)[1:-1] in text) for value in values)):
         raise ValueError("serialized report privacy scan failed; no report written")
 
