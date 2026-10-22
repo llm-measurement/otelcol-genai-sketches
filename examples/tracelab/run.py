@@ -145,7 +145,10 @@ def run(args):
     out.mkdir(mode=0o700)
     save(out / "ATTRIBUTION.txt", ATTRIBUTION)
     secret = secrets.token_hex(32)
-    save(out / "hash-key.txt", secret)
+    if args.save_key:
+        save(out / "hash-key.txt", secret)
+    else:
+        print("Hash key was not saved; hashes cannot be reproduced later.", flush=True)
     env = dict(os.environ, GENAI_SKETCH_SECRET=secret, GOWORK="off",
                GOCACHE=str(private_path(cache / "go-build")), GOMODCACHE=str(private_path(cache / "go-mod")))
     commands = []
@@ -215,6 +218,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--fleetdiff", type=Path, required=True)
     parser.add_argument("--key-id", required=True, help="operator-assigned opaque non-secret label; never hash the secret")
+    parser.add_argument("--save-key", action="store_true",
+                        help="save the generated key in the private run directory for later hash reproduction")
     parser.add_argument("--cache", type=Path, default=cache_home() / "tracelab-v0.0.2")
     parser.add_argument("--out", type=Path, default=cache_home() / "tracelab-v0.0.2/run")
     try:

@@ -43,6 +43,12 @@ opaque non-secret label for the generated key; never use the key or its digest.
 The replay epoch still binds this label, the dataset, mapping and date range.
 Identity hashing is unchanged. Use a new label for each newly generated key.
 
+The generated key stays in memory by default. The runner prints one line saying
+that hashes cannot be reproduced later. To retain the key, add `--save-key` to
+the runner command. It writes `hash-key.txt` with owner-only permissions (0600)
+inside the private run directory (0700). Keep that file private; deleting it
+prevents reproducing that run's hashes.
+
 Open the worked comparison separately:
 
 ```sh
@@ -119,10 +125,10 @@ separately from Apache-2.0 code. This example reads only that released file.
 Generated runs carry an attribution notice; these published observations have their own
 [attribution](derived/ATTRIBUTION.md).
 
-- Release data, the hash key, source oracle, windows and full reports stay in
+- Release data, source oracle, windows and full reports stay in
   private per-run directories under the selected cache root. Derived run files stay local;
-  network access is for release/tool/module downloads only. Keep `hash-key.txt`
-  private; deleting it prevents reproducing that run's hashes.
+  network access is for release/tool/module downloads only. The hash key is not
+  written to disk unless `--save-key` is supplied.
 - These are one lab's released records of its own Claude Code and Codex use.
   Differences describe observed activity in that dataset. User and session
   labels are pseudonymous source identities.
