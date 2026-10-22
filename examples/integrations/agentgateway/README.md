@@ -25,7 +25,7 @@ Reported tokens: 12000 -> 12000; model attempts: 100 -> 100.
 
 Users rank by reported tokens; sessions rank by model attempts, including attempts
 without usage. A custom workflow ranking appears in the collector's snapshot logs.
-The same recipe also runs through [standalone Envoy AI Gateway](../envoy-ai-gateway/README.md).
+The same recipe also runs through [Agent Router, captured as Envoy AI Gateway 1.1.0](../envoy-ai-gateway/README.md).
 
 ## Run It
 

@@ -6,6 +6,10 @@ Released collector v0.3.2 exports the summary files; fleetdiff v0.5.0 identifies
 both changes from them.
 The quiet control raises no flags.
 
+The project is now [Agent Router](https://github.com/theagentrouter/agent-router/releases/tag/v1.2.0),
+renamed from Envoy AI Gateway in v1.2.0. This recipe keeps the captured v1.1.0
+image digest, configuration, and `envoy-ai-gateway-1.1.0-chat-v1` profile identity.
+
 This uses the gateway's **standalone `aigw run`** image. No Kubernetes cluster or
 provider account is needed.
 
@@ -68,10 +72,11 @@ The same collector forwards the original spans to the existing backend.
 
 ## Limits
 
-The unreleased [served-identity profile](../../../docs/MODEL_USAGE_SUMMARIES.md#verified-request-scope)
+The [served-identity profile](../../../docs/MODEL_USAGE_SUMMARIES.md#verified-request-scope)
 has also been checked on Envoy AI Gateway 1.1.0 streaming Chat and recovery, using
 the same response-model contract as nonstreaming Chat. See that section for
 `include_usage`, interrupted-stream coverage and completion limits.
+An Agent Router v1.2.0 profile requires its own span capture and validation.
 
 The synthetic client supplies the user header in this isolated test. For real
 traffic, an authenticated trusted edge must remove caller-supplied identity headers

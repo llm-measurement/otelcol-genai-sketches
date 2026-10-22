@@ -111,6 +111,24 @@ The distinct-user gauge estimates the current window, not all retained windows.
 Use a longer `window_duration` or merge compatible summary exports for a longer
 period; do not add the gauges. Mapping `user_key` does not enable user top-k.
 
+For prompt attribution, prefer
+[`gen_ai.prompt.name`](SEMANTIC_CONVENTIONS.md#requests-and-tokens), an
+application-supplied prompt identifier, as the `prompt_key` source:
+
+```yaml
+fields:
+  prompt_key:
+    from_attributes: [gen_ai.prompt.name]
+    from_resource_attributes: []
+    canonicalization: text_v1
+    domain: prompt:v1
+```
+
+This is an explicit mapping choice. The default still reads
+`gen_ai.request.prompt` from span and resource attributes. Changing the source
+changes which values are keyed and the accounting identity; compare or merge
+summaries only with compatible mappings.
+
 Configured hashed-field values larger than 8 KiB or containing invalid UTF-8
 reject only that span from sketch accounting. Other valid spans in the batch remain
 eligible for accounting. `gen_ai_sketch_rejected_spans_total` counts rejections with
