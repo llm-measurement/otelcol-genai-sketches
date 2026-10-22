@@ -242,6 +242,14 @@ positives can suppress a previously unseen request and therefore undercount; use
 only when duplicate suppression is worth that explicit tradeoff. Suppressed
 requests and requests missing a deduplication key have separate counters.
 
+Each filter stops accepting inserts at its profile's design capacity: 10,000
+(`micro`), 100,000 (`small`), or 1,000,000 (`default`). Once full, requests with a
+deduplication key bypass both lookup and insertion for the rest of that window.
+They are counted normally, including possible duplicates, and increment
+`gen_ai_sketch_dedup_overflow_total`. The next window starts with a fresh filter.
+Overflow is a Prometheus metric only; summary exports keep their existing counter
+set so normal and overflowed windows remain compatible.
+
 ## MCP
 
 ```yaml

@@ -427,7 +427,11 @@ count its already-processed prefix.
 
 These are source-reported model attempts, not authenticated billing receipts.
 Reserved buckets cannot be priced. The bounded model slice and 8 MiB envelope
-limit still apply; the producer reserves a small allowance for envelope metadata.
+limit still apply. The producer reserves the configured sketches' maximum encoded
+size and maximum-width counters at startup, plus a small envelope metadata
+allowance; model-row bytes are tracked exactly. This can reach the byte budget
+before the current sparse sketches fill it, without serializing a full summary
+for each span.
 There are no model-by-key or model-by-team intersections. Snapshot replay is
 exactly checked; repeated raw spans retain the configured Bloom-based deduplication
 semantics. Validate resource cost for the configured workload before enabling.
