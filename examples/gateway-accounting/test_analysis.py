@@ -2,9 +2,11 @@
 # Code authors: Vijay and Codex
 
 import json
+import secrets
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import analyze
 
@@ -525,6 +527,33 @@ class Analysis(unittest.TestCase):
             output = path.read_text()
             for banned in (secret, "PRIVATE", "/private", "apiKey", "requestParams", "traceId", "spanId", "authorization"):
                 self.assertNotIn(banned, output)
+
+    def test_serialized_report_is_scanned_before_either_write(self):
+        secret = secrets.token_hex(32)
+        report = analyze.analyze_run(self.root)
+        report["untrusted"] = secret
+        for name in ("analysis.json", "table.md"):
+            (self.root / name).write_text("preserved")
+        with patch.object(analyze, "analyze_run", return_value=report), \
+             patch.dict(analyze.os.environ, {"TRIAL_HASH_SECRET": secret}), \
+             self.assertRaisesRegex(ValueError, "privacy scan"):
+            analyze.write_report(self.root)
+        for name in ("analysis.json", "table.md"):
+            self.assertEqual((self.root / name).read_text(), "preserved")
+
+    def test_report_scan_handles_key_shapes_and_json_escaping(self):
+        key = "sk-" + secrets.token_hex(32)
+        escaped = secrets.token_hex(32) + "\n\u00e9"
+        for value, private in ((key, ()), (escaped, (escaped,))):
+            with self.subTest(value_length=len(value)), self.assertRaises(ValueError):
+                analyze.check_report_privacy(json.dumps({"value": value}), private)
+
+    def test_report_scan_allows_task_identifiers_but_rejects_keys(self):
+        suffix = secrets.token_hex(32)
+        analyze.check_report_privacy(json.dumps({"task": "task-" + suffix}))
+        for prefix in ("sk-", "sk-ant-"):
+            with self.subTest(prefix=prefix), self.assertRaisesRegex(ValueError, "privacy scan"):
+                analyze.check_report_privacy(json.dumps({"value": prefix + suffix}))
 
 
 if __name__ == "__main__":

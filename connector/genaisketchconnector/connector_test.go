@@ -35,7 +35,7 @@ func (c *captureMetrics) ConsumeMetrics(_ context.Context, metrics pmetric.Metri
 }
 
 func TestConsumeTracesEmitsCumulativeRequestMetric(t *testing.T) {
-	t.Setenv("GENAI_SKETCH_SECRET", "test-secret-32-bytes-for-unit-tests")
+	setConnectorTestSecret(t)
 
 	sink := &captureMetrics{}
 	conn := newTracesConnector(componentTelemetry(), defaultConfig(), sink)
@@ -62,7 +62,7 @@ func TestConsumeTracesEmitsCumulativeRequestMetric(t *testing.T) {
 }
 
 func TestConsumeTracesIgnoresNonGenAISpans(t *testing.T) {
-	t.Setenv("GENAI_SKETCH_SECRET", "test-secret-32-bytes-for-unit-tests")
+	setConnectorTestSecret(t)
 
 	sink := &captureMetrics{}
 	conn := newTracesConnector(componentTelemetry(), defaultConfig(), sink)
@@ -82,7 +82,7 @@ func TestConsumeTracesIgnoresNonGenAISpans(t *testing.T) {
 }
 
 func TestTopKZeroDoesNotStartLogLoop(t *testing.T) {
-	t.Setenv("GENAI_SKETCH_SECRET", "test-secret-32-bytes-for-unit-tests")
+	setConnectorTestSecret(t)
 	cfg := defaultConfig()
 	cfg.TopK = 0
 	conn := newTracesConnector(componentTelemetry(), cfg, &captureMetrics{})
@@ -108,7 +108,7 @@ func startConnector(t *testing.T, conn *tracesConnector) {
 }
 
 func TestConsumeBeforeStartDoesNotInitializeState(t *testing.T) {
-	t.Setenv("GENAI_SKETCH_SECRET", "test-secret-32-bytes-for-unit-tests")
+	setConnectorTestSecret(t)
 	sink := &captureMetrics{}
 	conn := newTracesConnector(componentTelemetry(), defaultConfig(), sink)
 	if err := conn.ConsumeTraces(context.Background(), tracesWithGenAISpans(1)); err == nil {

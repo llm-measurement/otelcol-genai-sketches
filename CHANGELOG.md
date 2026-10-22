@@ -2,6 +2,15 @@
 
 Notable user-visible changes are recorded here.
 
+## v0.6.2 / Helm chart 0.6.2 - Unreleased
+
+See the [release notes](docs/releases/v0.6.2.md). Rebuild with Go 1.26.10 for
+GO-2026-6809, which distrusts compromised intermediate certificates during TLS
+verification when system trust stores have not been updated.
+
+- Use the patched Go toolchain for builds and security scans.
+- Include the reviewed connector dependency and release-pipeline maintenance.
+
 ## v0.6.1 / Helm chart 0.6.1 - 2026-10-18
 
 See the [release notes](docs/releases/v0.6.1.md). Keep valid span accounting

@@ -9,7 +9,7 @@ summary exports with fleetdiff.
 
 ### Prerequisites
 
-Use a checkout of this repository, Go 1.26.9 or later, Make, OpenSSL, and an
+Use a checkout of this repository, Go 1.26.10 or later, Make, OpenSSL, and an
 existing LiteLLM proxy matching the [tested scope](#compatibility-scope). Run from the
 repository root. Install fleetdiff and prepare a private summary directory before
 starting the collector:

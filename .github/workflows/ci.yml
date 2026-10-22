@@ -54,7 +54,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26.9"
+          go-version: "1.26.10"
           cache: true
           cache-dependency-path: |
             otelcol-genai-sketches/go.sum
@@ -186,7 +186,7 @@ jobs:
             otelcol-genai-sketches:ci validate --config=/etc/otelcol-genai-sketches/config.yaml
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26.9"
+          go-version: "1.26.10"
           cache-dependency-path: otelcol-genai-sketches/go.sum
       - name: Verify production-image summaries and private top-k
         env:
@@ -217,7 +217,6 @@ jobs:
     timeout-minutes: 15
     env:
       GOWORK: "off"
-      GENAI_SKETCH_SECRET: smoke-secret-32-bytes-for-ci-only
     defaults:
       run:
         working-directory: otelcol-genai-sketches
@@ -227,7 +226,12 @@ jobs:
           path: otelcol-genai-sketches
           persist-credentials: false
       - name: Bring up example stack
-        run: sh examples/demo.sh up
+        run: |
+          GENAI_SKETCH_SECRET="$(openssl rand -hex 32)"
+          echo "::add-mask::$GENAI_SKETCH_SECRET"
+          echo "GENAI_SKETCH_SECRET=$GENAI_SKETCH_SECRET" >> "$GITHUB_ENV"
+          export GENAI_SKETCH_SECRET
+          sh examples/demo.sh up
       - name: Check synthetic span mix
         run: docker compose -f examples/compose.yaml run --rm --no-deps app python -m unittest -v test_app
       - name: Check dashboard aggregation and top-k presentation
@@ -280,8 +284,8 @@ jobs:
       - name: Run deterministic gateway cases (no provider credentials)
         run: |
           python3 -B examples/gateway-accounting/run.py \
-            --gateways '${{ matrix.gateway }}' --output .cache/gateway-study-ci
-          python3 -B examples/gateway-accounting/verify.py .cache/gateway-study-ci
+            --gateways '${{ matrix.gateway }}' --output "$RUNNER_TEMP/gateway-study-ci"
+          python3 -B examples/gateway-accounting/verify.py "$RUNNER_TEMP/gateway-study-ci"
       # Captures can contain diagnostic and security-sensitive material. Keep
       # them off public logs and do not upload raw results as CI artifacts.
 

@@ -1,0 +1,567 @@
+Accounting performance measurements, 2026-10-20
+Baseline commit: 303b86637cc33e9624194d758b4be10ba8a16b59
+Baseline includes only the identical new benchmark and reproduction test files.
+One operation = 100 spans; 5 samples per case; serial before then after.
+Dense HLLs and occupied FI maps; one model/team, two default slices, one top-k key.
+dedup_full deliberately compares different accounting after capacity; not equivalent work.
+
+{
+  "go_sha256": "318dee99db233501f6c419fbb4616e5a345ed0b831dbd6c7669b24e1ff8e9e2e",
+  "go_version": "go version go1.26.9 darwin/arm64",
+  "hw.logicalcpu": "16",
+  "hw.memsize": "68719476736",
+  "hw.physicalcpu": "16",
+  "machdep.cpu.brand_string": "Apple M4 Max",
+  "machine": "arm64",
+  "release": "27.0.0",
+  "system": "Darwin"
+}
+
+Command (run from connector/genaisketchconnector in each source tree):
+GOTOOLCHAIN=local GOWORK=off GOPROXY=off GOSUMDB=off GOMAXPROCS=1 CGO_ENABLED=1 \
+  go test -p 1 -run '^$' -bench '^BenchmarkAccountingPerformance$' \
+  -benchmem -benchtime=1s -count=5 -cpu=1
+Both runs used the same pre-existing module and build caches, with no downloads.
+
+benchmark-baseline module source SHA256 inventory:
+{
+  "connector/genaisketchconnector/accounting_fixture_test.go": "16f7a27852aced07bc8e0fc7fbe20f6292fa675d2c559a3fc4131e699e394764",
+  "connector/genaisketchconnector/accounting_resilience.go": "4bee4406060faad87dada799ef781d87198e15f69d490cd6011a66ff619f85ce",
+  "connector/genaisketchconnector/accounting_resilience_test.go": "7b0533ccfaf29732582b1be98e4f71b2b9cfd60536cd170743819fcd2a852c75",
+  "connector/genaisketchconnector/accounting_saturation_test.go": "063a5c66e600227de2f9c49707da4d6cdd0149a5ff597dbeaff86f1be74fc991",
+  "connector/genaisketchconnector/clock.go": "20fbd4b5077e10920e4cdb3cf8c01c10c2914b40ec5cbaef79d70f45a56932d3",
+  "connector/genaisketchconnector/cmd/tracelab-replay/main.go": "fe7a9df61e8c5341b0a7e22876d458dc49188094f6d93e319b14848bb3e97498",
+  "connector/genaisketchconnector/cmd/tracelab-replay/main_test.go": "2b2b6a43ca8f5f997b94d479edba0b13ba3f37c7ae5ee8911af2d83e6d4bc852",
+  "connector/genaisketchconnector/config.go": "1bfad6207d709b3051f6d9dd231b4645b7416c16df41f27a4978ceb2e0b3e905",
+  "connector/genaisketchconnector/config_test.go": "78301ec2f5155e9ae16d3211fc75393741a01784d53946d60eac0fe43af269d2",
+  "connector/genaisketchconnector/connector.go": "243cb5b8b6ba4da5fd125d5f26414e49ad740ae1a956648ecb1b445ae0c5056b",
+  "connector/genaisketchconnector/connector_test.go": "2943671b2c78a8b42ae5bfcd1e6dadac1e14f1a9d8239a27574cc6468c158896",
+  "connector/genaisketchconnector/delivery_regression_test.go": "f1c92f5d3a351549f4f0395b45bafda2044cab4d8ce34197b1698fa089075599",
+  "connector/genaisketchconnector/doc.go": "dd6e204b3aefb8f7027cff8d28cf0145e7a1ce5e756664c838e3c1187c5fb316",
+  "connector/genaisketchconnector/extraction_fuzz_test.go": "a15dcf8f3164a2b2df3c7877c8cba953b071800c5f7b7da2a5dbcca4d92a08cb",
+  "connector/genaisketchconnector/factory.go": "4b25d7af30bf6313ce929b03df0a91a8f757ca07c688baf584424cb12dae5e62",
+  "connector/genaisketchconnector/fleet_fixture_test.go": "e53eec30d929e41e41a50cb15b11ff613cf0af05e6332c83e70f99c01167e0bf",
+  "connector/genaisketchconnector/go.mod": "2975b85b0b943780401a5ad1f28765c369dcdfff1f97bda004560c5b11025a84",
+  "connector/genaisketchconnector/go.sum": "45d3c0db76c65b87971d959164ee338693f4ea79979ab963f0ae593728ea77f2",
+  "connector/genaisketchconnector/identity_drift_test.go": "6a84152074cbbaf9f35bd81181b97b70ac0c7a870ab2f0febf0864c5287b863e",
+  "connector/genaisketchconnector/inspect_contract_test.go": "fdf1697912499b2e02de97d1eea20a8226a67ea8471beca44f0395e2643be0d8",
+  "connector/genaisketchconnector/internal/normalization/claude.go": "272c382b8e755b4b54350c108163da332366dfa1fe1e19eb729efb1447264b1e",
+  "connector/genaisketchconnector/internal/normalization/claude_test.go": "c9b8f5143293a2dd042f5965c5f17b286cf74a0875916332d8b3c93db7574cbf",
+  "connector/genaisketchconnector/internal/replay/replay.go": "06e6450e6a5e83ea6ae0f0f181285698b310df87371b9aff495cf85ff28ca2b1",
+  "connector/genaisketchconnector/internal/tracelab/rows.go": "cb93395febee6a049df85b80dbbf78f94a31e9c73d15c1c45aee4942dc53ae70",
+  "connector/genaisketchconnector/internal/tracelab/rows_test.go": "46b0436ffcd22b30453ea6d57ac31bdd9f826aa96fc32cc4e661daadb38b48e4",
+  "connector/genaisketchconnector/litellm_fixture_test.go": "1f2f327191ffc4861f958f2e457adb8a4bb099e4679c02787012a27549532287",
+  "connector/genaisketchconnector/load_test.go": "9caf301311c6541b5eb84044e84ffecb042bd1ec766f9b1f5b908aa1a0bb0f2e",
+  "connector/genaisketchconnector/model_usage.go": "2e0155161fd50325d29c995dd703570196aa2275881c465f2cc948e4bc62eee8",
+  "connector/genaisketchconnector/model_usage_batch_review_test.go": "2f578d811a85bb3fce91fc20169e426c1cef99362517161a21c4242ffd64fba0",
+  "connector/genaisketchconnector/model_usage_combined_test.go": "1a3644155544e845b0647d254267df01385f65c07c312735fc6f6f8faf69c787",
+  "connector/genaisketchconnector/model_usage_combined_v2_test.go": "280aa8e05464e5b9c82a804c8ec6d0d76911b8b8d21aa8dbef17728177289cf1",
+  "connector/genaisketchconnector/model_usage_identity.go": "ed840a21172d247c61981fb2dd9fdb2727b4eb731b76c2a55b7b2c90196672b4",
+  "connector/genaisketchconnector/model_usage_identity_test.go": "6dabe444055b473956dd22ea3475c430f0a466ccc8b52333aeb848b3db822af4",
+  "connector/genaisketchconnector/model_usage_messages_test.go": "0d25b373bf7b51765e53ce5d6c24b314d70efca6cbb41da6cc6feb8860bea6da",
+  "connector/genaisketchconnector/model_usage_test.go": "5138e4dbe890caa4e18c397bd0b169dd1fd2783e9cafb74b784a0e8bdb7c2739",
+  "connector/genaisketchconnector/model_usage_transaction.go": "2016869639304fb4f23b7518da29725eb2fc07709ed49507578b88d075a18639",
+  "connector/genaisketchconnector/performance_bench_test.go": "b16a963614c519e2ecd8bc24a1e8088a57c314d23e853959c1fddb807d5f4fd0",
+  "connector/genaisketchconnector/performance_repro_test.go": "d6316b139e7fdab9b0ae2396470766fb996993d13f22a0581120daf28fb31f0f",
+  "connector/genaisketchconnector/provenance.go": "b70c2d6cf305f1a06108adaea26a9fa3028b98ab3fd8871d50b3862657fb624f",
+  "connector/genaisketchconnector/provenance_test.go": "03073e540de28b471c36359a72ae4ff02dc179938c37d7346d77d3cbb50c9147",
+  "connector/genaisketchconnector/regression_output_test.go": "f4b499254e4db852c7e652a9f5fc20abc0f7c41d4d1bc423487c9ddba7ba2b45",
+  "connector/genaisketchconnector/replay.go": "37583d82cab62c9a4bec2cc8118c51adde496db38274be974e280378e8ed9774",
+  "connector/genaisketchconnector/replay_test.go": "bde8019c2c3e6765040323360f6fad2c56cc5313fb4aa84325067f4058649584",
+  "connector/genaisketchconnector/snapshot_delivery_test.go": "5a01d066218b775b094033d51c2bcb2e61139c343f9a8aca7f528a6c1dcba593",
+  "connector/genaisketchconnector/span_update.go": "5958871d5327a635ac9a5e8ce9d256f008f6fb1db2fc85ef49f562b346eb740c",
+  "connector/genaisketchconnector/state.go": "354f60bb5088fb596ff483e5187438c4aed0b223d2b20cc6bcd47db5aca8fb80",
+  "connector/genaisketchconnector/state_test.go": "63f431adfee48f0ae426293cba6bc161be7c92b9eaed43730af86f0120b1856a",
+  "connector/genaisketchconnector/summary.go": "56282b88c5adac4b292a4517f87d6833e01ae5d24b3811248178a68830624fa5",
+  "connector/genaisketchconnector/summary_test.go": "8d8fd53943a35e9959359178dc062687e3b74e9d63987ab1259d57dfc8ef45fe",
+  "connector/genaisketchconnector/topk_atomicity_test.go": "665e726f3b6eb2acce296345ea93836026c3bcdebfd3316845fdec906ba5dd3d",
+  "connector/genaisketchconnector/topk_fingerprint_test.go": "097c6d82fc7f0df1c682da28e991f427705724b41ee5499224b519093e022e24",
+  "connector/genaisketchconnector/topk_keys.go": "eddd4fc2a36a85716ab60bac7dcd783d10ad8b1135d24b31a154bfe698060d2b",
+  "connector/genaisketchconnector/topk_keys_bench_test.go": "c6c8a263d79de8360af592c0525db21fd719f7374ac644644084419ce8d2d6bf",
+  "connector/genaisketchconnector/topk_keys_test.go": "9872b5a9f51aa68e45c1613b205a2f70243129dbafa6f3cf283c5994cab641ac",
+  "connector/genaisketchconnector/version.go": "9582ac52c17aaa21105b3de13ac71b7c9352ebc9b352b1c9d7024d46493586f3",
+  "connector/genaisketchconnector/version_test.go": "acb7e6d2318bdf717714145b2ab502dfaf6b2ec8febfa6907dbd3e0d93073136"
+}
+
+goos: darwin
+goarch: arm64
+pkg: github.com/llm-measurement/otelcol-genai-sketches/connector/genaisketchconnector
+cpu: Apple M4 Max
+BenchmarkAccountingPerformance/small/default         	    1881	    618215 ns/op	  629256 B/op	    6716 allocs/op
+BenchmarkAccountingPerformance/small/default         	    1928	    611484 ns/op	  629256 B/op	    6716 allocs/op
+BenchmarkAccountingPerformance/small/default         	    1929	    626730 ns/op	  629257 B/op	    6716 allocs/op
+BenchmarkAccountingPerformance/small/default         	    1914	    628039 ns/op	  629257 B/op	    6716 allocs/op
+BenchmarkAccountingPerformance/small/default         	    1932	    616726 ns/op	  629257 B/op	    6716 allocs/op
+BenchmarkAccountingPerformance/small/export          	    1375	    877246 ns/op	 1014504 B/op	   11342 allocs/op
+BenchmarkAccountingPerformance/small/export          	    1388	    884685 ns/op	 1014504 B/op	   11342 allocs/op
+BenchmarkAccountingPerformance/small/export          	    1348	    872355 ns/op	 1014504 B/op	   11342 allocs/op
+BenchmarkAccountingPerformance/small/export          	    1365	    873209 ns/op	 1014504 B/op	   11342 allocs/op
+BenchmarkAccountingPerformance/small/export          	    1347	    894397 ns/op	 1014504 B/op	   11342 allocs/op
+BenchmarkAccountingPerformance/small/model_usage     	      85	  14143021 ns/op	35285685 B/op	   55311 allocs/op
+BenchmarkAccountingPerformance/small/model_usage     	      84	  14095001 ns/op	35285710 B/op	   55311 allocs/op
+BenchmarkAccountingPerformance/small/model_usage     	      85	  14218804 ns/op	35285721 B/op	   55311 allocs/op
+BenchmarkAccountingPerformance/small/model_usage     	      78	  14718424 ns/op	35285601 B/op	   55311 allocs/op
+BenchmarkAccountingPerformance/small/model_usage     	      73	  14592113 ns/op	35285569 B/op	   55311 allocs/op
+BenchmarkAccountingPerformance/small/dedup_full      	    1786	    634414 ns/op	  660065 B/op	    6804 allocs/op
+BenchmarkAccountingPerformance/small/dedup_full      	    1873	    637802 ns/op	  658261 B/op	    6774 allocs/op
+BenchmarkAccountingPerformance/small/dedup_full      	    1873	    635213 ns/op	  658261 B/op	    6774 allocs/op
+BenchmarkAccountingPerformance/small/dedup_full      	    1887	    626921 ns/op	  657987 B/op	    6770 allocs/op
+BenchmarkAccountingPerformance/small/dedup_full      	    1873	    655929 ns/op	  658261 B/op	    6774 allocs/op
+BenchmarkAccountingPerformance/default/default       	    1329	    884884 ns/op	  844459 B/op	    6724 allocs/op
+BenchmarkAccountingPerformance/default/default       	    1374	    869713 ns/op	  844459 B/op	    6724 allocs/op
+BenchmarkAccountingPerformance/default/default       	    1378	    898099 ns/op	  844459 B/op	    6724 allocs/op
+BenchmarkAccountingPerformance/default/default       	    1305	    894511 ns/op	  844459 B/op	    6724 allocs/op
+BenchmarkAccountingPerformance/default/default       	    1336	    869377 ns/op	  844459 B/op	    6724 allocs/op
+BenchmarkAccountingPerformance/default/export        	    1040	   1135519 ns/op	 1337304 B/op	   11354 allocs/op
+BenchmarkAccountingPerformance/default/export        	    1062	   1131299 ns/op	 1337304 B/op	   11354 allocs/op
+BenchmarkAccountingPerformance/default/export        	    1048	   1165989 ns/op	 1337304 B/op	   11354 allocs/op
+BenchmarkAccountingPerformance/default/export        	    1045	   1140120 ns/op	 1337304 B/op	   11354 allocs/op
+BenchmarkAccountingPerformance/default/export        	    1046	   1130303 ns/op	 1337304 B/op	   11354 allocs/op
+BenchmarkAccountingPerformance/default/model_usage   	      58	  19253831 ns/op	64596256 B/op	   55736 allocs/op
+BenchmarkAccountingPerformance/default/model_usage   	      60	  19342328 ns/op	64596309 B/op	   55737 allocs/op
+BenchmarkAccountingPerformance/default/model_usage   	      58	  19501547 ns/op	64596258 B/op	   55736 allocs/op
+BenchmarkAccountingPerformance/default/model_usage   	      61	  19185338 ns/op	64596295 B/op	   55736 allocs/op
+BenchmarkAccountingPerformance/default/model_usage   	      58	  19322458 ns/op	64596239 B/op	   55736 allocs/op
+BenchmarkAccountingPerformance/default/dedup_full    	    1170	    891565 ns/op	  895691 B/op	    7146 allocs/op
+BenchmarkAccountingPerformance/default/dedup_full    	    1172	    893137 ns/op	  895589 B/op	    7144 allocs/op
+BenchmarkAccountingPerformance/default/dedup_full    	    1128	    911302 ns/op	  897890 B/op	    7182 allocs/op
+BenchmarkAccountingPerformance/default/dedup_full    	    1162	    892968 ns/op	  896095 B/op	    7152 allocs/op
+BenchmarkAccountingPerformance/default/dedup_full    	    1167	    895302 ns/op	  895843 B/op	    7148 allocs/op
+PASS
+ok  	github.com/llm-measurement/otelcol-genai-sketches/connector/genaisketchconnector	54.655s
+
+candidate module source SHA256 inventory:
+{
+  "connector/genaisketchconnector/accounting_fixture_test.go": "16f7a27852aced07bc8e0fc7fbe20f6292fa675d2c559a3fc4131e699e394764",
+  "connector/genaisketchconnector/accounting_resilience.go": "ab5238017c38b772db87c18a13adeb2b92baa46839fb630697bccd93590e4be4",
+  "connector/genaisketchconnector/accounting_resilience_test.go": "7b0533ccfaf29732582b1be98e4f71b2b9cfd60536cd170743819fcd2a852c75",
+  "connector/genaisketchconnector/accounting_saturation_test.go": "063a5c66e600227de2f9c49707da4d6cdd0149a5ff597dbeaff86f1be74fc991",
+  "connector/genaisketchconnector/clock.go": "20fbd4b5077e10920e4cdb3cf8c01c10c2914b40ec5cbaef79d70f45a56932d3",
+  "connector/genaisketchconnector/cmd/tracelab-replay/main.go": "fe7a9df61e8c5341b0a7e22876d458dc49188094f6d93e319b14848bb3e97498",
+  "connector/genaisketchconnector/cmd/tracelab-replay/main_test.go": "2b2b6a43ca8f5f997b94d479edba0b13ba3f37c7ae5ee8911af2d83e6d4bc852",
+  "connector/genaisketchconnector/config.go": "1bfad6207d709b3051f6d9dd231b4645b7416c16df41f27a4978ceb2e0b3e905",
+  "connector/genaisketchconnector/config_test.go": "78301ec2f5155e9ae16d3211fc75393741a01784d53946d60eac0fe43af269d2",
+  "connector/genaisketchconnector/connector.go": "243cb5b8b6ba4da5fd125d5f26414e49ad740ae1a956648ecb1b445ae0c5056b",
+  "connector/genaisketchconnector/connector_test.go": "2943671b2c78a8b42ae5bfcd1e6dadac1e14f1a9d8239a27574cc6468c158896",
+  "connector/genaisketchconnector/delivery_regression_test.go": "f1c92f5d3a351549f4f0395b45bafda2044cab4d8ce34197b1698fa089075599",
+  "connector/genaisketchconnector/doc.go": "dd6e204b3aefb8f7027cff8d28cf0145e7a1ce5e756664c838e3c1187c5fb316",
+  "connector/genaisketchconnector/extraction_fuzz_test.go": "a15dcf8f3164a2b2df3c7877c8cba953b071800c5f7b7da2a5dbcca4d92a08cb",
+  "connector/genaisketchconnector/factory.go": "4b25d7af30bf6313ce929b03df0a91a8f757ca07c688baf584424cb12dae5e62",
+  "connector/genaisketchconnector/fleet_fixture_test.go": "e53eec30d929e41e41a50cb15b11ff613cf0af05e6332c83e70f99c01167e0bf",
+  "connector/genaisketchconnector/go.mod": "2975b85b0b943780401a5ad1f28765c369dcdfff1f97bda004560c5b11025a84",
+  "connector/genaisketchconnector/go.sum": "45d3c0db76c65b87971d959164ee338693f4ea79979ab963f0ae593728ea77f2",
+  "connector/genaisketchconnector/identity_drift_test.go": "6a84152074cbbaf9f35bd81181b97b70ac0c7a870ab2f0febf0864c5287b863e",
+  "connector/genaisketchconnector/inspect_contract_test.go": "fdf1697912499b2e02de97d1eea20a8226a67ea8471beca44f0395e2643be0d8",
+  "connector/genaisketchconnector/internal/normalization/claude.go": "272c382b8e755b4b54350c108163da332366dfa1fe1e19eb729efb1447264b1e",
+  "connector/genaisketchconnector/internal/normalization/claude_test.go": "c9b8f5143293a2dd042f5965c5f17b286cf74a0875916332d8b3c93db7574cbf",
+  "connector/genaisketchconnector/internal/replay/replay.go": "06e6450e6a5e83ea6ae0f0f181285698b310df87371b9aff495cf85ff28ca2b1",
+  "connector/genaisketchconnector/internal/tracelab/rows.go": "cb93395febee6a049df85b80dbbf78f94a31e9c73d15c1c45aee4942dc53ae70",
+  "connector/genaisketchconnector/internal/tracelab/rows_test.go": "46b0436ffcd22b30453ea6d57ac31bdd9f826aa96fc32cc4e661daadb38b48e4",
+  "connector/genaisketchconnector/litellm_fixture_test.go": "1f2f327191ffc4861f958f2e457adb8a4bb099e4679c02787012a27549532287",
+  "connector/genaisketchconnector/load_test.go": "9caf301311c6541b5eb84044e84ffecb042bd1ec766f9b1f5b908aa1a0bb0f2e",
+  "connector/genaisketchconnector/model_usage.go": "e5519a6fe06fb7b531459a4798b62b0ad999e911cad64d8c06e565f7a0a0e8fa",
+  "connector/genaisketchconnector/model_usage_batch_review_test.go": "6591067b02982b3dc7c3085c4a44f4b7dea25910ec88b94ae9e54bb4fc3ce318",
+  "connector/genaisketchconnector/model_usage_combined_test.go": "1a3644155544e845b0647d254267df01385f65c07c312735fc6f6f8faf69c787",
+  "connector/genaisketchconnector/model_usage_combined_v2_test.go": "280aa8e05464e5b9c82a804c8ec6d0d76911b8b8d21aa8dbef17728177289cf1",
+  "connector/genaisketchconnector/model_usage_identity.go": "ed840a21172d247c61981fb2dd9fdb2727b4eb731b76c2a55b7b2c90196672b4",
+  "connector/genaisketchconnector/model_usage_identity_test.go": "6dabe444055b473956dd22ea3475c430f0a466ccc8b52333aeb848b3db822af4",
+  "connector/genaisketchconnector/model_usage_messages_test.go": "0d25b373bf7b51765e53ce5d6c24b314d70efca6cbb41da6cc6feb8860bea6da",
+  "connector/genaisketchconnector/model_usage_test.go": "5138e4dbe890caa4e18c397bd0b169dd1fd2783e9cafb74b784a0e8bdb7c2739",
+  "connector/genaisketchconnector/model_usage_transaction.go": "2016869639304fb4f23b7518da29725eb2fc07709ed49507578b88d075a18639",
+  "connector/genaisketchconnector/performance_bench_test.go": "b16a963614c519e2ecd8bc24a1e8088a57c314d23e853959c1fddb807d5f4fd0",
+  "connector/genaisketchconnector/performance_bounds_test.go": "107c6670eb831cd8c273c7b1d9ca11c958f8d833aa25a351dfcfcedc409c793e",
+  "connector/genaisketchconnector/performance_repro_test.go": "d6316b139e7fdab9b0ae2396470766fb996993d13f22a0581120daf28fb31f0f",
+  "connector/genaisketchconnector/provenance.go": "b70c2d6cf305f1a06108adaea26a9fa3028b98ab3fd8871d50b3862657fb624f",
+  "connector/genaisketchconnector/provenance_test.go": "03073e540de28b471c36359a72ae4ff02dc179938c37d7346d77d3cbb50c9147",
+  "connector/genaisketchconnector/regression_output_test.go": "f4b499254e4db852c7e652a9f5fc20abc0f7c41d4d1bc423487c9ddba7ba2b45",
+  "connector/genaisketchconnector/replay.go": "37583d82cab62c9a4bec2cc8118c51adde496db38274be974e280378e8ed9774",
+  "connector/genaisketchconnector/replay_test.go": "bde8019c2c3e6765040323360f6fad2c56cc5313fb4aa84325067f4058649584",
+  "connector/genaisketchconnector/snapshot_delivery_test.go": "5a01d066218b775b094033d51c2bcb2e61139c343f9a8aca7f528a6c1dcba593",
+  "connector/genaisketchconnector/span_update.go": "5958871d5327a635ac9a5e8ce9d256f008f6fb1db2fc85ef49f562b346eb740c",
+  "connector/genaisketchconnector/state.go": "6231981e0863c3a279f9ddf81176c77da611443bf9e5b9a9296252086e7e4368",
+  "connector/genaisketchconnector/state_test.go": "63f431adfee48f0ae426293cba6bc161be7c92b9eaed43730af86f0120b1856a",
+  "connector/genaisketchconnector/summary.go": "57a05f329d5d6926d1deb53a9e7bd79bce9ce743047b83e332218b694af92d8b",
+  "connector/genaisketchconnector/summary_test.go": "8d8fd53943a35e9959359178dc062687e3b74e9d63987ab1259d57dfc8ef45fe",
+  "connector/genaisketchconnector/topk_atomicity_test.go": "665e726f3b6eb2acce296345ea93836026c3bcdebfd3316845fdec906ba5dd3d",
+  "connector/genaisketchconnector/topk_fingerprint_test.go": "097c6d82fc7f0df1c682da28e991f427705724b41ee5499224b519093e022e24",
+  "connector/genaisketchconnector/topk_keys.go": "eddd4fc2a36a85716ab60bac7dcd783d10ad8b1135d24b31a154bfe698060d2b",
+  "connector/genaisketchconnector/topk_keys_bench_test.go": "c6c8a263d79de8360af592c0525db21fd719f7374ac644644084419ce8d2d6bf",
+  "connector/genaisketchconnector/topk_keys_test.go": "9872b5a9f51aa68e45c1613b205a2f70243129dbafa6f3cf283c5994cab641ac",
+  "connector/genaisketchconnector/version.go": "9582ac52c17aaa21105b3de13ac71b7c9352ebc9b352b1c9d7024d46493586f3",
+  "connector/genaisketchconnector/version_test.go": "acb7e6d2318bdf717714145b2ab502dfaf6b2ec8febfa6907dbd3e0d93073136"
+}
+
+goos: darwin
+goarch: arm64
+pkg: github.com/llm-measurement/otelcol-genai-sketches/connector/genaisketchconnector
+cpu: Apple M4 Max
+BenchmarkAccountingPerformance/small/default         	    1884	    633595 ns/op	  629257 B/op	    6716 allocs/op
+BenchmarkAccountingPerformance/small/default         	    1788	    638752 ns/op	  629257 B/op	    6716 allocs/op
+BenchmarkAccountingPerformance/small/default         	    1872	    626656 ns/op	  629256 B/op	    6716 allocs/op
+BenchmarkAccountingPerformance/small/default         	    1848	    632297 ns/op	  629257 B/op	    6716 allocs/op
+BenchmarkAccountingPerformance/small/default         	    1875	    640888 ns/op	  629257 B/op	    6716 allocs/op
+BenchmarkAccountingPerformance/small/export          	    1348	    884978 ns/op	 1014536 B/op	   11342 allocs/op
+BenchmarkAccountingPerformance/small/export          	    1348	    894626 ns/op	 1014536 B/op	   11342 allocs/op
+BenchmarkAccountingPerformance/small/export          	    1338	    899910 ns/op	 1014536 B/op	   11342 allocs/op
+BenchmarkAccountingPerformance/small/export          	    1316	    891150 ns/op	 1014536 B/op	   11342 allocs/op
+BenchmarkAccountingPerformance/small/export          	    1299	    892380 ns/op	 1014536 B/op	   11342 allocs/op
+BenchmarkAccountingPerformance/small/model_usage     	     693	   1716814 ns/op	 2076577 B/op	   15248 allocs/op
+BenchmarkAccountingPerformance/small/model_usage     	     696	   1713076 ns/op	 2076578 B/op	   15248 allocs/op
+BenchmarkAccountingPerformance/small/model_usage     	     693	   1705490 ns/op	 2076578 B/op	   15248 allocs/op
+BenchmarkAccountingPerformance/small/model_usage     	     693	   1718111 ns/op	 2076578 B/op	   15248 allocs/op
+BenchmarkAccountingPerformance/small/model_usage     	     698	   1696719 ns/op	 2076578 B/op	   15248 allocs/op
+BenchmarkAccountingPerformance/small/dedup_full      	    1668	    726501 ns/op	  728686 B/op	    7978 allocs/op
+BenchmarkAccountingPerformance/small/dedup_full      	    1622	    719861 ns/op	  728682 B/op	    7977 allocs/op
+BenchmarkAccountingPerformance/small/dedup_full      	    1684	    720063 ns/op	  728687 B/op	    7978 allocs/op
+BenchmarkAccountingPerformance/small/dedup_full      	    1678	    724918 ns/op	  728686 B/op	    7978 allocs/op
+BenchmarkAccountingPerformance/small/dedup_full      	    1658	    722402 ns/op	  728685 B/op	    7978 allocs/op
+BenchmarkAccountingPerformance/default/default       	    1268	    905075 ns/op	  844459 B/op	    6724 allocs/op
+BenchmarkAccountingPerformance/default/default       	    1310	    915745 ns/op	  844459 B/op	    6724 allocs/op
+BenchmarkAccountingPerformance/default/default       	    1332	    918728 ns/op	  844459 B/op	    6724 allocs/op
+BenchmarkAccountingPerformance/default/default       	    1242	    907200 ns/op	  844459 B/op	    6724 allocs/op
+BenchmarkAccountingPerformance/default/default       	    1308	    906398 ns/op	  844459 B/op	    6724 allocs/op
+BenchmarkAccountingPerformance/default/export        	    1016	   1157286 ns/op	 1337336 B/op	   11354 allocs/op
+BenchmarkAccountingPerformance/default/export        	    1039	   1159987 ns/op	 1337336 B/op	   11354 allocs/op
+BenchmarkAccountingPerformance/default/export        	    1030	   1172644 ns/op	 1337336 B/op	   11354 allocs/op
+BenchmarkAccountingPerformance/default/export        	     992	   1167255 ns/op	 1337336 B/op	   11354 allocs/op
+BenchmarkAccountingPerformance/default/export        	    1015	   1170150 ns/op	 1337336 B/op	   11354 allocs/op
+BenchmarkAccountingPerformance/default/model_usage   	     609	   1934117 ns/op	 2399342 B/op	   15260 allocs/op
+BenchmarkAccountingPerformance/default/model_usage   	     618	   1933743 ns/op	 2399346 B/op	   15260 allocs/op
+BenchmarkAccountingPerformance/default/model_usage   	     624	   1952209 ns/op	 2399345 B/op	   15260 allocs/op
+BenchmarkAccountingPerformance/default/model_usage   	     624	   1944031 ns/op	 2399346 B/op	   15260 allocs/op
+BenchmarkAccountingPerformance/default/model_usage   	     625	   1919317 ns/op	 2399344 B/op	   15260 allocs/op
+BenchmarkAccountingPerformance/default/dedup_full    	    1258	    956822 ns/op	  943858 B/op	    7981 allocs/op
+BenchmarkAccountingPerformance/default/dedup_full    	    1254	    973475 ns/op	  943857 B/op	    7981 allocs/op
+BenchmarkAccountingPerformance/default/dedup_full    	    1248	    969133 ns/op	  943857 B/op	    7981 allocs/op
+BenchmarkAccountingPerformance/default/dedup_full    	    1248	    984918 ns/op	  943857 B/op	    7981 allocs/op
+BenchmarkAccountingPerformance/default/dedup_full    	    1213	    974542 ns/op	  943852 B/op	    7980 allocs/op
+PASS
+ok  	github.com/llm-measurement/otelcol-genai-sketches/connector/genaisketchconnector	52.445s
+
+
+Default-mode repeat, 2026-10-20
+================================
+This ten-sample repeat supplements the five-sample measurement above; neither is replaced.
+The connector module SHA256 inventories printed above also apply to this repeat.
+The benchmark baseline adds only the same benchmark and reproduction tests.
+Source identity and raw-output hashes:
+{
+  "baseline_commit": "303b86637cc33e9624194d758b4be10ba8a16b59",
+  "benchmark_fixture_sha256": "b16a963614c519e2ecd8bc24a1e8088a57c314d23e853959c1fddb807d5f4fd0",
+  "module_inventory_encoding": "SHA256 of compact sorted-key ASCII JSON; paths include connector/genaisketchconnector/",
+  "module_inventory_sha256": {
+    "baseline": "4684d7bc6df32b63eef22191dd7074df8021f1fbb32729d0b6530ce3bf6d4bb7",
+    "candidate": "f91842afdbdf95cd3b5653d18a73618d23ed475e3f077a34eebb43c7fbafc8f7"
+  },
+  "raw_output_sha256": {
+    "baseline": "a22a2e58222b6564c27b7c3acbaa75c20525a064853fadb172b49d4d4e548576",
+    "candidate": "b29dcf532dd41423dec4fedb830f73c6ed2ea9fc0267eca2867a8c0336483fec"
+  }
+}
+
+Machine (unchanged from the initial measurement):
+{
+  "go_sha256": "318dee99db233501f6c419fbb4616e5a345ed0b831dbd6c7669b24e1ff8e9e2e",
+  "go_version": "go version go1.26.9 darwin/arm64",
+  "hw.logicalcpu": "16",
+  "hw.memsize": "68719476736",
+  "hw.physicalcpu": "16",
+  "machdep.cpu.brand_string": "Apple M4 Max",
+  "machine": "arm64",
+  "release": "27.0.0",
+  "system": "Darwin"
+}
+
+Method:
+{
+  "bootstrap_resamples": 20000,
+  "caches": "Same existing module and build caches; no downloads.",
+  "command": [
+    "go",
+    "test",
+    "-p",
+    "1",
+    "-run",
+    "^$",
+    "-bench",
+    "^BenchmarkAccountingPerformance$/(small|default)/default$",
+    "-benchmem",
+    "-benchtime=1s",
+    "-count=10",
+    "-cpu=1"
+  ],
+  "environment": {
+    "CGO_ENABLED": "1",
+    "GOMAXPROCS": "1",
+    "GOPROXY": "off",
+    "GOSUMDB": "off",
+    "GOTOOLCHAIN": "local",
+    "GOWORK": "off"
+  },
+  "fixture": "Unchanged warm dense HLLs and occupied FI maps; one model/team, two default slices, one top-k key.",
+  "order": [
+    "baseline: all ten samples per profile",
+    "candidate: all ten samples per profile"
+  ],
+  "random_seed": 20261020,
+  "samples_per_side_per_profile": 10,
+  "scope": "Default mode only, small and default profiles; all samples retained.",
+  "spans_per_operation": 100,
+  "working_directory": "connector/genaisketchconnector"
+}
+
+Results (positive effects mean candidate is slower):
+small: baseline median 6188.500 ns/span; candidate median 6207.935 ns/span; median effect +0.314%; mean effect +0.538%; unpaired 95% mean-effect interval [-0.147%, +1.345%]; exact log-mean permutation p=0.2100.
+default: baseline median 8701.215 ns/span; candidate median 8766.900 ns/span; median effect +0.755%; mean effect +0.616%; unpaired 95% mean-effect interval [+0.017%, +1.224%]; exact log-mean permutation p=0.0707.
+
+The repeat's default-mode effects are smaller than the initial measurement's.
+All baseline samples preceded all candidate samples in both measurements.
+Time-dependent host drift is confounded with code changes: neither a stable
+regression nor equivalence is established. Allocation counts were unchanged.
+Percentile-bootstrap intervals and the permutation test use different statistics;
+their results should not be collapsed into a definitive significance claim.
+Ordinal pairs are descriptive, not genuine matched pairs. Cross-sample ratios
+are dependent, not additional independent observations. The comparisons are
+exploratory and describe this warm synthetic fixture, not production throughput.
+
+Derived statistics from all retained repeat samples:
+{
+  "bootstrap_resamples": 20000,
+  "profiles": {
+    "default": {
+      "all_100_cross_sample_effect_percent": {
+        "max": 2.789059510692926,
+        "mean": 0.6172842007616732,
+        "median": 0.7238281701562488,
+        "min": -1.7924779698307969,
+        "n": 100,
+        "p10": -0.7448500823720394,
+        "p25": -0.06284320226243312,
+        "p75": 1.071425351053562,
+        "p90": 1.7714597859938566,
+        "sd": 0.9709889441087285
+      },
+      "allocations_per_batch": {
+        "baseline": [
+          6724
+        ],
+        "candidate": [
+          6724
+        ]
+      },
+      "baseline_ns_per_span": {
+        "max": 8781.14,
+        "mean": 8712.224,
+        "median": 8701.215,
+        "min": 8676.76,
+        "n": 10,
+        "p10": 8687.137,
+        "p25": 8690.1,
+        "p75": 8714.295,
+        "p90": 8769.314,
+        "sd": 34.91800878884371
+      },
+      "bytes_per_batch": {
+        "baseline": [
+          844459
+        ],
+        "candidate": [
+          844459
+        ]
+      },
+      "candidate_ns_per_span": {
+        "max": 8918.76,
+        "mean": 8765.877,
+        "median": 8766.900000000001,
+        "min": 8623.74,
+        "n": 10,
+        "p10": 8673.951000000001,
+        "p25": 8733.96,
+        "p75": 8791.375,
+        "p90": 8851.224,
+        "sd": 81.53471844694269
+      },
+      "exact_unpaired_logmean_permutation": {
+        "assumption": "Exchangeable independent samples; serial blocked order can violate this. Exploratory, two profiles, no causal interpretation.",
+        "extreme": 13062,
+        "permutations": 184756,
+        "two_sided_p": 0.07069865119400723
+      },
+      "mean_difference_ns_per_span": 53.6529999999993,
+      "mean_effect_percent": 0.6158358646425999,
+      "median_effect_percent": 0.7548945750679659,
+      "ordinal_paired_effect_percent": {
+        "max": 1.5672224790858502,
+        "mean": 0.615102506690961,
+        "median": 0.7728549578728927,
+        "min": -0.9472548904747247,
+        "n": 10,
+        "p10": -0.4001994249007046,
+        "p25": 0.5835874725119705,
+        "p75": 1.0180991556243302,
+        "p90": 1.2359289724542208,
+        "sd": 0.7393510003273969
+      },
+      "ordinal_paired_geomean_effect_percent": 0.6126459651360028,
+      "ordinal_paired_geomean_effect_percent_bootstrap95": [
+        0.1460209732035485,
+        1.0078217170019945
+      ],
+      "unpaired_mean_effect_percent_bootstrap95": [
+        0.01727053113511901,
+        1.2238480702753591
+      ],
+      "unpaired_median_effect_percent_bootstrap95": [
+        0.1096235816083091,
+        1.2647704869280352
+      ]
+    },
+    "small": {
+      "all_100_cross_sample_effect_percent": {
+        "max": 4.142229874599912,
+        "mean": 0.5396530915329301,
+        "median": 0.3719554830414973,
+        "min": -1.5941241003896045,
+        "n": 100,
+        "p10": -0.7892921312947909,
+        "p25": -0.3189291837252334,
+        "p75": 1.0641684290029985,
+        "p90": 2.199026709206221,
+        "sd": 1.2192149052200254
+      },
+      "allocations_per_batch": {
+        "baseline": [
+          6716
+        ],
+        "candidate": [
+          6716
+        ]
+      },
+      "baseline_ns_per_span": {
+        "max": 6216.58,
+        "mean": 6184.988,
+        "median": 6188.5,
+        "min": 6133.17,
+        "n": 10,
+        "p10": 6158.253,
+        "p25": 6169.155,
+        "p75": 6205.3575,
+        "p90": 6212.962,
+        "sd": 26.174853411454148
+      },
+      "bytes_per_batch": {
+        "baseline": [
+          629256,
+          629257
+        ],
+        "candidate": [
+          629256,
+          629257
+        ]
+      },
+      "candidate_ns_per_span": {
+        "max": 6387.22,
+        "mean": 6218.265,
+        "median": 6207.9349999999995,
+        "min": 6117.48,
+        "n": 10,
+        "p10": 6151.932,
+        "p25": 6176.815,
+        "p75": 6247.415,
+        "p90": 6276.61,
+        "sd": 74.55753024790108
+      },
+      "exact_unpaired_logmean_permutation": {
+        "assumption": "Exchangeable independent samples; serial blocked order can violate this. Exploratory, two profiles, no causal interpretation.",
+        "extreme": 38790,
+        "permutations": 184756,
+        "two_sided_p": 0.20995258611357684
+      },
+      "mean_difference_ns_per_span": 33.27699999999953,
+      "mean_effect_percent": 0.5380285297238885,
+      "median_effect_percent": 0.3140502545043278,
+      "ordinal_paired_effect_percent": {
+        "max": 3.6711334450027833,
+        "mean": 0.5427428269999302,
+        "median": 0.38047547633224266,
+        "min": -1.5304479956732786,
+        "n": 10,
+        "p10": -0.9180084866236815,
+        "p25": -0.406018672278996,
+        "p75": 1.0265717357539172,
+        "p90": 2.291648291354846,
+        "sd": 1.5263518019705598
+      },
+      "ordinal_paired_geomean_effect_percent": 0.5323841186358392,
+      "ordinal_paired_geomean_effect_percent_bootstrap95": [
+        -0.3079832367537242,
+        1.4833865635811094
+      ],
+      "unpaired_mean_effect_percent_bootstrap95": [
+        -0.14675747175376422,
+        1.3452768621887516
+      ],
+      "unpaired_median_effect_percent_bootstrap95": [
+        -0.3922023409728248,
+        1.1587078936215578
+      ]
+    }
+  },
+  "random_seed": 20261020
+}
+
+Repeat baseline raw output (ns/op and allocation units are per 100-span batch):
+goos: darwin
+goarch: arm64
+pkg: github.com/llm-measurement/otelcol-genai-sketches/connector/genaisketchconnector
+cpu: Apple M4 Max
+BenchmarkAccountingPerformance/small/default         	    1954	    621256 ns/op	  629256 B/op	    6716 allocs/op
+BenchmarkAccountingPerformance/small/default         	    1940	    616104 ns/op	  629256 B/op	    6716 allocs/op
+BenchmarkAccountingPerformance/small/default         	    1939	    618346 ns/op	  629256 B/op	    6716 allocs/op
+BenchmarkAccountingPerformance/small/default         	    1926	    617943 ns/op	  629256 B/op	    6716 allocs/op
+BenchmarkAccountingPerformance/small/default         	    1935	    619354 ns/op	  629257 B/op	    6716 allocs/op
+BenchmarkAccountingPerformance/small/default         	    1941	    613317 ns/op	  629256 B/op	    6716 allocs/op
+BenchmarkAccountingPerformance/small/default         	    1904	    621658 ns/op	  629256 B/op	    6716 allocs/op
+BenchmarkAccountingPerformance/small/default         	    1909	    616573 ns/op	  629256 B/op	    6716 allocs/op
+BenchmarkAccountingPerformance/small/default         	    1935	    620853 ns/op	  629256 B/op	    6716 allocs/op
+BenchmarkAccountingPerformance/small/default         	    1921	    619584 ns/op	  629256 B/op	    6716 allocs/op
+BenchmarkAccountingPerformance/default/default       	    1362	    870909 ns/op	  844459 B/op	    6724 allocs/op
+BenchmarkAccountingPerformance/default/default       	    1375	    876800 ns/op	  844459 B/op	    6724 allocs/op
+BenchmarkAccountingPerformance/default/default       	    1366	    868829 ns/op	  844459 B/op	    6724 allocs/op
+BenchmarkAccountingPerformance/default/default       	    1375	    870621 ns/op	  844459 B/op	    6724 allocs/op
+BenchmarkAccountingPerformance/default/default       	    1357	    869622 ns/op	  844459 B/op	    6724 allocs/op
+BenchmarkAccountingPerformance/default/default       	    1396	    869055 ns/op	  844459 B/op	    6724 allocs/op
+BenchmarkAccountingPerformance/default/default       	    1371	    871603 ns/op	  844459 B/op	    6724 allocs/op
+BenchmarkAccountingPerformance/default/default       	    1356	    868995 ns/op	  844459 B/op	    6724 allocs/op
+BenchmarkAccountingPerformance/default/default       	    1378	    867676 ns/op	  844459 B/op	    6724 allocs/op
+BenchmarkAccountingPerformance/default/default       	    1354	    878114 ns/op	  844459 B/op	    6724 allocs/op
+PASS
+ok  	github.com/llm-measurement/otelcol-genai-sketches/connector/genaisketchconnector	25.580s
+
+Repeat candidate raw output (ns/op and allocation units are per 100-span batch):
+goos: darwin
+goarch: arm64
+pkg: github.com/llm-measurement/otelcol-genai-sketches/connector/genaisketchconnector
+cpu: Apple M4 Max
+BenchmarkAccountingPerformance/small/default         	    1929	    611748 ns/op	  629256 B/op	    6716 allocs/op
+BenchmarkAccountingPerformance/small/default         	    1926	    638722 ns/op	  629256 B/op	    6716 allocs/op
+BenchmarkAccountingPerformance/small/default         	    1834	    622576 ns/op	  629256 B/op	    6716 allocs/op
+BenchmarkAccountingPerformance/small/default         	    1876	    618418 ns/op	  629256 B/op	    6716 allocs/op
+BenchmarkAccountingPerformance/small/default         	    1930	    625310 ns/op	  629256 B/op	    6716 allocs/op
+BenchmarkAccountingPerformance/small/default         	    1806	    626432 ns/op	  629257 B/op	    6716 allocs/op
+BenchmarkAccountingPerformance/small/default         	    1950	    619011 ns/op	  629256 B/op	    6716 allocs/op
+BenchmarkAccountingPerformance/small/default         	    1926	    623036 ns/op	  629256 B/op	    6716 allocs/op
+BenchmarkAccountingPerformance/small/default         	    1945	    615576 ns/op	  629256 B/op	    6716 allocs/op
+BenchmarkAccountingPerformance/small/default         	    1918	    617436 ns/op	  629256 B/op	    6716 allocs/op
+BenchmarkAccountingPerformance/default/default       	    1359	    867953 ns/op	  844459 B/op	    6724 allocs/op
+BenchmarkAccountingPerformance/default/default       	    1364	    884372 ns/op	  844459 B/op	    6724 allocs/op
+BenchmarkAccountingPerformance/default/default       	    1392	    878122 ns/op	  844459 B/op	    6724 allocs/op
+BenchmarkAccountingPerformance/default/default       	    1267	    862374 ns/op	  844459 B/op	    6724 allocs/op
+BenchmarkAccountingPerformance/default/default       	    1414	    876360 ns/op	  844459 B/op	    6724 allocs/op
+BenchmarkAccountingPerformance/default/default       	    1251	    879476 ns/op	  844459 B/op	    6724 allocs/op
+BenchmarkAccountingPerformance/default/default       	    1356	    877020 ns/op	  844459 B/op	    6724 allocs/op
+BenchmarkAccountingPerformance/default/default       	    1394	    875694 ns/op	  844459 B/op	    6724 allocs/op
+BenchmarkAccountingPerformance/default/default       	    1371	    872630 ns/op	  844459 B/op	    6724 allocs/op
+BenchmarkAccountingPerformance/default/default       	    1418	    891876 ns/op	  844459 B/op	    6724 allocs/op
+PASS
+ok  	github.com/llm-measurement/otelcol-genai-sketches/connector/genaisketchconnector	25.439s

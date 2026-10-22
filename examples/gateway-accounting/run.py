@@ -21,6 +21,17 @@ ROOT = Path(__file__).resolve().parent
 REPO = ROOT.parents[1]
 
 
+def cache_home():
+    return Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache").resolve()
+
+
+def private_output(path):
+    path = Path(path).resolve()
+    if path.is_relative_to(REPO.resolve()) or path in {cache_home(), (Path.home() / ".cache").resolve()}:
+        raise ValueError("private evidence must be outside the checkout and cannot be a cache root")
+    return path
+
+
 def command(args, log, timeout=240):
     result = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout)
     with log.open("ab") as output:
@@ -131,9 +142,7 @@ def main():
     if cache_cases:
         cases += ["cache_write", "cache_read"]
     os.umask(0o077)
-    root = (args.output or REPO / ".cache" / ("gateway-study-" + uuid.uuid4().hex[:12])).resolve()
-    if (REPO / ".cache").resolve() not in root.parents:
-        parser.error("keep private evidence in a new directory under repository .cache")
+    root = private_output(args.output or cache_home() / ("gateway-study-" + uuid.uuid4().hex[:12]))
     root.mkdir(mode=0o700, parents=True, exist_ok=False)
     sources = {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest()
                for p in ROOT.rglob("*") if p.is_file() and p.suffix in (".py", ".json", ".md", ".yaml")}
@@ -164,7 +173,11 @@ def main():
     if any(hashlib.sha256((ROOT / path).read_bytes()).hexdigest() != digest for path, digest in sources.items()):
         raise RuntimeError("study source changed during this run; retain it as a development run")
     from analyze import write_report
-    write_report(root)
+    private_values = ()
+    if live:
+        text = args.key_file.read_text().strip()
+        private_values = (text.split("=", 1)[-1].strip(),)
+    write_report(root, private_values)
     return 0 if all(value["status"] == "completed" for value in results) else 1
 
 
