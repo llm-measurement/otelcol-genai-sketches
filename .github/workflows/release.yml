@@ -32,8 +32,119 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Require a commit on main
-        run: git merge-base --is-ancestor "${GITHUB_SHA}" origin/main
+      - name: Require main or the protected matching maintenance line
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const repository = `${context.repo.owner}/${context.repo.repo}`;
+            if (repository !== 'llm-measurement/otelcol-genai-sketches' ||
+                context.eventName !== 'push' || context.sha?.length !== 40 || !/^[a-f0-9]{40}$/.test(context.sha)) {
+              throw new Error('Unexpected release context.');
+            }
+            const match = /^refs\/tags\/v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$/.exec(context.ref);
+            if (!match || match[0] !== context.ref) throw new Error('Expected a canonical runtime release tag.');
+            const branch = `release/${match[1]}.${match[2]}`;
+            const getBranch = async name => (await github.rest.repos.getBranch({
+              ...context.repo, branch: name,
+            })).data;
+            const contains = async head => {
+              if (head?.length !== 40 || !/^[a-f0-9]{40}$/.test(head)) throw new Error('Invalid branch SHA.');
+              const { data } = await github.rest.repos.compareCommits({
+                ...context.repo, base: context.sha, head,
+              });
+              if (data.base_commit?.sha !== context.sha) throw new Error('Unbound ancestry response.');
+              return data.status === 'ahead' || data.status === 'identical';
+            };
+            const main = await getBranch('main');
+            if (main.protected !== true) throw new Error('Main is not protected.');
+            if (await contains(main.commit?.sha)) {
+              core.info('Release source is an ancestor of protected main.');
+              return;
+            }
+            const before = await getBranch(branch);
+            if (before.protected !== true || !await contains(before.commit?.sha)) {
+              throw new Error('Release source is not on the protected matching maintenance line.');
+            }
+            const normalize = value => Array.isArray(value) ? value.map(normalize)
+              : value && typeof value === 'object'
+                ? Object.fromEntries(Object.keys(value).sort().map(key => [key, normalize(value[key])])) : value;
+            const canonical = value => JSON.stringify(normalize(value));
+            const rules = async name => github.paginate('GET /repos/{owner}/{repo}/rules/branches/{branch}', {
+              ...context.repo, branch: name, per_page: 100,
+            });
+            const baseline = (await github.request('GET /repos/{owner}/{repo}/rulesets/{ruleset_id}', {
+              ...context.repo, ruleset_id: 20402161,
+            })).data;
+            if (baseline.target !== 'branch' || baseline.enforcement !== 'active' ||
+                baseline.source_type !== 'Repository' || baseline.source !== repository) {
+              throw new Error('Main policy baseline is unavailable.');
+            }
+            const required = ['deletion', 'non_fast_forward', 'required_linear_history',
+              'required_signatures', 'pull_request', 'required_status_checks'];
+            if (required.some(type => !baseline.rules.some(rule => rule.type === type))) {
+              throw new Error('Main policy baseline lost a required protection.');
+            }
+            const checks = baseline.rules.find(rule => rule.type === 'required_status_checks').parameters;
+            if (checks?.strict_required_status_checks_policy !== true || checks.do_not_enforce_on_create !== false ||
+                ['test', 'example-smoke', 'commit-signatures-trusted', 'dco-trusted', 'trusted-api-tests']
+                  .some(name => !checks.required_status_checks?.some(check => check.context === name && check.integration_id === 15368))) {
+              throw new Error('Required trusted checks are missing.');
+            }
+            const active = await rules(branch);
+            const mainActive = await rules('main');
+            const comparable = rule => canonical({ type: rule.type, ...(rule.parameters ? { parameters: rule.parameters } : {}) });
+            const expected = baseline.rules.map(comparable).sort();
+            if (baseline.rules.some(rule => !mainActive.some(item => item.ruleset_id === baseline.id && comparable(item) === comparable(rule))) ||
+                mainActive.some(rule => !active.some(item => comparable(item) === comparable(rule)))) {
+              throw new Error('Maintenance protections do not mirror effective main protections.');
+            }
+            const baselineSnapshot = canonical(baseline);
+            const effectiveSnapshot = value => canonical(value.map(canonical).sort());
+            const activeSnapshot = effectiveSnapshot(active);
+            const mainActiveSnapshot = effectiveSnapshot(mainActive);
+            const approved = new Map();
+            const ids = [...new Set(active.filter(rule => rule.ruleset_source_type === 'Repository' &&
+              rule.ruleset_source === repository).map(rule => rule.ruleset_id))];
+            for (const id of ids) {
+              const { data } = await github.request('GET /repos/{owner}/{repo}/rulesets/{ruleset_id}', {
+                ...context.repo, ruleset_id: id,
+              });
+              if (data.name !== 'Protect maintenance releases' || data.target !== 'branch' ||
+                  data.enforcement !== 'active' || data.source_type !== 'Repository' || data.source !== repository ||
+                  canonical(data.conditions?.ref_name) !== canonical({ include: ['refs/heads/release/*'], exclude: [] }) ||
+                  canonical(data.rules.map(comparable).sort()) !== canonical(expected)) continue;
+              if (data.bypass_actors !== undefined && (!Array.isArray(data.bypass_actors) || data.bypass_actors.length)) {
+                throw new Error('Maintenance ruleset has bypass actors.');
+              }
+              if (!data.rules.every(rule => active.some(item => item.ruleset_id === id && comparable(item) === comparable(rule)))) continue;
+              approved.set(id, canonical(data));
+            }
+            if (!approved.size) throw new Error('No active main-mirroring maintenance ruleset.');
+            const after = await getBranch(branch);
+            if (after.protected !== true || after.commit?.sha !== before.commit.sha) {
+              throw new Error('Maintenance branch changed during verification; stop publication.');
+            }
+            const { data: finalBaseline } = await github.request('GET /repos/{owner}/{repo}/rulesets/{ruleset_id}', {
+              ...context.repo, ruleset_id: 20402161,
+            });
+            if (canonical(finalBaseline) !== baselineSnapshot ||
+                effectiveSnapshot(await rules('main')) !== mainActiveSnapshot ||
+                effectiveSnapshot(await rules(branch)) !== activeSnapshot) {
+              throw new Error('Release protection policy changed during verification; stop publication.');
+            }
+            for (const [id, snapshot] of approved) {
+              const { data } = await github.request('GET /repos/{owner}/{repo}/rulesets/{ruleset_id}', {
+                ...context.repo, ruleset_id: id,
+              });
+              if (canonical(data) !== snapshot) {
+                throw new Error('Maintenance ruleset changed during verification; stop publication.');
+              }
+            }
+            // These sequential snapshots are not atomic. Changes after each
+            // final read remain outside this gate's observation boundary.
+            // Read-only API tokens cannot see hidden bypass actors. Reviewer must
+            // verify the complete ruleset with administrative visibility before tagging.
+            core.info(`Release source is on protected ${branch}; administrative no-bypass review is also required.`);
 
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
