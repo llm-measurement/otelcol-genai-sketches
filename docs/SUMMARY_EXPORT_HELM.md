@@ -4,8 +4,8 @@
 # Summary Export With Helm
 
 Keep summary windows in Kubernetes, copy them locally, and use fleetdiff to find
-the users and sessions behind a change. Chart **0.6.1** provides private storage,
-a read-only reader sidecar, and JSON log encoding with collector **v0.6.1**.
+the users and sessions behind a change. Chart **0.6.2** provides private storage,
+a read-only reader sidecar, and JSON log encoding with collector **v0.6.2**.
 Summary storage and readback were introduced in chart 0.3.2; chart and collector
 versions advance independently.
 
@@ -16,7 +16,7 @@ Use Helm, kubectl with pod-exec permission, local Python **3.10+**, and
 Clone the matching release for the example values and copy helper:
 
 ```sh
-git clone --depth 1 --branch v0.6.1 https://github.com/llm-measurement/otelcol-genai-sketches.git collector-summary
+git clone --depth 1 --branch v0.6.2 https://github.com/llm-measurement/otelcol-genai-sketches.git collector-summary
 cd collector-summary
 ```
 
@@ -38,13 +38,13 @@ image digest, TLS, shadow, and resource settings when upgrading:
 ```sh
 umask 077
 helm template genai-sketches \
-  oci://ghcr.io/llm-measurement/charts/otelcol-genai-sketches --version 0.6.1 \
+  oci://ghcr.io/llm-measurement/charts/otelcol-genai-sketches --version 0.6.2 \
   --namespace observability \
   -f deploy/kubernetes/central/summary-values.yaml \
-  --set-string image.digest="${DIGEST:?verify the released v0.6.1 image first}"
+  --set-string image.digest="${DIGEST:?verify the released v0.6.2 image first}"
 
 helm upgrade --install genai-sketches \
-  oci://ghcr.io/llm-measurement/charts/otelcol-genai-sketches --version 0.6.1 \
+  oci://ghcr.io/llm-measurement/charts/otelcol-genai-sketches --version 0.6.2 \
   --namespace observability \
   -f deploy/kubernetes/central/summary-values.yaml \
   --set-string image.digest="${DIGEST:?verify the release image first}"
