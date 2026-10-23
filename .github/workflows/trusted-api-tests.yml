@@ -19,4 +19,4 @@ jobs:
         with:
           persist-credentials: false
       - name: Test trusted API checks and workflow boundaries
-        run: node --test .github/tests/trusted-api.test.cjs
+        run: node --test .github/tests/*.test.cjs
