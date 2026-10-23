@@ -16,7 +16,8 @@ function readWorkflow(name) {
 const checkNames = ['dco', 'commit-signatures'];
 const workflows = Object.fromEntries(checkNames.map(name => [name, readWorkflow(`${name}-trusted`)]));
 const testsWorkflow = readWorkflow('trusted-api-tests');
-const checks = Object.fromEntries(Object.entries(workflows).map(([name, workflow]) => {
+// Signature verification has its own native-crypto harness in signer-native.test.cjs.
+const checks = Object.fromEntries(Object.entries(workflows).filter(([name]) => name === 'dco').map(([name, workflow]) => {
   const script = workflow.jobs[`${name}-trusted`].steps[0].with.script;
   return [name, vm.runInNewContext(`(async function(github, context, core, require) {${script}\n})`)];
 }));
@@ -51,7 +52,7 @@ async function check(options = {}) {
     sha: options.contextSHA ?? before.base.sha, ref: 'refs/heads/main', payload: {
     pull_request: { number: 7, head: { sha: options.eventHead ?? before.head.sha,
       ref: options.eventHeadRef ?? before.head.ref, repo: { owner: { login: 'contributor' }, name: 'fork' } },
-      base: { ref: options.eventBase ?? before.base.ref } },
+      base: { ref: options.eventBase ?? options.baseRef ?? 'main' } },
   } };
   options.changeEvent?.(context.payload.pull_request);
   const errors = [], failures = [], info = [];
@@ -151,7 +152,7 @@ for (const [name, workflow] of Object.entries(workflows)) {
     assert.doesNotMatch(script, /github\.paginate|pulls\.listCommits/);
     assert.doesNotMatch(script, /\b(?:eval|Function|import)\s*\(/);
     assert.deepEqual([...script.matchAll(/\brequire\(([^)]+)\)/g)].map(match => match[1]),
-      name === 'dco' ? ["'node:child_process'"] : []);
+      name === 'dco' ? ["'node:child_process'"] : ["'node:child_process'", "'node:fs'", "'node:os'", "'node:path'", "'node:crypto'"]);
   });
 }
 
@@ -165,11 +166,29 @@ test('PR-controlled test execution stays in an unprivileged pull_request workflo
   assert.equal(job.steps.length, 2);
   assert.deepEqual(job.steps[0], {
     uses: 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1',
-    with: { 'persist-credentials': false },
+    with: { 'persist-credentials': false, ref: '${{ github.event.pull_request.head.sha }}' },
   });
   assert.deepEqual(job.steps[1], {
-    name: 'Test trusted API checks and workflow boundaries', run: 'node --test .github/tests/*.test.cjs',
+    name: 'Test trusted API checks and workflow boundaries', run: 'node .github/tests/signer-preflight.cjs',
   });
+});
+
+const { summarize } = require('./signer-preflight.cjs');
+const preflightTAP = '# tests 2\n# pass 2\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n';
+test('candidate preflight records actual complete passing totals', () => {
+  assert.deepEqual(summarize(preflightTAP, 0), { tests: 2, pass: 2, fail: 0, cancelled: 0, skipped: 0, todo: 0 });
+});
+for (const name of ['fail', 'cancelled', 'skipped', 'todo']) {
+  test(`candidate preflight rejects nonzero ${name}`, () => {
+    assert.throws(() => summarize(preflightTAP.replace(`# ${name} 0`, `# ${name} 1`), 0));
+  });
+}
+test('candidate preflight rejects empty, incomplete, repeated, or failed totals', () => {
+  for (const tap of ['', preflightTAP.replace('# pass 2', '# pass 1'),
+    preflightTAP.replace('# tests 2', '# tests 0'), preflightTAP + '# pass 2\n']) {
+    assert.throws(() => summarize(tap, 0));
+  }
+  assert.throws(() => summarize(preflightTAP, 1));
 });
 
 // After activation and the required-check switch, only trusted API checks remain.
@@ -392,66 +411,6 @@ for (const kind of Object.keys(checks)) {
     assert.ok(result.thrown);
   });
 }
-
-test('signature check reports every unverified commit, not just the latest', async () => {
-  const commits = [commit(1), commit(2), commit(3)];
-  commits[0].commit.verification = { verified: false, reason: 'unsigned' };
-  delete commits[1].commit.verification;
-  const result = await check({ kind: 'commit-signatures', commits });
-  assert.equal(result.passed, false);
-  assert.equal(result.errors.length, 2);
-  assert.ok(result.errors[0].includes(sha(1)));
-  assert.ok(result.errors[0].includes('unsigned'));
-  assert.ok(result.errors[1].includes(sha(2)));
-  assert.ok(result.errors[1].includes('verification unavailable'));
-  assert.equal(result.failures.length, 1);
-  assert.ok(result.failures[0].startsWith('2 of 3'));
-});
-
-for (const verification of [undefined, null, {}, { verified: false }, { verified: 'true' }, { verified: 1 }]) {
-  test(`signature check requires boolean verified=true: ${JSON.stringify(verification)}`, async () => {
-    const value = commit(1);
-    value.commit.verification = verification;
-    assert.equal((await check({ kind: 'commit-signatures', commits: [value] })).passed, false);
-  });
-}
-
-test('signature check rejects a missing commit payload', async () => {
-  const value = commit(1);
-  delete value.commit;
-  assert.equal((await check({ kind: 'commit-signatures', commits: [value] })).passed, false);
-});
-
-test('signature check does not exempt unsigned bots or branch-update merges', async () => {
-  const bot = commit(1);
-  bot.author = { type: 'Bot' };
-  const merge = update();
-  for (const value of [bot, merge]) value.commit.verification.verified = false;
-  const result = await check({ kind: 'commit-signatures', commits: [bot, merge] });
-  assert.equal(result.passed, false);
-  assert.equal(result.errors.length, 2);
-  assert.equal(result.signatures, 0);
-  assert.equal(result.comparisons, 0);
-  assert.equal(result.parsers, 0);
-});
-
-test('signatures and DCO remain separate requirements', async () => {
-  const signedOnly = commit(1, 'No author sign-off');
-  assert.equal((await check({ kind: 'commit-signatures', commits: [signedOnly] })).passed, true);
-  assert.equal((await check({ commits: [signedOnly] })).passed, false);
-  const signoffOnly = commit(1);
-  signoffOnly.commit.verification.verified = false;
-  assert.equal((await check({ kind: 'commit-signatures', commits: [signoffOnly] })).passed, false);
-  assert.equal((await check({ commits: [signoffOnly] })).passed, true);
-});
-
-test('unverified signature on the third page is reported', async () => {
-  const commits = Array.from({ length: 201 }, (_, i) => commit(i + 1));
-  commits[200].commit.verification.verified = false;
-  const result = await check({ kind: 'commit-signatures', commits });
-  assert.equal(result.passed, false);
-  assert.ok(result.errors[0].includes(sha(201)));
-});
 
 for (const kind of Object.keys(checks)) {
   test(`${kind}: ABA pagination cannot omit a failing commit from a 101-commit PR`, async () => {

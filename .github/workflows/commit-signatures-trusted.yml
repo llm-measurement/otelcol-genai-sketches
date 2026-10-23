@@ -34,22 +34,20 @@ jobs:
             }
             // Pin every page to immutable commits; a PR can change and change back between reads.
             const commits = [];
+            let mergeBase;
             for (let page = 1; page <= Math.ceil(before.commits / 100); page++) {
               const { data: comparison } = await github.rest.repos.compareCommits({
                 ...context.repo, base: before.base.sha, head: before.head.sha, per_page: 100, page,
               });
               if (comparison.total_commits !== before.commits || comparison.base_commit?.sha !== before.base.sha ||
+                  !/^[a-f0-9]{40}$/.test(comparison.merge_base_commit?.sha) ||
+                  (mergeBase !== undefined && mergeBase !== comparison.merge_base_commit.sha) ||
                   !Array.isArray(comparison.commits) ||
                   comparison.commits.length !== Math.min(100, before.commits - (page - 1) * 100)) {
                 throw new Error(invalidList);
               }
+              mergeBase = comparison.merge_base_commit.sha;
               commits.push(...comparison.commits);
-            }
-            const { data: after } = await github.rest.pulls.get(params);
-            if (after.head.sha !== before.head.sha || after.base.sha !== before.base.sha ||
-                after.base.ref !== before.base.ref || after.head.ref !== before.head.ref ||
-                after.commits !== before.commits) {
-              throw new Error('PR changed during verification; rerun the check.');
             }
             const shas = new Set(commits.map(commit => commit.sha));
             if (commits.length !== before.commits || shas.size !== before.commits ||
@@ -58,13 +56,305 @@ jobs:
               throw new Error(invalidList);
             }
 
-            const unverified = commits.filter(commit => commit.commit?.verification?.verified !== true);
-            for (const commit of unverified) {
-              const reason = commit.commit?.verification?.reason ?? 'verification unavailable';
-              core.error(`Unverified commit ${commit.sha}: ${reason}`);
+            const { execFileSync } = require('node:child_process');
+            const fs = require('node:fs');
+            const os = require('node:os');
+            const path = require('node:path');
+            const { createHash } = require('node:crypto');
+            const fail = () => { throw new Error('Signer verification failed closed.'); };
+            const oid = value => typeof value === 'string' && /^[a-f0-9]{40}$/.test(value);
+            const fingerprint = value => typeof value === 'string' && /^[A-F0-9]{40}$/.test(value);
+            const denied = new Set(['968479A1AFF927E37D1A566BB5690EEEBB952194',
+              '5DE3E0509C47EA3CF04A42D34AEE18F83AFDEB23']);
+            const hash = (algorithm, bytes) => createHash(algorithm).update(bytes).digest('hex');
+            const objectHash = (type, bytes) => hash('sha1', Buffer.concat([
+              Buffer.from(`${type} ${bytes.length}\0`), bytes]));
+            const bounded = (value, limit) => {
+              if (typeof value !== 'string' || Buffer.byteLength(value) > limit || value.includes('\0')) fail();
+              return value;
+            };
+            let baseEntries;
+            const commitObjects = new Map(), rootTrees = new Map(), protectedStates = new Map();
+            async function commitObject(commitSHA) {
+              if (!oid(commitSHA)) fail();
+              if (!commitObjects.has(commitSHA)) {
+                const { data } = await github.rest.git.getCommit({ ...context.repo, commit_sha: commitSHA });
+                if (data.sha !== commitSHA || !oid(data.tree?.sha) || !Array.isArray(data.parents) ||
+                    data.parents.length > 16 || !data.parents.every(parent => oid(parent.sha))) fail();
+                commitObjects.set(commitSHA, data);
+              }
+              return commitObjects.get(commitSHA);
             }
-            if (unverified.length > 0) {
-              core.setFailed(`${unverified.length} of ${commits.length} PR commits are not verified. Sign every commit and push the updated branch.`);
-            } else {
-              core.info(`All ${commits.length} PR commits have verified signatures.`);
+            async function blob(file) {
+              const { data } = await github.rest.repos.getContent({ ...context.repo, path: file, ref: before.base.sha });
+              if (data.type !== 'file' || data.encoding !== 'base64' || !oid(data.sha) ||
+                  !Number.isInteger(data.size) || data.size < 1 || data.size > 131072) fail();
+              const entry = baseEntries.find(item => `.github/${item.path}` === file);
+              if (!entry || entry.type !== 'blob' || entry.mode !== '100644' || entry.sha !== data.sha) fail();
+              const bytes = Buffer.from(bounded(data.content, 180000), 'base64');
+              if (bytes.length !== data.size || objectHash('blob', bytes) !== data.sha ||
+                  !bytes.equals(Buffer.from(bytes.toString('utf8')))) fail();
+              return bytes;
+            }
+            // Protect the inline checker, all workflows (including additions), and trust data.
+            async function protectedTree(commitSHA) {
+              const commit = await commitObject(commitSHA);
+              if (rootTrees.has(commit.tree.sha)) return rootTrees.get(commit.tree.sha);
+              const { data: tree } = await github.rest.git.getTree({ ...context.repo, tree_sha: commit.tree.sha });
+              if (tree.sha !== commit.tree.sha || tree.truncated !== false || !Array.isArray(tree.tree) ||
+                  tree.tree.length > 10000) fail();
+              const entries = tree.tree.filter(entry => entry.path === '.github');
+              if (entries.length !== 1 || entries[0].mode !== '040000' || entries[0].type !== 'tree' ||
+                  !oid(entries[0].sha)) fail();
+              rootTrees.set(commit.tree.sha, entries[0].sha);
+              return entries[0].sha;
+            }
+            async function protectedEntries(treeSHA) {
+              if (protectedStates.has(treeSHA)) return protectedStates.get(treeSHA);
+              const { data } = await github.rest.git.getTree({ ...context.repo, tree_sha: treeSHA });
+              if (data.sha !== treeSHA || data.truncated !== false || !Array.isArray(data.tree) ||
+                  data.tree.length > 10000 || new Set(data.tree.map(entry => entry.path)).size !== data.tree.length) fail();
+              const state = JSON.stringify(['maintainer-signers.json', 'signing-keys', 'workflows'].map(name => {
+                const entry = data.tree.find(item => item.path === name);
+                if (!entry) return null;
+                if (!oid(entry.sha) || (name === 'maintainer-signers.json'
+                    ? entry.type !== 'blob' || entry.mode !== '100644'
+                    : entry.type !== 'tree' || entry.mode !== '040000')) fail();
+                return [entry.path, entry.mode, entry.type, entry.sha];
+              }));
+              protectedStates.set(treeSHA, state);
+              return state;
+            }
+            const baseTree = await protectedTree(before.base.sha);
+            const baseState = await protectedEntries(baseTree);
+            await commitObject(mergeBase);
+            const provenance = new Map();
+            async function inBase(parentSHA) {
+              if (parentSHA === before.base.sha) return true;
+              if (shas.has(parentSHA)) return false;
+              if (!provenance.has(parentSHA)) {
+                const { data } = await github.rest.repos.compareCommits({ ...context.repo,
+                  base: parentSHA, head: before.base.sha });
+                if (data.base_commit?.sha !== parentSHA || data.merge_base_commit?.sha !== parentSHA ||
+                    !['ahead', 'identical'].includes(data.status)) fail();
+                provenance.set(parentSHA, true);
+              }
+              return true;
+            }
+            // Scan every introduced commit: an edit then revert is still a protected edit.
+            // Only an exact import of CURRENT B's protected state from trusted base history
+            // is exempt. An old ancestor cannot resurrect retired keys/checker policy.
+            let protectedChange = false;
+            for (const item of commits) {
+              const commit = await commitObject(item.sha);
+              for (const parent of commit.parents) if (!shas.has(parent.sha)) await inBase(parent.sha);
+              const state = await protectedEntries(await protectedTree(item.sha));
+              const parentStates = [];
+              for (const parent of commit.parents) {
+                parentStates.push(await protectedEntries(await protectedTree(parent.sha)));
+              }
+              // A merge can discard another parent's protected updates despite matching its first parent.
+              if (parentStates.length > 0 && parentStates.every(parentState => parentState === state)) continue;
+              let trustedImport = false;
+              if (commit.parents.length > 1 && state === baseState) {
+                for (const parent of commit.parents) {
+                  if (await inBase(parent.sha) && state === await protectedEntries(await protectedTree(parent.sha))) {
+                    trustedImport = true; break;
+                  }
+                }
+              }
+              if (!trustedImport) protectedChange = true;
+            }
+            const { data: baseFiles } = await github.rest.git.getTree({ ...context.repo, tree_sha: baseTree, recursive: 'true' });
+            if (baseFiles.sha !== baseTree || baseFiles.truncated !== false || !Array.isArray(baseFiles.tree) ||
+                baseFiles.tree.length > 10000 || new Set(baseFiles.tree.map(entry => entry.path)).size !== baseFiles.tree.length) fail();
+            baseEntries = baseFiles.tree;
+            // Never fall back to the PR head or default branch when a target has no trust root.
+            const policy = JSON.parse((await blob('.github/maintainer-signers.json')).toString('utf8'));
+            if (policy.version !== 1 || !Array.isArray(policy.maintainers) ||
+                policy.maintainers.length < 1 || policy.maintainers.length > 32 ||
+                Object.keys(policy).sort().join(',') !== 'maintainers,version') fail();
+            const seenIDs = new Set(), seenLogins = new Set(), seenKeys = new Set();
+            for (const maintainer of policy.maintainers) {
+              if (Object.keys(maintainer).sort().join(',') !== 'emails,id,keys,login' ||
+                  !Number.isSafeInteger(maintainer.id) || maintainer.id < 1 ||
+                  !/^[a-z0-9][a-z0-9-]{0,38}$/.test(maintainer.login) || maintainer.login === 'web-flow' ||
+                  seenIDs.has(maintainer.id) || seenLogins.has(maintainer.login) ||
+                  !Array.isArray(maintainer.emails) || maintainer.emails.length > 32 ||
+                  !maintainer.emails.every(email => typeof email === 'string' && /^[^\s<>@]+@[^\s<>@]+$/.test(email)) ||
+                  !Array.isArray(maintainer.keys) || !maintainer.keys.length || maintainer.keys.length > 8) fail();
+              seenIDs.add(maintainer.id); seenLogins.add(maintainer.login);
+              maintainer.emails = maintainer.emails.map(email => email.toLowerCase());
+              for (const key of maintainer.keys) {
+                if (Object.keys(key).sort().join(',') !== 'path,primary,sha256,signers' ||
+                    !/^\.github\/signing-keys\/[a-zA-Z0-9_-]+\.asc$/.test(key.path) ||
+                    !/^[a-f0-9]{64}$/.test(key.sha256) || !fingerprint(key.primary) || denied.has(key.primary) ||
+                    seenKeys.has(key.primary) || !Array.isArray(key.signers) || !key.signers.length ||
+                    key.signers.length > 16 || !key.signers.every(fpr => fingerprint(fpr) && !denied.has(fpr))) fail();
+                seenKeys.add(key.primary);
+                key.armor = (await blob(key.path)).toString('utf8');
+                if (hash('sha256', Buffer.from(key.armor)) !== key.sha256) fail();
+              }
+            }
+            const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'collector-signers-'));
+            fs.chmodSync(scratch, 0o700);
+            const started = Date.now();
+            const env = { PATH: '/usr/bin:/bin', HOME: scratch, GNUPGHOME: scratch, LANG: 'C', LC_ALL: 'C' };
+            const gpgArgs = home => ['--homedir', home, '--no-options', '--batch', '--no-tty',
+              '--no-autostart', '--disable-dirmngr', '--no-auto-key-retrieve', '--no-auto-key-import',
+              '--auto-key-locate', 'clear'];
+            function run(command, args, input) {
+              if (Date.now() - started > 180000) fail();
+              try {
+                return execFileSync(command, args, { input, encoding: 'utf8', env,
+                  cwd: scratch, timeout: 5000, maxBuffer: 262144, stdio: ['pipe', 'pipe', 'pipe'] });
+              } catch { fail(); }
+            }
+            const publicKeys = new Map();
+            function publicGPG(armor) {
+              bounded(armor, 65536);
+              const cacheKey = hash('sha256', Buffer.from(armor));
+              if (publicKeys.has(cacheKey)) return publicKeys.get(cacheKey);
+              if (publicKeys.size >= 128) fail();
+              if (!/^-----BEGIN PGP PUBLIC KEY BLOCK-----\r?\n/.test(armor) ||
+                  !/-----END PGP PUBLIC KEY BLOCK-----\r?\n?$/.test(armor) ||
+                  (armor.match(/-----BEGIN /g) || []).length !== 1) fail();
+              const home = fs.mkdtempSync(path.join(scratch, 'gpg-'));
+              const lines = run('gpg', [...gpgArgs(home), '--with-colons', '--with-subkey-fingerprint', '--import-options', 'show-only', '--import'], armor)
+                .split('\n').map(line => line.split(':'));
+              const pubs = lines.filter(line => line[0] === 'pub');
+              const fprs = lines.filter(line => line[0] === 'fpr').map(line => line[9]);
+              if (pubs.length !== 1 || !fprs.length || !fprs.every(fingerprint) || fprs.some(fpr => denied.has(fpr)) ||
+                  lines.some(line => line[0] === 'sec' || line[0] === 'ssb')) fail();
+              run('gpg', [...gpgArgs(home), '--import'], armor);
+              const key = { home, primary: fprs[0], fprs };
+              publicKeys.set(cacheKey, key);
+              return key;
+            }
+            function verifyGPG(key, signature, payload) {
+              const signaturePath = path.join(key.home, 'signature');
+              const payloadPath = path.join(key.home, 'payload');
+              fs.writeFileSync(signaturePath, signature, { mode: 0o600 });
+              fs.writeFileSync(payloadPath, payload, { mode: 0o600 });
+              const status = run('gpg', [...gpgArgs(key.home), '--status-fd', '1', '--verify', signaturePath, payloadPath]);
+              const rows = status.split('\n').filter(line => line.startsWith('[GNUPG:] ')).map(line => line.slice(9).split(' '));
+              const valid = rows.filter(row => row[0] === 'VALIDSIG');
+              if (valid.length !== 1 || rows.filter(row => row[0] === 'NEWSIG').length !== 1 ||
+                  rows.some(row => ['BADSIG', 'ERRSIG', 'EXPSIG', 'EXPKEYSIG', 'REVKEYSIG', 'FAILURE', 'NODATA'].includes(row[0]))) fail();
+              const signer = valid[0][1], primary = valid[0][10] || signer;
+              if (!fingerprint(signer) || primary !== key.primary || !key.fprs.includes(signer) ||
+                  denied.has(primary) || denied.has(signer)) fail();
+              return signer;
+            }
+            const keyLists = new Map(), accounts = new Set();
+            async function ownerAccount(owner) {
+              if (!Number.isSafeInteger(owner?.id) || owner.id < 1 ||
+                  typeof owner.login !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9-]{0,38}$/.test(owner.login)) fail();
+              const key = `${owner.login.toLowerCase()}:${owner.id}`;
+              if (!accounts.has(key)) {
+                const { data: account } = await github.rest.users.getByUsername({ username: owner.login });
+                if (account.id !== owner.id || typeof account.login !== 'string' ||
+                    account.login.toLowerCase() !== owner.login.toLowerCase()) fail();
+                accounts.add(key);
+              }
+            }
+            async function registered(login, type) {
+              const cacheKey = `${login}:${type}`;
+              if (!keyLists.has(cacheKey)) {
+                const result = [];
+                for (let page = 1; page <= 4; page++) {
+                  const { data } = await github.request(`GET /users/{username}/${type}`, { username: login, per_page: 100, page });
+                  if (!Array.isArray(data) || data.length > 100) fail();
+                  result.push(...data);
+                  if (data.length < 100) break;
+                  if (page === 4) fail();
+                }
+                keyLists.set(cacheKey, result);
+              }
+              return keyLists.get(cacheKey);
+            }
+            function sshKey(text) {
+              bounded(text, 16384);
+              const match = /^(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp(?:256|384|521)|sk-ssh-ed25519@openssh.com|sk-ecdsa-sha2-nistp256@openssh.com) ([A-Za-z0-9+/]+={0,2})(?: [^\r\n]*)?$/.exec(text);
+              if (!match) fail();
+              const bytes = Buffer.from(match[2], 'base64');
+              if (bytes.toString('base64') !== match[2] || bytes.length < 8 || bytes.length > 8192 ||
+                  bytes.readUInt32BE(0) !== Buffer.byteLength(match[1]) ||
+                  bytes.subarray(4, 4 + bytes.readUInt32BE(0)).toString() !== match[1]) fail();
+              // No account text, options, wildcard principals, or comments enter allowed_signers.
+              return `${match[1]} ${match[2]}`;
+            }
+            try {
+              for (const maintainer of policy.maintainers) for (const key of maintainer.keys) {
+                key.native = publicGPG(key.armor);
+                if (key.native.primary !== key.primary || !key.signers.every(fpr => key.native.fprs.includes(fpr))) fail();
+              }
+              for (const item of commits) {
+                const { data: full } = await github.rest.repos.getCommit({ ...context.repo, ref: item.sha });
+                const raw = await commitObject(item.sha);
+                const v = raw.verification;
+                if (full.sha !== item.sha || raw.sha !== item.sha || v?.verified !== true ||
+                    full.commit?.verification?.verified !== true || v.signature !== full.commit.verification.signature ||
+                    v.payload !== full.commit.verification.payload) fail();
+                const payload = bounded(v.payload, 1048576), signature = bounded(v.signature, 32768);
+                const boundary = payload.indexOf('\n\n');
+                if (boundary < 0 || payload.includes('\r') || signature.includes('\r')) fail();
+                const headers = payload.slice(0, boundary);
+                const match = /^tree ([a-f0-9]{40})\n((?:parent [a-f0-9]{40}\n)*)author ([^\n<>]+) <([^\n<>]+)> ([0-9]+ [+-][0-9]{4})\ncommitter ([^\n<>]+) <([^\n<>]+)> ([0-9]+ [+-][0-9]{4})$/.exec(headers);
+                if (!match || match[1] !== raw.tree?.sha || !Array.isArray(raw.parents) ||
+                    match[2].split('\n').filter(Boolean).map(line => line.slice(7)).join(',') !== raw.parents.map(p => p.sha).join(',') ||
+                    full.commit.author?.email !== match[4] || full.commit.committer?.email !== match[7]) fail();
+                const signed = `${headers}\ngpgsig ${signature.replace(/\n$/, '').replace(/\n/g, '\n ')}${payload.slice(boundary)}`;
+                if (objectHash('commit', Buffer.from(signed)) !== item.sha) fail();
+                const actors = [full.author, full.committer];
+                if (actors.some(actor => actor?.login?.toLowerCase() === 'web-flow') ||
+                    [match[4], match[7]].some(email => email.toLowerCase() === 'noreply@github.com')) fail();
+                const implicated = policy.maintainers.filter(m => actors.some(actor => actor?.id === m.id ||
+                  actor?.login?.toLowerCase() === m.login) || [match[4], match[7]].some(email => m.emails.includes(email.toLowerCase())));
+                // A maintainer-looking author OR committer cannot use the outsider path.
+                // The exact proposed head also requires a base-pinned maintainer signature.
+                const requiresMaintainer = protectedChange || implicated.length > 0 || item.sha === before.head.sha;
+                let accepted = false;
+                if (signature.startsWith('-----BEGIN PGP SIGNATURE-----\n')) {
+                  for (const m of policy.maintainers) for (const key of m.keys) {
+                    try {
+                      const signer = verifyGPG(key.native, signature, payload);
+                      if (key.signers.includes(signer)) accepted = true;
+                    } catch { /* Try the other explicitly pinned certificates. */ }
+                  }
+                  if (!accepted && !requiresMaintainer) {
+                    const owner = full.committer;
+                    await ownerAccount(owner);
+                    for (const entry of await registered(owner.login, 'gpg_keys')) {
+                      if (typeof entry.raw_key !== 'string' || entry.revoked === true) continue;
+                      try {
+                        const key = publicGPG(entry.raw_key);
+                        verifyGPG(key, signature, payload); accepted = true; break;
+                      } catch { /* An unrelated registered key is not this signer. */ }
+                    }
+                  }
+                } else if (signature.startsWith('-----BEGIN SSH SIGNATURE-----\n') && !requiresMaintainer) {
+                  const owner = full.committer;
+                  await ownerAccount(owner);
+                  const allowed = path.join(scratch, 'allowed_signers'), sigfile = path.join(scratch, 'ssh_signature');
+                  fs.writeFileSync(sigfile, signature, { mode: 0o600 });
+                  for (const entry of await registered(owner.login, 'ssh_signing_keys')) {
+                    const key = sshKey(entry.key);
+                    fs.writeFileSync(allowed, `collector-contributor ${key}\n`, { mode: 0o600 });
+                    try {
+                      run('ssh-keygen', ['-Y', 'verify', '-f', allowed, '-I', 'collector-contributor', '-n', 'git', '-s', sigfile], payload);
+                      accepted = true; break;
+                    } catch { /* Try the next registered signing key, never authentication keys. */ }
+                  }
+                }
+                if (!accepted) { core.error(`Rejected signer on commit ${item.sha}`); fail(); }
+              }
+              const { data: after } = await github.rest.pulls.get(params);
+              if (after.head.sha !== before.head.sha || after.base.sha !== before.base.sha ||
+                  after.base.ref !== before.base.ref || after.head.ref !== before.head.ref || after.commits !== before.commits) {
+                throw new Error('PR changed during verification; rerun the check.');
+              }
+              core.info(`All ${commits.length} PR commits passed native signer verification.`);
+            } finally {
+              fs.rmSync(scratch, { recursive: true, force: true });
             }

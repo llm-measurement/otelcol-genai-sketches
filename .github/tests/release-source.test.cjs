@@ -119,7 +119,7 @@ test('all five main-required checks are available on maintenance PRs', () => {
     assert.ok(value.jobs[name]);
   }
   assert.equal(workflow('trusted-api-tests').jobs['trusted-api-tests'].steps[1].run,
-    'node --test .github/tests/*.test.cjs');
+    'node .github/tests/signer-preflight.cjs');
 });
 for (const status of ['ahead', 'identical']) {
   test(`main ancestor remains supported: ${status}`, async () => {
