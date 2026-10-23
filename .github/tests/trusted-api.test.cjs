@@ -42,7 +42,7 @@ async function check(options = {}) {
   const commits = options.commits ?? [commit(1)];
   const before = {
     head: { sha: options.head ?? commits.at(-1)?.sha ?? sha(1), ref: 'contribution' },
-    base: { sha: sha(9000), ref: 'main' }, commits: 'count' in options ? options.count : commits.length,
+    base: { sha: sha(9000), ref: options.baseRef ?? 'main' }, commits: 'count' in options ? options.count : commits.length,
   };
   options.changeBefore?.(before);
   const after = structuredClone(before);
@@ -51,7 +51,7 @@ async function check(options = {}) {
     sha: options.contextSHA ?? before.base.sha, ref: 'refs/heads/main', payload: {
     pull_request: { number: 7, head: { sha: options.eventHead ?? before.head.sha,
       ref: options.eventHeadRef ?? before.head.ref, repo: { owner: { login: 'contributor' }, name: 'fork' } },
-      base: { ref: options.eventBase ?? 'main' } },
+      base: { ref: options.eventBase ?? before.base.ref } },
   } };
   options.changeEvent?.(context.payload.pull_request);
   const errors = [], failures = [], info = [];
@@ -168,7 +168,7 @@ test('PR-controlled test execution stays in an unprivileged pull_request workflo
     with: { 'persist-credentials': false },
   });
   assert.deepEqual(job.steps[1], {
-    name: 'Test trusted API checks and workflow boundaries', run: 'node --test .github/tests/trusted-api.test.cjs',
+    name: 'Test trusted API checks and workflow boundaries', run: 'node --test .github/tests/*.test.cjs',
   });
 });
 
@@ -350,6 +350,20 @@ test('missing sign-off on the third page is reported', async () => {
   assert.ok(result.errors[0].includes(sha(201)));
 });
 for (const kind of Object.keys(checks)) {
+  for (const baseRef of ['release/0.6', 'release/1.20']) {
+    test(`${kind}: default-main workflow verifies ${baseRef} PR head, not default-branch SHA`, async () => {
+      const result = await check({ kind, baseRef, contextSHA: sha(500) });
+      assert.equal(result.passed, true);
+      assert.equal(result.reads, 2);
+      assert.equal(result.comparePages[0].head, sha(1));
+      assert.equal(result.comparePages[0].base, sha(9000));
+    });
+    test(`${kind}: maintenance PR does not bypass author or signature checks`, async () => {
+      const value = commit(1, 'No sign-off');
+      value.commit.verification = { verified: false };
+      assert.equal((await check({ kind, baseRef, contextSHA: sha(500), commits: [value] })).passed, false);
+    });
+  }
   test(`${kind}: event PR head is checked, never the base workflow SHA or fork repository`, async () => {
     const result = await check({ kind, contextSHA: sha(500) });
     assert.equal(result.passed, true);
