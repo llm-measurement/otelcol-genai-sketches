@@ -1,27 +1,23 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Code authors: Vijay and Codex -->
+
 # Helm Chart 0.7.1
 
-Pin the collector v0.7.0 multi-architecture image index by default, so a fresh
-installation selects immutable image content instead of the mutable `:0.7.0`
-tag used by chart 0.7.0. Runtime behavior, chart templates and policy defaults
-are unchanged from chart 0.7.0.
+Chart 0.7.1 pins collector v0.7.0 by its multi-architecture image index digest,
+`sha256:FILL_FROM_v0.7.0_image-digest.txt`, so default installations select immutable
+image content. The templates, policy defaults and collector are the same as in chart
+0.7.0. If you're upgrading from an earlier chart, read the
+[v0.7.0 breaking changes](v0.7.0.md#breaking-changes) first.
 
-Draft for the later chart-only release; no image digest is available or invented
-in this preparation. After v0.7.0 publication, set `image.digest` to the index
-digest in its authenticated `image-digest.txt`, keep `image.tag` empty, set chart
-version to `0.7.1`, and retain `appVersion: "0.7.0"`. Update the exact image and
-chart-version test expectations in that reviewed pin PR.
+## Upgrade
 
-The signed `chart-v0.7.1` tag uses `chart-release.yml`, which publishes the chart
-without rebuilding the collector. Its signature and provenance identity differs
-from chart 0.7.0, published by `release.yml` under `v0.7.0`. Verify the chart's
-archive, OCI digest and attestation against its own tag and source commit.
+A plain `helm upgrade` selects the pinned digest. With `--reuse-values`, prior image values are retained: a nonempty
+`image.digest` wins; an empty digest uses `image.tag`, or `appVersion` when the
+tag is also empty. Check `helm get values --all` and set `image.digest` explicitly
+to select the published index.
 
-Read the collector's [breaking changes](v0.7.0.md#breaking-changes) and
-[chart 0.7.0 qualification](chart-v0.7.0.md#qualification) before upgrading.
-This pin-only release adds no new breaking change. A retained old `image.digest`
-or `image.tag` supplied through reuse-values can override new chart defaults;
-inspect effective values and explicitly select the verified image index.
+## Verify
 
-README and Deployment pin updates follow successful publication and artifact
-verification in a separate PR. Then verify an anonymous installation following
-those updated instructions. Do not overwrite chart 0.7.0 or move either tag.
+Verify the chart's OCI digest, signature and provenance against the
+`chart-v0.7.1` tag, as described in
+[Deployment](../DEPLOYMENT.md#verify-an-image).
