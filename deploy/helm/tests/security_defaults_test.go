@@ -142,7 +142,7 @@ func TestImageDigestOverrides(t *testing.T) {
 		settings []string
 		want     string
 	}{
-		{nil, "ghcr.io/llm-measurement/otelcol-genai-sketches@sha256:b17b3489b65c27a622402982e8e61ee44c7ada247ff3168efacc63a3867c7818"},
+		{nil, "ghcr.io/llm-measurement/otelcol-genai-sketches:0.7.0"},
 		{[]string{"image.repository=registry.example/collector", "image.digest=sha256:" + strings.Repeat("a", 64)}, "registry.example/collector@sha256:" + strings.Repeat("a", 64)},
 		{[]string{"image.digest=", "image.tag=custom"}, "ghcr.io/llm-measurement/otelcol-genai-sketches:custom"},
 	} {

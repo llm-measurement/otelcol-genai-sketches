@@ -1,3 +1,6 @@
+Collector 0.7.0 requires a private hash key of at least 32 bytes and rejects
+published example keys. Chart 0.7.0 enables NetworkPolicy by default.
+
 The collector is available inside the cluster at:
 
   {{ include "otelcol-genai-sketches.fullname" . }}.{{ .Release.Namespace }}.svc:{{ .Values.service.otlpGrpcPort }}

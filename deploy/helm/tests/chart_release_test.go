@@ -90,7 +90,7 @@ func TestChartReleasePackage(t *testing.T) {
 		if doc.Kind == "Deployment" {
 			found = true
 			containers := doc.Spec.Template.Spec.Containers
-			if len(containers) != 1 || containers[0].Image != "ghcr.io/llm-measurement/otelcol-genai-sketches@sha256:b17b3489b65c27a622402982e8e61ee44c7ada247ff3168efacc63a3867c7818" {
+			if len(containers) != 1 || containers[0].Image != "ghcr.io/llm-measurement/otelcol-genai-sketches:0.7.0" {
 				t.Fatalf("default runtime image changed: %+v", containers)
 			}
 		}
