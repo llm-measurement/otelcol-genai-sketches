@@ -204,8 +204,14 @@ helm upgrade --install genai-sketches \
   deploy/helm/otelcol-genai-sketches \
   --namespace observability \
   --set shadow.enabled=true \
-  --set-string shadow.endpoint=collector.example.net:4317
+  --set-string shadow.endpoint=collector.example.net:4317 \
+  --set-json 'networkPolicy.egress=[{"to":[{"ipBlock":{"cidr":"192.0.2.10/32"}}],"ports":[{"protocol":"TCP","port":4317}]}]'
 ```
+
+Replace the documentation address `192.0.2.10/32` with the backend's approved
+IP/CIDR; standard NetworkPolicy does not select destinations by DNS name. For
+in-cluster backends, use the pod/namespace peers in the
+[migration example](#chart-070-network-policy-migration).
 
 Set `shadow.insecure=true` only for a trusted plaintext network. If the backend
 needs an authorization header, put its complete value in a second Secret and set
@@ -232,7 +238,7 @@ receiverTLS:
 ## Chart 0.7.0 Network Policy Migration
 
 **The next minor chart, 0.7.0, enables NetworkPolicy by default.** Collector
-appVersion remains 0.6.1. Chart 0.6.x leaves NetworkPolicy off by default.
+appVersion is 0.7.0. Chart 0.6.x leaves NetworkPolicy off by default.
 Before upgrading, configure allowed senders, Prometheus peers and shadow-backend
 egress. Reusing old values without the new defaults can preserve the old opt-out;
 review the merged values and rendered policy before applying the upgrade.
@@ -288,8 +294,8 @@ For a deliberate opt-out, set `networkPolicy.enabled: false`. This removes the
 chart's policy; it does not remove other cluster policies. NetworkPolicy limits
 reachability, not sender identity. Use mTLS when client authentication is needed.
 
-Chart 0.7.0 also pins the published 0.6.1 multi-platform collector image by digest
-and enforces non-root execution, dropped capabilities, no privilege escalation
+Chart 0.7.0 defaults to collector tag `0.7.0` through appVersion, with empty
+`image.tag` and `image.digest`. It enforces non-root execution, dropped capabilities, no privilege escalation
 and a read-only root filesystem even when summary export is disabled. Unknown
 top-level and security-related values now fail validation instead of being ignored.
 When changing the runtime image, set its verified `image.digest`; to deliberately

@@ -111,7 +111,16 @@ helm-check:
 	$(HELM) template genai-sketches deploy/helm/otelcol-genai-sketches --namespace observability > /dev/null
 	$(HELM) template genai-sketches deploy/helm/otelcol-genai-sketches --namespace observability --set connector.topK=0 > /dev/null
 	$(HELM) template genai-sketches deploy/helm/otelcol-genai-sketches --namespace observability --set-json 'connector.topKKeys=[{"field":"prompt_key"},{"field":"user_key"},{"field":"session_key","weight":"requests"}]' > /dev/null
-	$(HELM) template genai-sketches deploy/helm/otelcol-genai-sketches --namespace observability --set receiverTLS.enabled=true --set receiverTLS.existingSecret=receiver-tls --set shadow.enabled=true --set shadow.endpoint=collector.example.net:4317 --set serviceMonitor.enabled=true --set prometheusRule.enabled=true --set connector.dedup.enabled=true --set networkPolicy.enabled=true --set podDisruptionBudget.enabled=true > /dev/null
+	# Render-only backend address example; deployments replace it with the backend's approved IP.
+	$(HELM) template genai-sketches deploy/helm/otelcol-genai-sketches --namespace observability --set receiverTLS.enabled=true --set receiverTLS.existingSecret=receiver-tls --set shadow.enabled=true --set shadow.endpoint=collector.example.net:4317 --set serviceMonitor.enabled=true --set prometheusRule.enabled=true --set connector.dedup.enabled=true --set networkPolicy.enabled=true --set podDisruptionBudget.enabled=true --set-json 'networkPolicy.egress=[{"to":[{"ipBlock":{"cidr":"192.0.2.10/32"}}],"ports":[{"protocol":"TCP","port":4317}]}]' --set-json 'networkPolicy.metricsFrom=[{"podSelector":{"matchLabels":{"app":"prometheus"}}}]' > /dev/null
+	@set -eu; log=$$(mktemp); trap 'rm -f "$$log"' EXIT HUP INT TERM; \
+	if $(HELM) template guard-shadow deploy/helm/otelcol-genai-sketches --set shadow.enabled=true --set shadow.endpoint=collector.example.net:4317 > "$$log" 2>&1; then cat "$$log"; exit 1; else status=$$?; fi; \
+	grep -F 'shadow.enabled requires networkPolicy.egress for the backend' "$$log"; \
+	printf 'PASS shadow guard: helm exit %s\n' "$$status"
+	@set -eu; log=$$(mktemp); trap 'rm -f "$$log"' EXIT HUP INT TERM; \
+	if $(HELM) template guard-metrics deploy/helm/otelcol-genai-sketches --set serviceMonitor.enabled=true > "$$log" 2>&1; then cat "$$log"; exit 1; else status=$$?; fi; \
+	grep -F 'serviceMonitor.enabled requires networkPolicy.metricsFrom or networkPolicy.ingress' "$$log"; \
+	printf 'PASS ServiceMonitor guard: helm exit %s\n' "$$status"
 
 .PHONY: prometheus-rule-check
 prometheus-rule-check:
