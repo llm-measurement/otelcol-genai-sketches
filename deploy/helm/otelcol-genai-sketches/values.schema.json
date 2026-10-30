@@ -37,6 +37,7 @@
     }
   ],
   "properties": {
+    "global": {"type":"object"},
     "podSecurityContext": {
       "required": ["runAsNonRoot","runAsUser","runAsGroup","fsGroup","seccompProfile"],
       "properties": {

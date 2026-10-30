@@ -1,6 +1,12 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{/* Code authors: Vijay and Codex */}}
 {{- if .Values.networkPolicy.enabled }}
+{{- if and .Values.shadow.enabled (not .Values.networkPolicy.egress) }}
+{{- fail "shadow.enabled requires networkPolicy.egress for the backend; see docs/DEPLOYMENT.md#chart-070-network-policy-migration" }}
+{{- end }}
+{{- if and .Values.serviceMonitor.enabled (not .Values.networkPolicy.metricsFrom) (not .Values.networkPolicy.ingress) }}
+{{- fail "serviceMonitor.enabled requires networkPolicy.metricsFrom or networkPolicy.ingress; see docs/DEPLOYMENT.md#chart-070-network-policy-migration" }}
+{{- end }}
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

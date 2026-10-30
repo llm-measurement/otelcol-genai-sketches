@@ -1,5 +1,8 @@
 # Upgrading And Rollback
 
+For chart 0.7.0, see the [NetworkPolicy migration](DEPLOYMENT.md#chart-070-network-policy-migration)
+before upgrading: the default changes to deny unlisted traffic.
+
 The distribution currently follows pre-1.0 semantic versioning. Read release notes
 and the [accounting contract](ACCOUNTING.md) for every upgrade. A change to request
 scope, missing-usage meaning, alias precedence, token arithmetic, deduplication, or

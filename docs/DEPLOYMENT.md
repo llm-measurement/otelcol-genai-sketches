@@ -263,7 +263,11 @@ lists and `ingress` empty, ingress is denied. `allowDNS: false` with empty
 also grant access because Kubernetes combines their allow rules.
 
 Shadow forwarding needs an `egress` rule for the backend's destination and port;
-enabling `shadow` does not open egress automatically. For example:
+with NetworkPolicy enabled, the chart refuses to render shadow forwarding
+without an explicit `networkPolicy.egress` rule. Likewise, `serviceMonitor.enabled`
+requires `networkPolicy.metricsFrom` or an explicit `networkPolicy.ingress` rule.
+These checks require a rule, not proof that its selectors match the backend or
+Prometheus pods. For example:
 
 ```yaml
 networkPolicy:
