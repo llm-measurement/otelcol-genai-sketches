@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path
 import platform
+import re
 import secrets
 import subprocess
 import sys
@@ -35,6 +36,17 @@ COUNTERS = ("requests", "input_tokens", "output_tokens", "cache_read_input_token
 def require(condition, message):
     if not condition:
         raise AssertionError(message)
+
+
+def cache_home():
+    return Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache").resolve()
+
+
+def private_path(path):
+    path = Path(path).resolve()
+    if path.is_relative_to(ROOT.resolve()) or path in {cache_home(), (Path.home() / ".cache").resolve()}:
+        raise ValueError("private cache and run paths must be outside the checkout and cannot be a cache root")
+    return path
 
 
 def save(path, text):
@@ -123,17 +135,22 @@ def check_report(report, before, after):
 
 def run(args):
     os.umask(0o077)
-    cache = args.cache.resolve()
+    cache = private_path(args.cache)
+    out = private_path(args.out)
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", args.key_id):
+        raise ValueError("--key-id must be an opaque non-secret identifier, not a key digest")
     cache.mkdir(mode=0o700, parents=True, exist_ok=True)
-    data = cache / "syfi_coding_trace.jsonl.gz"
+    data = private_path(cache / "syfi_coding_trace.jsonl.gz")
     download(data)
-    out = args.out.resolve()
     out.mkdir(mode=0o700)
     save(out / "ATTRIBUTION.txt", ATTRIBUTION)
     secret = secrets.token_hex(32)
-    save(out / "hash-key.txt", secret)
+    if args.save_key:
+        save(out / "hash-key.txt", secret)
+    else:
+        print("Hash key was not saved; hashes cannot be reproduced later.", flush=True)
     env = dict(os.environ, GENAI_SKETCH_SECRET=secret, GOWORK="off",
-               GOCACHE=str(ROOT / ".cache/go-build"), GOMODCACHE=str(ROOT / ".cache/go-mod"))
+               GOCACHE=str(private_path(cache / "go-build")), GOMODCACHE=str(private_path(cache / "go-mod")))
     commands = []
 
     def execute(cmd, acceptable=(0,)):
@@ -154,7 +171,7 @@ def run(args):
     binary = out / "tracelab-replay"
     execute(["go", "-C", "connector/genaisketchconnector", "build", "-tags", "tracelab_replay",
              "-o", str(binary), "./cmd/tracelab-replay"])
-    replay, _ = execute([str(binary), "--input", str(data), "--out", str(out / "windows")])
+    replay, _ = execute([str(binary), "--input", str(data), "--out", str(out / "windows"), "--key-id", args.key_id])
     save(out / "replay.txt", replay)
     print(replay.strip(), flush=True)
     files = sorted((out / "windows").glob("*.json"))
@@ -192,18 +209,25 @@ def run(args):
               "collector_base_commit": revision.strip(), "tracked_diff_sha256": hashlib.sha256(diff.encode()).hexdigest(),
               "source_sha256": source_digests, "replay_sha256": hashlib.sha256(binary.read_bytes()).hexdigest(),
               "fleetdiff_sha256": hashlib.sha256(args.fleetdiff.read_bytes()).hexdigest(),
-              "checks": dict(counts), "commands": commands}
+              "checks": dict(counts), "commands": commands, "key_id": args.key_id}
     save_json(out / "run.json", result)
     print(json.dumps({"checks": counts}, indent=2))
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--fleetdiff", type=Path, required=True)
-    parser.add_argument("--cache", type=Path, default=ROOT / ".cache/tracelab-v0.0.2")
-    parser.add_argument("--out", type=Path, default=ROOT / ".cache/tracelab-v0.0.2/run")
+    parser.add_argument("--key-id", required=True, help="operator-assigned opaque non-secret label; never hash the secret")
+    parser.add_argument("--save-key", action="store_true",
+                        help="save the generated key in the private run directory for later hash reproduction")
+    parser.add_argument("--cache", type=Path, default=cache_home() / "tracelab-v0.0.2")
+    parser.add_argument("--out", type=Path, default=cache_home() / "tracelab-v0.0.2/run")
     try:
         run(parser.parse_args())
     except (ValueError, RuntimeError, OSError, AssertionError) as error:
         print(f"TraceLab example failed: {error}", file=sys.stderr)
         sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

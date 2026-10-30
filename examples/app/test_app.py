@@ -9,6 +9,7 @@ from investigate import SCENARIOS
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 
 
 class ExampleTrafficTest(unittest.TestCase):
@@ -71,6 +72,52 @@ class ExampleTrafficTest(unittest.TestCase):
                         if span not in models
                     )
                 )
+
+
+class TraceContextTest(unittest.TestCase):
+    def test_valid_tracestate_survives_extraction(self):
+        context = TraceContextTextMapPropagator().extract(
+            {
+                "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+                "tracestate": "example=value,other=second",
+            }
+        )
+        span_context = app.trace.get_current_span(context).get_span_context()
+        self.assertTrue(span_context.is_valid)
+        self.assertEqual(
+            dict(span_context.trace_state), {"example": "value", "other": "second"}
+        )
+
+    def test_oversized_valid_members_across_headers_are_discarded(self):
+        members = [f"key{i}=" + "v" * 256 for i in range(32)]
+        headers = [",".join(members[:16]), ",".join(members[16:])]
+        self.assertTrue(all(len(header) < 8192 for header in headers))
+        self.assertGreater(sum(map(len, headers)), 8192)
+        context = TraceContextTextMapPropagator().extract(
+            {
+                "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+                "tracestate": headers,
+            }
+        )
+        span_context = app.trace.get_current_span(context).get_span_context()
+        self.assertTrue(span_context.is_valid)
+        self.assertEqual(len(span_context.trace_state), 0)
+
+    def test_oversized_combined_tracestate_is_discarded(self):
+        for whitespace in (" ", "\t"):
+            with self.subTest(whitespace=repr(whitespace)):
+                context = TraceContextTextMapPropagator().extract(
+                    {
+                        "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+                        "tracestate": [
+                            "example=value" + whitespace * 4096,
+                            "other=second" + whitespace * 4096,
+                        ],
+                    }
+                )
+                span_context = app.trace.get_current_span(context).get_span_context()
+                self.assertTrue(span_context.is_valid)
+                self.assertEqual(len(span_context.trace_state), 0)
 
 
 if __name__ == "__main__":

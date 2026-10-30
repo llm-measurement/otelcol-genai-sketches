@@ -9,7 +9,7 @@ import re
 import subprocess
 from decimal import Decimal
 from relay import BUDGET, MODEL, MANIFEST
-from analyze import analyze
+from analyze import check_privacy
 
 def verify_accounting(report, root):
     assert [c['case'] for c in report['cases']] == MANIFEST['suite'], 'Incomplete or reordered suite'
@@ -131,9 +131,7 @@ def main():
     cases = verify_accounting(report, root)
     verify_fleetdiff(cases, root, os.environ['TRIAL_FLEETDIFF'])
     # Include the newly generated Fleetdiff reports before marking success.
-    scanned = analyze(root, os.environ.get('OPENAI_API_KEY'))
-    assert not scanned['privacy']['secret_hit_files']
-    assert not scanned['privacy']['prompt_sentinel_hit_files']
+    check_privacy(root, json.dumps(report, indent=2).encode(), os.environ.get('OPENAI_API_KEY'))
     (root / 'table.md').write_text(table(report))
     (root / 'verification.json').write_text(json.dumps({'accounting': 'pass', 'fleetdiff': 'pass'}))
     print('Accounting, metric, provenance, subset, and Fleetdiff checks passed.')

@@ -8,7 +8,7 @@ on:
       release_tag:
         description: Existing collector release to verify without republishing
         required: true
-        default: v0.6.1
+        default: v0.6.2
         type: string
   workflow_call:
     inputs:
@@ -38,7 +38,7 @@ jobs:
 
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26.9"
+          go-version: "1.26.10"
           cache: true
           cache-dependency-path: |
             go.sum

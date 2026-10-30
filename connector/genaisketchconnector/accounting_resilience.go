@@ -19,6 +19,7 @@ const maxPlausibleTokenValue = 1_000_000_000
 
 const rejectedSpansMetricName = "gen_ai_sketch_rejected_spans_total"
 const accountingSaturatedMetricName = "gen_ai_sketch_accounting_saturated"
+const dedupOverflowMetricName = "gen_ai_sketch_dedup_overflow_total"
 
 type saturationReason uint8
 

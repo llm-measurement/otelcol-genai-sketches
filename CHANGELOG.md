@@ -2,17 +2,28 @@
 
 Notable user-visible changes are recorded here.
 
-## Unreleased - Helm Chart 0.7.0 (Collector 0.6.1)
+## v0.7.0 / Helm chart 0.7.0 - Unreleased
 
 - Enable NetworkPolicy by default in this next minor chart: allow same-namespace
   OTLP, require explicit metrics peers, and limit egress to cluster DNS plus
   configured rules. Add selected-peer presets and mTLS instructions.
-- Pin the published collector 0.6.1 image by digest and warn on an explicit
+- Retain the published collector 0.6.1 image pin pending the v0.7.0 release
+  digest; do not publish this intermediate chart. Warn on an explicit
   mutable-tag override. Enforce pod hardening with or without summary export and
   reject unknown top-level and security-related values.
 - Review the [network policy migration](docs/DEPLOYMENT.md#chart-070-network-policy-migration)
   before upgrading; cross-namespace senders, Prometheus and shadow backends need
-  explicit rules. No collector behavior or accounting contract changes.
+  explicit rules. Collector startup requires a private hash key of at least
+  32 bytes and rejects published example keys; see [upgrading](docs/UPGRADING.md).
+
+## v0.6.2 / Helm chart 0.6.2 - Unreleased
+
+See the [release notes](docs/releases/v0.6.2.md). Rebuild with Go 1.26.10 for
+GO-2026-6809, which distrusts compromised intermediate certificates during TLS
+verification when system trust stores have not been updated.
+
+- Use the patched Go toolchain for builds and security scans.
+- Include the reviewed connector dependency and release-pipeline maintenance.
 
 ## v0.6.1 / Helm chart 0.6.1 - 2026-10-18
 

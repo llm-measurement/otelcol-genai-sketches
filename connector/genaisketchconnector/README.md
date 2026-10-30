@@ -39,7 +39,7 @@ manifest:
 
 ```yaml
 connectors:
-  - gomod: github.com/llm-measurement/otelcol-genai-sketches/connector/genaisketchconnector v0.6.1
+  - gomod: github.com/llm-measurement/otelcol-genai-sketches/connector/genaisketchconnector v0.6.2
 ```
 
 Use `genaisketch` as a traces-pipeline exporter and a metrics-pipeline receiver,
@@ -56,8 +56,9 @@ and a receiver in a metrics pipeline. To preserve your existing trace backend,
 keep its exporter alongside `genaisketch` in the traces pipeline.
 
 The hashing secret is required at startup. Set `GENAI_SKETCH_SECRET` to a secret
-with at least 128 bits of entropy and at least 16 bytes; keep it out of source
-control and configuration files. Hashes are keyed and pseudonymous.
+with at least 32 bytes, generated with `openssl rand -hex 32`; published example
+keys are refused. Keep it out of source control and configuration files. Hashes
+are keyed and pseudonymous.
 
 | Setting | Default | Purpose |
 | --- | --- | --- |

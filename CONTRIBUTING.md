@@ -22,9 +22,78 @@ A passing final commit does not cover earlier commits. The DCO check exempts onl
 GitHub's own verified branch-update merge commits; ordinary merges and bots still
 need sign-offs.
 
-The trusted checks use read-only GitHub API data and the base branch's workflow;
+The trusted checks use read-only GitHub API data and the trusted default-branch workflow;
 they never check out or execute pull-request code. Their regression suite runs
 separately as `trusted-api-tests` on the pull request.
+
+### Signer policy
+
+Ordinary outside contributions can use GPG or SSH. The check requires GitHub's
+verified result and independently verifies the exact signed commit using native
+`gpg` or `ssh-keygen`. The signing key must be registered to the account mapped
+to the commit's committer. GPG uses that account's public GPG certificates;
+SSH uses its **signing** keys, not authentication-only keys, with namespace `git`.
+Unknown signature types (including S/MIME) are rejected.
+
+The actual current PR head must be signed by a maintainer GPG key authorized
+at the current target commit. Earlier ordinary commits retain the GPG/SSH
+contribution path above. After reviewing the exact tree, a maintainer can add
+an empty signed and signed-off approval commit with the preceding head as its
+parent. Any later appended commit becomes the new head and requires fresh
+maintainer authorization. The head is selected by its SHA, not list position.
+
+If a fork PR does not allow maintainer edits, continue the contribution as a PR
+from a repository-owned branch. Preserve the contributor's existing commit SHAs,
+signatures and sign-offs, then append the maintainer's signed and signed-off
+approval commit after reviewing the tree. Reference the original PR to retain
+the discussion and attribution; do not recreate or rewrite contributor commits.
+
+Maintainer heads currently require OpenPGP signatures from an approved primary
+key or signing subkey. A maintainer hardware token must therefore provide an
+OpenPGP signing key. SSH/FIDO signatures remain available for earlier ordinary
+contributions; accepting maintainer SSH heads would require a separate trust
+policy extension.
+
+If either author or committer matches a maintainer's account ID, login, or known
+email, an explicitly approved maintainer GPG key is required. GitHub's web-flow
+signatures are not accepted by the signer check. GitHub's **Update branch**
+button, web-editor commits, and Dependabot's own commits therefore fail this
+signer policy. The separate DCO branch-update exception does not change that
+rule. Update a branch locally with your own signed merge, not the web button.
+
+The allowlist and public certificates come only from the current target commit's
+`.github/maintainer-signers.json` and `.github/signing-keys/`. A PR cannot authorize
+itself with a policy or key supplied in its head. If either trust-data path or
+**any `.github/workflows` entry** is edited in any introduced commit, every PR
+commit must be signed by a GPG key allowed at the current target commit.
+An edit followed by a revert still triggers this rule. A local signed merge
+may import the exact current target's protected state from a parent proven
+already reachable from that target; importing an old policy is not an exception.
+All merge parents are checked: retaining the first parent's old protected state
+while discarding another parent's update still counts as a protected change.
+The rule includes newly added workflows and earlier outsider commits: a maintainer-
+signed final commit is not a countersignature for the whole PR. Split ordinary
+contributions from workflow/trust changes when necessary. Unrelated issue
+templates and documentation under `.github` do not trigger this restriction.
+
+Multiple maintainer certificates and signing subkeys can be listed explicitly.
+Add a replacement key in a separate policy change signed entirely with keys
+already allowed at the target, then remove retired keys in a later signed change.
+Missing target policy fails closed, including on maintenance branches.
+
+The commit parser currently supports canonical UTF-8 Git commits with `tree`,
+up to 16 `parent` headers, `author`, `committer`, and one `gpgsig` header
+immediately after the committer. Signed local merge commits are supported.
+Extra headers (for example `encoding` or `mergetag`), CRLF forms, multiple
+signatures, and other header layouts are rejected rather than normalized.
+SSH public-key formats accepted are Ed25519, RSA, ECDSA nistp256/384/521, and
+OpenSSH FIDO security-key Ed25519/nistp256. SSH certificates and other key formats
+are not accepted. Hardware-backed signing requires the normal local device;
+the verifier uses only its public key and does not access hardware or an agent.
+
+A valid outsider signature establishes provenance for an earlier contribution.
+The maintainer-signed head binds its tree and parents; required review and
+up-to-date merge protections still apply to that exact head.
 
 ### Set up SSH signing
 
@@ -98,7 +167,7 @@ changelog entry fails CI.
 
 ### Local checks
 
-Use Go 1.26.9 or later and Make. Docker with Compose v2 is needed for the demo
+Use Go 1.26.10 or later and Make. Docker with Compose v2 is needed for the demo
 and container checks; Helm is needed for chart checks. Run from the repository
 root with parent Go workspaces disabled:
 

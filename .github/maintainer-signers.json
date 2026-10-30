@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "maintainers": [
+    {
+      "id": 5549790,
+      "login": "kwisatzh",
+      "emails": ["evijay@gmail.com", "kwisatzh@users.noreply.github.com", "5549790+kwisatzh@users.noreply.github.com"],
+      "keys": [
+        {
+          "path": ".github/signing-keys/kwisatzh.asc",
+          "sha256": "d28d9fa394e205d09443ba01531043090b40ccec9f8ef7b7ce3edbdb3d2fe96f",
+          "primary": "670D249E72D570B836D6F7589272956FD1758DDC",
+          "signers": ["670D249E72D570B836D6F7589272956FD1758DDC"]
+        }
+      ]
+    }
+  ]
+}

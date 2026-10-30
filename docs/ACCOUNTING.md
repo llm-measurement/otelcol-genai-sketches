@@ -2,7 +2,7 @@
 
 Contract version: `genai-accounting/v1`
 
-Last reviewed: 2026-09-05
+Last reviewed: 2026-10-20
 
 This document defines how `otelcol-genai-sketches` turns GenAI spans into request
 and token counters. Changes that alter a counter's meaning require a new contract
@@ -18,8 +18,8 @@ for six extreme-input cases intentionally differ, as described under
 deliberately changing the shared contract; this hardening does not rewrite it.
 
 The contract is based on the
-[OpenTelemetry GenAI span conventions](https://github.com/open-telemetry/semantic-conventions-genai/blob/94f432d7126f5884d30a2cdde6f4e89908ebb6fd/docs/gen-ai/gen-ai-spans.md)
-reviewed on 2026-09-05. Those conventions are still developing, so this repository
+[OpenTelemetry GenAI span conventions](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/gen-ai/gen-ai-spans.md)
+reviewed on 2026-10-20. Those conventions are still developing, so this repository
 pins its own behavior instead of inheriting changes from a moving document.
 See the [semantic-convention compatibility notes](SEMANTIC_CONVENTIONS.md) for
 the reviewed revision, supported fields, and deliberate differences.
@@ -65,6 +65,10 @@ input labels; see [Field Mapping](CONFIGURATION.md#field-mapping).
 | Cache-read input | `gen_ai.usage.cache_read.input_tokens` | Subset of input |
 | Cache-write input | `gen_ai.usage.cache_write.input_tokens`, `gen_ai.usage.cache_creation.input_tokens` | Subset of input |
 | Reasoning output | `gen_ai.usage.reasoning.output_tokens` | Subset of output |
+
+`gen_ai.usage.prompt_tokens`, `gen_ai.usage.completion_tokens`, and
+`gen_ai.usage.cache_creation.input_tokens` are legacy aliases. The connector
+continues to read them in the order above for existing instrumentation.
 
 The first valid configured source wins. A later valid source with a different value
 is reported as a conflict but is not added. This makes aliases compatible without

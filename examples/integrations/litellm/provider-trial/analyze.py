@@ -8,7 +8,8 @@ import os
 from relay import RUN_ID, PRIOR_COST, budget_used, usage_cost
 from client import SENTINEL
 
-def analyze(root, secret):
+def analyze(root):
+    """Build accounting data; write_report performs the privacy check before publishing."""
     ledger = [json.loads(line) for line in (root / 'evidence/ledger.jsonl').read_text().splitlines()]
     ledger = [e for e in ledger if e.get('run_id') == RUN_ID]
     price = sum(usage_cost(e['usage']) for e in ledger if e.get('usage'))
@@ -51,30 +52,39 @@ def analyze(root, secret):
                                'provider_usage': provider, 'provider_events': provider_events,
                                'collector': selected, 'model_spans': spans})
 
-    # Only print counts and paths on failure; never print secrets or captured values.
+    return report
+
+
+def check_privacy(root, serialized, secret, hash_secret=None):
+    """Refuse contaminated evidence or output without returning scan data to the report."""
     if not secret:
         raise ValueError('Secret scan requires OPENAI_API_KEY')
-    secret = secret.encode()
-    sentinel = SENTINEL.encode()
-    secret_hits, sentinel_hits = [], []
+    values = (secret, hash_secret or os.environ.get('TRIAL_HASH_SECRET'), SENTINEL)
+    forbidden = [encoded for value in values if value
+                 for encoded in (value.encode(), json.dumps(value)[1:-1].encode())]
+    if any(value in serialized for value in forbidden):
+        raise ValueError('Privacy scan failed; no analysis report written')
     for path in (list((root / 'evidence').rglob('*')) + list((root / 'results').rglob('*'))
-                 + list((root / 'summaries').rglob('*')) + list((root / 'fleetdiff').rglob('*')) + list(root.glob('*.txt'))):
+                 + list((root / 'summaries').rglob('*')) + list((root / 'fleetdiff').rglob('*'))
+                 + list(root.glob('*.txt')) + list(root.glob('*.json'))):
         if path.is_file():
             data = path.read_bytes()
-            if secret in data:
-                secret_hits.append(str(path.relative_to(root)))
-            if sentinel in data:
-                sentinel_hits.append(str(path.relative_to(root)))
-    report['privacy'] = {'secret_hit_files': secret_hits, 'prompt_sentinel_hit_files': sentinel_hits}
+            if any(value in data for value in forbidden):
+                raise ValueError('Privacy scan failed; no analysis report written')
+
+
+def write_report(root, secret, hash_secret=None):
+    report = analyze(root)
+    report['privacy'] = {'secret_hit_files': [], 'prompt_sentinel_hit_files': []}
+    serialized = json.dumps(report, indent=2).encode()
+    check_privacy(root, serialized, secret, hash_secret)
+    (root / 'analysis.json').write_bytes(serialized)
     return report
 
 
 def main():
     root = Path(os.environ['TRIAL_OUTPUT'])
-    report = analyze(root, os.environ.get('OPENAI_API_KEY'))
-    (root / 'analysis.json').write_text(json.dumps(report, indent=2))
-    if report['privacy']['secret_hit_files'] or report['privacy']['prompt_sentinel_hit_files']:
-        raise SystemExit('Privacy scan failed; keep evidence private and inspect locally')
+    report = write_report(root, os.environ.get('OPENAI_API_KEY'), os.environ['TRIAL_HASH_SECRET'])
     print(json.dumps({'provider_attempts': report['provider_attempts'],
                       'observed_usage_estimated_usd': report['observed_usage_estimated_usd'],
                       'completed_cases': len(report['cases']), 'privacy': 'pass'}))

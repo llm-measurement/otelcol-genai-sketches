@@ -26,7 +26,7 @@ Choose the path matching your source; keep your existing trace backend.
 - **[Standard GenAI spans](docs/SHADOW_MODE.md):** model-call spans using `gen_ai.operation.name` (or `gen_ai.request.model` when absent) and `gen_ai.usage.input_tokens` / `gen_ai.usage.output_tokens`; add `genaisketch` beside your existing trace exporter.
 - **[LiteLLM](examples/integrations/litellm/README.md#connect-an-existing-proxy):** an existing proxy exporting model spans through its OpenTelemetry callback.
 - **[agentgateway](examples/integrations/agentgateway/README.md#use-it-with-your-gateway):** model spans with token usage, a verified user identity and your application's session header.
-- **[Envoy AI Gateway](examples/integrations/envoy-ai-gateway/README.md#mapping-your-traffic):** the standalone AI gateway's GenAI spans, with trusted user and session headers mapped to span attributes.
+- **[Agent Router](examples/integrations/envoy-ai-gateway/README.md#mapping-your-traffic):** GenAI spans and trusted identity headers; captured on Envoy AI Gateway 1.1.0.
 - **[Copilot CLI](examples/integrations/coding-agents/README.md#source-settings-and-mappings):** OpenTelemetry model spans with token usage and `gen_ai.conversation.id` for sessions.
 - **[Copilot Chat](examples/integrations/coding-agents/README.md#source-settings-and-mappings):** OpenTelemetry model spans with token usage and `copilot_chat.session_id`, or resource `session.id`.
 - **[OpenInference / OpenLLMetry](examples/integrations/genai-normalizer/README.md#put-it-in-your-pipeline):** vendor-shaped model spans, normalized on the sketch branch by a separate contrib collector before reaching v0.3.2.
@@ -81,7 +81,10 @@ applications -> Collector fan-out -> current trace backend
 
 Keep Datadog, Langfuse, Alloy, or another OTLP destination as your trace backend.
 The connector counts model attempts separately from agent, tool, retrieval, and
-MCP spans, and records missing token usage explicitly.
+MCP spans.
+The connector counts missing token usage separately, while the
+[pinned standard token metrics](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/gen-ai/gen-ai-token-metrics.md)
+record `0` with `gen_ai.token.modality` set to `unknown` when a response or its usage is absent.
 It uses [llm-sketchkit](https://github.com/llm-measurement/llm-sketchkit) to hash
 configured identities, estimate distinct activity, and rank heavy contributors.
 Compatible summary files let [fleetdiff](https://github.com/llm-measurement/fleetdiff)
@@ -99,8 +102,8 @@ pin immutable digests, configure the hashing secret, and start the collector.
 
 | Artifact | Released version | Reference |
 | --- | --- | --- |
-| Collector image | `v0.6.1` | `ghcr.io/llm-measurement/otelcol-genai-sketches` |
-| Helm chart | `0.6.1` | `oci://ghcr.io/llm-measurement/charts/otelcol-genai-sketches` |
+| Collector image | `v0.6.2` | `ghcr.io/llm-measurement/otelcol-genai-sketches` |
+| Helm chart | `0.6.2` | `oci://ghcr.io/llm-measurement/charts/otelcol-genai-sketches` |
 
 The image supports Linux amd64 and arm64. For Kubernetes, the deployment guide
 includes the verified chart install and an existing-Secret configuration.

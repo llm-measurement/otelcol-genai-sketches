@@ -31,7 +31,7 @@ func TestChartReleaseMetadata(t *testing.T) {
 	if err := yaml.Unmarshal(data, &chart); err != nil {
 		t.Fatal(err)
 	}
-	if chart.Version != "0.7.0" || chart.AppVersion != "0.6.1" {
+	if chart.Version != "0.7.0" || chart.AppVersion != "0.7.0" {
 		t.Fatalf("chart-only release metadata changed: %+v", chart)
 	}
 	if tag := os.Getenv("CHART_RELEASE_TAG"); tag != "" && tag != "chart-v"+chart.Version {
@@ -131,7 +131,7 @@ func TestChartReleasePackage(t *testing.T) {
 			if err := yaml.NewDecoder(archive).Decode(&chart); err != nil {
 				t.Fatal(err)
 			}
-			if chart.Version != "0.7.0" || chart.AppVersion != "0.6.1" {
+			if chart.Version != "0.7.0" || chart.AppVersion != "0.7.0" {
 				t.Fatalf("packaging changed chart or runtime version: %+v", chart)
 			}
 			break

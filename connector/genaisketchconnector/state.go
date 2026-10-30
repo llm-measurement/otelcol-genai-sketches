@@ -112,6 +112,7 @@ type accountingCounters struct {
 	usageProvenance       usageProvenanceCounts
 	dedupSuppressed       uint64
 	dedupKeyMissing       uint64
+	dedupOverflow         uint64
 }
 
 type sliceLabel struct {
@@ -253,6 +254,7 @@ type preparedUpdate struct {
 	dedupHash       optionalHash
 	deduped         bool
 	dedupKeyMissing bool
+	dedupOverflow   bool
 	userHash        optionalHash
 	promptHash      optionalHash
 	docHash         optionalHash
@@ -282,6 +284,12 @@ func newCollectorState(cfg *Config, secret sketchhash.Secret, clk clock) (*colle
 	}
 	if cfg.SummaryExport.Directory != "" {
 		state.summary = &sliceState{windows: make(map[int64]*windowState)}
+	}
+	if state.cfg.modelUsage != nil {
+		state.cfg.modelUsage.fixedBytes, err = state.modelUsageFixedBytes()
+		if err != nil {
+			return nil, err
+		}
 	}
 	return state, nil
 }
@@ -396,6 +404,17 @@ func (s *collectorState) visitRelevantSpans(traces ptrace.Traces, now time.Time,
 }
 
 func (s *collectorState) validateHashedInputs(data spanData, update spanUpdate) error {
+	for _, slice := range s.cfg.slices {
+		for _, key := range slice.Keys {
+			value, ok := lookupStringInMap(data.spanAttrs, []string{key})
+			if !ok && sliceAllowsResourceKey(slice, key) {
+				value, ok = lookupStringInMap(data.resourceAttrs, []string{key})
+			}
+			if ok && !utf8.ValidString(value) {
+				return spanRejectedUTF8
+			}
+		}
+	}
 	if update.request {
 		if s.cfg.dedupEnabled {
 			if requestID, ok := lookupRequestID(data, s.cfg.requestIDAttrs); ok {
@@ -522,6 +541,8 @@ func (s *collectorState) prepareUpdate(window *windowState, data spanData, updat
 		}
 		prepared.dedupHash = dedupHash
 		prepared.dedupKeyMissing = keyMissing
+		prepared.dedupOverflow = s.cfg.dedupEnabled && window.dedupRequests != nil &&
+			!keyMissing && !dedupHash.ok && !window.saturation[saturationDedup]
 		if prepared.userHash, err = s.hashDataField(fieldUserKey, data); err != nil {
 			return preparedUpdate{}, err
 		}
@@ -604,6 +625,11 @@ func (s *collectorState) prepareDedup(window *windowState, data spanData) (optio
 	if !ok {
 		return optionalHash{}, false, true, nil
 	}
+	// Once full, bypass both lookups and inserts for this window. Keeping
+	// querying a saturated filter would still suppress unrelated requests.
+	if window.dedupRequests.InsertedCount() >= window.dedupRequests.RatedInsertions() {
+		return optionalHash{}, false, false, nil
+	}
 	hashValue, err := s.hashCanonical(sketchcanon.TextV1, sketchhash.SessionV1, requestID)
 	if err != nil {
 		return optionalHash{}, false, false, err
@@ -662,6 +688,11 @@ func (s *accountingCounters) checkCounters(update spanUpdate, prepared preparedU
 	}
 	if prepared.dedupKeyMissing {
 		if err := check("slice.dedup_key_missing", s.dedupKeyMissing, 1); err != nil {
+			return err
+		}
+	}
+	if prepared.dedupOverflow {
+		if err := check("slice.dedup_overflow", s.dedupOverflow, 1); err != nil {
 			return err
 		}
 	}
@@ -749,6 +780,9 @@ func (s *accountingCounters) addCounters(update spanUpdate, prepared preparedUpd
 	}
 	if prepared.dedupKeyMissing {
 		s.add(&s.dedupKeyMissing, 1)
+	}
+	if prepared.dedupOverflow {
+		s.add(&s.dedupOverflow, 1)
 	}
 	if update.agentRun {
 		s.add(&s.agentRuns, 1)
@@ -1182,6 +1216,9 @@ func (s *collectorState) buildMetrics(now time.Time) pmetric.Metrics {
 		if s.cfg.dedupEnabled {
 			appendSum(scopeMetrics, dedupSuppressedMetricName, "Cumulative requests suppressed by the optional per-window Bloom deduplicator.", "{request}", slice.dedupSuppressed, labels, slice.startTime, timestamp)
 			appendSum(scopeMetrics, dedupKeyMissingMetricName, "Cumulative requests counted without a configured deduplication key.", "{request}", slice.dedupKeyMissing, labels, slice.startTime, timestamp)
+			if slice.dedupOverflow != 0 {
+				appendSum(scopeMetrics, dedupOverflowMetricName, "Cumulative requests counted after the per-window Bloom insertion limit.", "{request}", slice.dedupOverflow, labels, slice.startTime, timestamp)
+			}
 		}
 
 		window := slice.windows[currentWindow]

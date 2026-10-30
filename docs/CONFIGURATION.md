@@ -22,9 +22,9 @@ connectors:
         from_resource_attributes: [gen_ai.request.model]
 ```
 
-`GENAI_SKETCH_SECRET` must contain at least 16 bytes. Generate at least 128 bits of
-entropy and keep the value out of configuration files, images, logs, and source
-control.
+`GENAI_SKETCH_SECRET` must contain at least 32 bytes. Generate a private key with
+`openssl rand -hex 32`; published example keys are refused at startup. Keep the
+value out of configuration files, images, logs, and source control.
 
 When using the standalone connector with the OpenTelemetry Collector Builder,
 configure `genaisketch` as an exporter from the traces pipeline and a receiver in
@@ -70,9 +70,11 @@ that key is listed in `from_resource_attributes`. Missing parts use the fixed `<
 value; oversized label parts use `<too_long>`.
 
 Slice values are plaintext Prometheus labels. Restrict them to operator-chosen,
-bounded, non-sensitive dimensions. `mcp.session.id`, `mcp.resource.uri`, and
-`jsonrpc.request.id` are rejected as slice keys. A slice key that overlaps a
-configured hashed-field source is also rejected.
+bounded, non-sensitive dimensions. User, session, request, response and prompt
+identity keys, plus `mcp.session.id`, `mcp.resource.uri` and `jsonrpc.request.id`,
+are rejected even when hashed-field mappings change. A slice key that overlaps a
+configured sensitive hashed-field source is also rejected. Invalid UTF-8 label
+values reject only their span and increment the fixed `invalid_utf8` reason.
 
 ## Operation Filter
 
@@ -108,6 +110,24 @@ Only add resource candidates when that resource really identifies one user.
 The distinct-user gauge estimates the current window, not all retained windows.
 Use a longer `window_duration` or merge compatible summary exports for a longer
 period; do not add the gauges. Mapping `user_key` does not enable user top-k.
+
+For prompt attribution, prefer
+[`gen_ai.prompt.name`](SEMANTIC_CONVENTIONS.md#requests-and-tokens), an
+application-supplied prompt identifier, as the `prompt_key` source:
+
+```yaml
+fields:
+  prompt_key:
+    from_attributes: [gen_ai.prompt.name]
+    from_resource_attributes: []
+    canonicalization: text_v1
+    domain: prompt:v1
+```
+
+This is an explicit mapping choice. The default still reads
+`gen_ai.request.prompt` from span and resource attributes. Changing the source
+changes which values are keyed and the accounting identity; compare or merge
+summaries only with compatible mappings.
 
 Configured hashed-field values larger than 8 KiB or containing invalid UTF-8
 reject only that span from sketch accounting. Other valid spans in the batch remain
@@ -239,6 +259,14 @@ default. Deduplication uses a bounded, per-slice, per-window Bloom filter. False
 positives can suppress a previously unseen request and therefore undercount; use it
 only when duplicate suppression is worth that explicit tradeoff. Suppressed
 requests and requests missing a deduplication key have separate counters.
+
+Each filter stops accepting inserts at its profile's design capacity: 10,000
+(`micro`), 100,000 (`small`), or 1,000,000 (`default`). Once full, requests with a
+deduplication key bypass both lookup and insertion for the rest of that window.
+They are counted normally, including possible duplicates, and increment
+`gen_ai_sketch_dedup_overflow_total`. The next window starts with a fresh filter.
+Overflow is a Prometheus metric only; summary exports keep their existing counter
+set so normal and overflowed windows remain compatible.
 
 ## MCP
 
