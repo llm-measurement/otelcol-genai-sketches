@@ -2,7 +2,7 @@
 
 Notable user-visible changes are recorded here.
 
-## v0.7.0 / Helm chart 0.7.0 - Unreleased
+## v0.7.0 / Helm chart 0.7.0 - 2026-10-31
 
 - Enable NetworkPolicy by default in this next minor chart: allow same-namespace
   OTLP, require explicit metrics peers, and limit egress to cluster DNS plus
