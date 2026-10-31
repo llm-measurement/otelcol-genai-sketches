@@ -22,6 +22,8 @@ type chartMetadata struct {
 	AppVersion string `yaml:"appVersion"`
 }
 
+const released070Image = "ghcr.io/llm-measurement/otelcol-genai-sketches@sha256:226c7dbf459dcaa5aa98e9ff3545b7620fdcab860b14b9410db9795429fd3908"
+
 func TestChartReleaseMetadata(t *testing.T) {
 	data, err := os.ReadFile("../otelcol-genai-sketches/Chart.yaml")
 	if err != nil {
@@ -31,7 +33,7 @@ func TestChartReleaseMetadata(t *testing.T) {
 	if err := yaml.Unmarshal(data, &chart); err != nil {
 		t.Fatal(err)
 	}
-	if chart.Version != "0.7.0" || chart.AppVersion != "0.7.0" {
+	if chart.Version != "0.7.1" || chart.AppVersion != "0.7.0" {
 		t.Fatalf("chart-only release metadata changed: %+v", chart)
 	}
 	if tag := os.Getenv("CHART_RELEASE_TAG"); tag != "" && tag != "chart-v"+chart.Version {
@@ -90,7 +92,7 @@ func TestChartReleasePackage(t *testing.T) {
 		if doc.Kind == "Deployment" {
 			found = true
 			containers := doc.Spec.Template.Spec.Containers
-			if len(containers) != 1 || containers[0].Image != "ghcr.io/llm-measurement/otelcol-genai-sketches:0.7.0" {
+			if len(containers) != 1 || containers[0].Image != released070Image {
 				t.Fatalf("default runtime image changed: %+v", containers)
 			}
 		}
@@ -107,7 +109,7 @@ func TestChartReleasePackage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("package: %v\n%s", err, output)
 	}
-	file, err := os.Open(filepath.Join(dir, "otelcol-genai-sketches-0.7.0.tgz"))
+	file, err := os.Open(filepath.Join(dir, "otelcol-genai-sketches-0.7.1.tgz"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +133,7 @@ func TestChartReleasePackage(t *testing.T) {
 			if err := yaml.NewDecoder(archive).Decode(&chart); err != nil {
 				t.Fatal(err)
 			}
-			if chart.Version != "0.7.0" || chart.AppVersion != "0.7.0" {
+			if chart.Version != "0.7.1" || chart.AppVersion != "0.7.0" {
 				t.Fatalf("packaging changed chart or runtime version: %+v", chart)
 			}
 			break

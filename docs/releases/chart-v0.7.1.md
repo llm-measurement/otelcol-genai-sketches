@@ -4,7 +4,7 @@
 # Helm Chart 0.7.1
 
 Chart 0.7.1 pins collector v0.7.0 by its multi-architecture image index digest,
-`sha256:FILL_FROM_v0.7.0_image-digest.txt`, so default installations select immutable
+`sha256:226c7dbf459dcaa5aa98e9ff3545b7620fdcab860b14b9410db9795429fd3908`, so default installations select immutable
 image content. The templates, policy defaults and collector are the same as in chart
 0.7.0. If you're upgrading from an earlier chart, read the
 [v0.7.0 breaking changes](v0.7.0.md#breaking-changes) first.

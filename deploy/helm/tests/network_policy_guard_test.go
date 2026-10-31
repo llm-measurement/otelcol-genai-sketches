@@ -67,7 +67,7 @@ func TestParentChartGlobalValues(t *testing.T) {
 		}
 	}
 	parent := t.TempDir()
-	metadata := "apiVersion: v2\nname: parent\nversion: 0.1.0\ndependencies:\n  - name: otelcol-genai-sketches\n    version: 0.7.0\n"
+	metadata := "apiVersion: v2\nname: parent\nversion: 0.1.0\ndependencies:\n  - name: otelcol-genai-sketches\n    version: 0.7.1\n"
 	if err := os.WriteFile(filepath.Join(parent, "Chart.yaml"), []byte(metadata), 0600); err != nil {
 		t.Fatal(err)
 	}
