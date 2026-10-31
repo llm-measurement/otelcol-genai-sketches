@@ -8,7 +8,7 @@ filesystem, contains no shell, and uses pinned build and runtime base images.
 The example Compose stack remains a demonstration. Use the production image or Helm
 chart for a persistent environment.
 
-The commands below select collector **v0.6.2** and chart **0.6.2**.
+The commands below select collector **v0.7.0** and chart **0.7.1**.
 Chart and collector versions advance independently.
 
 ## Verify An Image
@@ -24,7 +24,7 @@ Use an immutable digest from the GitHub release, not a mutable tag:
 Fetch the references from that release's published metadata:
 
 ```bash
-RELEASE=v0.6.2
+RELEASE=v0.7.0
 IMAGE_REF="$(curl -fsSL \
   "https://github.com/llm-measurement/otelcol-genai-sketches/releases/download/${RELEASE}/image-digest.txt")"
 IMAGE="${IMAGE_REF%@*}"
@@ -42,27 +42,27 @@ gh attestation verify "oci://$IMAGE@$DIGEST" \
   --source-ref "refs/tags/${RELEASE}" --deny-self-hosted-runners
 ```
 
-Chart 0.6.2 includes summary storage and readback alongside opt-in warning rules
-and served-model usage accounting, and defaults to collector image 0.6.2. Both artifacts
-share `release.yml` at `refs/tags/v0.6.2`; there is no separate chart tag.
+Chart 0.7.1 pins collector v0.7.0 by its multi-architecture image index digest.
+The image uses `release.yml` at `refs/tags/v0.7.0`; the chart uses
+`chart-release.yml` at `refs/tags/chart-v0.7.1`.
 Verify the chart's immutable reference too:
 
 ```bash
-CHART_RELEASE=v0.6.2
-CHART_VERSION=0.6.2
+CHART_RELEASE=chart-v0.7.1
+CHART_VERSION=0.7.1
 CHART_REF="$(curl -fsSL \
   "https://github.com/llm-measurement/otelcol-genai-sketches/releases/download/${CHART_RELEASE}/chart-digest.txt")"
 CHART="${CHART_REF%@*}"
 CHART_DIGEST="${CHART_REF#*@}"
 
 cosign verify \
-  --certificate-identity "https://github.com/llm-measurement/otelcol-genai-sketches/.github/workflows/release.yml@refs/tags/${CHART_RELEASE}" \
+  --certificate-identity "https://github.com/llm-measurement/otelcol-genai-sketches/.github/workflows/chart-release.yml@refs/tags/${CHART_RELEASE}" \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   "$CHART@$CHART_DIGEST"
 
 gh attestation verify "oci://$CHART@$CHART_DIGEST" \
   --repo llm-measurement/otelcol-genai-sketches \
-  --cert-identity "https://github.com/llm-measurement/otelcol-genai-sketches/.github/workflows/release.yml@refs/tags/${CHART_RELEASE}" \
+  --cert-identity "https://github.com/llm-measurement/otelcol-genai-sketches/.github/workflows/chart-release.yml@refs/tags/${CHART_RELEASE}" \
   --source-ref "refs/tags/${CHART_RELEASE}" --deny-self-hosted-runners
 ```
 
@@ -78,7 +78,8 @@ Runtime releases carry image and chart digests, an SBOM index export, a packaged
 chart, and checksums. Collector v0.3.3 introduced `provenance.jsonl` for
 `SHA256SUMS` and `sbom-index.json`; v0.4.1 adds `openvex.json`
 as a separate attestation subject. Verify those metadata subjects before checking
-the downloaded files. The image and chart share this release and signing identity:
+the downloaded files. These runtime assets, including the bundled chart 0.7.0,
+use the collector release's signing identity:
 
 ```bash
 mkdir -p release-assets
@@ -95,10 +96,26 @@ done
 (cd release-assets && shasum -a 256 -c SHA256SUMS)
 ```
 
+Verify the selected chart 0.7.1 release's checksum bundle separately:
+
+```bash
+mkdir -p chart-release-assets
+gh release download "$CHART_RELEASE" \
+  --repo llm-measurement/otelcol-genai-sketches \
+  --dir chart-release-assets
+gh attestation verify chart-release-assets/SHA256SUMS \
+  --bundle chart-release-assets/provenance.jsonl \
+  --repo llm-measurement/otelcol-genai-sketches \
+  --signer-workflow llm-measurement/otelcol-genai-sketches/.github/workflows/chart-release.yml \
+  --source-ref "refs/tags/${CHART_RELEASE}" --deny-self-hosted-runners
+(cd chart-release-assets && shasum -a 256 -c SHA256SUMS)
+printf '%s\n' "$CHART_REF" | cmp - chart-release-assets/chart-digest.txt
+```
+
 Verification checks the digest's signature and provenance against this repository's
 release workflow and tag. Review runtime configuration and workload sizing separately.
 The checksum check establishes file integrity; the preceding attestation checks
-authenticate the checksum manifest, SBOM index, and OpenVEX document. Keep the image and chart
+authenticate the checksum manifests, SBOM index, and OpenVEX document. Keep the image and chart
 signature and provenance checks above as well.
 Verify the release-specific assessment as described in [Release OpenVEX](OPENVEX.md).
 The image includes the project license and collected third-party notices under
@@ -237,8 +254,8 @@ receiverTLS:
 
 ## Chart 0.7.0 Network Policy Migration
 
-**The next minor chart, 0.7.0, enables NetworkPolicy by default.** Collector
-appVersion is 0.7.0. Chart 0.6.x leaves NetworkPolicy off by default.
+**Chart 0.7.0 enables NetworkPolicy by default; chart 0.7.1 retains those defaults.**
+Collector appVersion is 0.7.0. Chart 0.6.x leaves NetworkPolicy off by default.
 Before upgrading, configure allowed senders, Prometheus peers and shadow-backend
 egress. Reusing old values without the new defaults can preserve the old opt-out;
 review the merged values and rendered policy before applying the upgrade.
