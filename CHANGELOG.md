@@ -2,7 +2,25 @@
 
 Notable user-visible changes are recorded here.
 
-## v0.6.2 / Helm chart 0.6.2 - Unreleased
+## v0.7.0 / Helm chart 0.7.0 - 2026-10-31
+
+- Enable NetworkPolicy by default in this next minor chart: allow same-namespace
+  OTLP, require explicit metrics peers, and limit egress to cluster DNS plus
+  configured rules. Add selected-peer presets and mTLS instructions.
+- Use collector 0.7.0 via appVersion with empty image tag and digest values.
+  Warn when using a mutable tag. Enforce pod hardening with or without summary export and
+  reject unknown top-level and security-related values.
+- Precompute model-usage summary capacity instead of copying the window for
+  every span, cap per-window Bloom insertions, and report overflow requests in
+  `gen_ai_sketch_dedup_overflow_total` ([#113](https://github.com/llm-measurement/otelcol-genai-sketches/pull/113)).
+- Mark legacy token-name aliases in the semantic-convention guidance while
+  retaining support for them ([#115](https://github.com/llm-measurement/otelcol-genai-sketches/pull/115)).
+- Review the [network policy migration](docs/DEPLOYMENT.md#chart-070-network-policy-migration)
+  before upgrading; cross-namespace senders, Prometheus and shadow backends need
+  explicit rules. Collector startup requires a private hash key of at least
+  32 bytes and rejects published example keys; see [upgrading](docs/UPGRADING.md#hash-key-and-label-hardening-in-v070).
+
+## v0.6.2 / Helm chart 0.6.2 - 2026-10-23
 
 See the [release notes](docs/releases/v0.6.2.md). Rebuild with Go 1.26.10 for
 GO-2026-6809, which distrusts compromised intermediate certificates during TLS

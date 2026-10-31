@@ -7,3 +7,15 @@ shadow:
   auth:
     existingSecret: existing-otlp-authorization
     key: authorization
+
+# Chart 0.7.0 requires explicit backend egress. Uncomment and replace this
+# documentation address with collector.example.net's approved backend IP/CIDR.
+# Standard NetworkPolicy matches IPs or pod peers, not DNS names.
+# networkPolicy:
+#   egress:
+#     - to:
+#         - ipBlock:
+#             cidr: 192.0.2.10/32
+#       ports:
+#         - protocol: TCP
+#           port: 4317

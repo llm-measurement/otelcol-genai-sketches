@@ -1,3 +1,6 @@
+Collector 0.7.0 requires a private hash key of at least 32 bytes and rejects
+published example keys. Chart 0.7.0 enables NetworkPolicy by default.
+
 The collector is available inside the cluster at:
 
   {{ include "otelcol-genai-sketches.fullname" . }}.{{ .Release.Namespace }}.svc:{{ .Values.service.otlpGrpcPort }}
@@ -7,3 +10,12 @@ is intentionally not exposed through the Service.
 
 This chart runs one stateful aggregation replica. Read docs/DEPLOYMENT.md before
 sharding traffic or rotating GENAI_SKETCH_SECRET.
+
+Chart 0.7.0 enables NetworkPolicy by default: same-namespace OTLP only, explicit
+metrics peers, and DNS-only egress. Add allow-list rules for cross-namespace
+senders, Prometheus and any shadow backend. The cluster must enforce NetworkPolicy.
+{{- if not .Values.image.digest }}
+
+WARNING: image.digest is empty. This deployment uses a mutable image tag.
+Set image.digest to the verified digest for the intended collector image.
+{{- end }}

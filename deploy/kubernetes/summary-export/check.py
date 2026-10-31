@@ -55,6 +55,26 @@ def traffic(index, start):
     return {"resourceSpans": [{"resource": {}, "scopeSpans": [{"scope": {"name": "chart-test"}, "spans": spans}]}]}
 
 
+def collector_command(helm, name, pvc=False):
+    settings = ["fullnameOverride=" + name, "summaryExport.enabled=true", "summaryExport.reader.enabled=true",
+                "summaryExport.producerID=app", "summaryExport.scopeID=gateway-recipe", "summaryExport.keyID=recipe-run",
+                "summaryExport.interval=1s", "connector.retentionWindows=16", "connector.windowDuration=20s",
+                "image.digest=" + IMAGE.split("@", 1)[1], "telemetry.logs.encoding=json", "connector.maxSlices=10",
+                "resources.requests.cpu=100m", "resources.requests.memory=128Mi"]
+    cmd = [helm, "template", name, REPO / "deploy/helm/otelcol-genai-sketches", "--namespace", "summary-test",
+           "-f", REPO / "examples/integrations/agentgateway/chart-values.yaml"]
+    if pvc:
+        settings += ["summaryExport.storage.type=existingClaim", "summaryExport.storage.existingClaim=summary-data", "summaryExport.storage.sizeLimit=",
+                     "shadow.endpoint=backend:4317", "shadow.insecure=true"]
+        egress = [{"to": [{"podSelector": {"matchLabels": {"app": "backend"}}}],
+                   "ports": [{"protocol": "TCP", "port": 4317}]}]
+        cmd += ["--set-json", "networkPolicy.egress=" + json.dumps(egress)]
+    settings += ["shadow.enabled=" + str(pvc).lower()]
+    for setting in settings:
+        cmd += ["--set", setting]
+    return cmd
+
+
 def run(args):
     os.umask(0o077)
     root = args.output.resolve()
@@ -87,20 +107,7 @@ def run(args):
         raise RuntimeError("Loopback port forward did not become ready")
 
     def collector(name, pvc=False):
-        settings = ["fullnameOverride=" + name, "summaryExport.enabled=true", "summaryExport.reader.enabled=true",
-                    "summaryExport.producerID=app", "summaryExport.scopeID=gateway-recipe", "summaryExport.keyID=recipe-run",
-                    "summaryExport.interval=1s", "connector.retentionWindows=16", "connector.windowDuration=20s",
-                    "image.digest=" + IMAGE.split("@", 1)[1], "telemetry.logs.encoding=json", "connector.maxSlices=10",
-                    "resources.requests.cpu=100m", "resources.requests.memory=128Mi"]
-        if pvc:
-            settings += ["summaryExport.storage.type=existingClaim", "summaryExport.storage.existingClaim=summary-data", "summaryExport.storage.sizeLimit=",
-                         "shadow.enabled=true", "shadow.endpoint=backend:4317", "shadow.insecure=true"]
-        cmd = [args.helm, "template", name, REPO / "deploy/helm/otelcol-genai-sketches", "--namespace", "summary-test",
-               "-f", REPO / "examples/integrations/agentgateway/chart-values.yaml"]
-        settings += ["shadow.enabled=" + str(pvc).lower()]
-        for setting in settings:
-            cmd += ["--set", setting]
-        manifest = command(cmd)
+        manifest = command(collector_command(args.helm, name, pvc))
         (root / (name + "-rendered.yaml")).write_bytes(manifest)
         k("apply", "-f", "-", data=manifest)
         k("rollout", "status", "deployment/" + name, "--timeout=180s")

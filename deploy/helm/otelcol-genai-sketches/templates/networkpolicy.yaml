@@ -1,6 +1,12 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{/* Code authors: Vijay and Codex */}}
 {{- if .Values.networkPolicy.enabled }}
+{{- if and .Values.shadow.enabled (not .Values.networkPolicy.egress) }}
+{{- fail "shadow.enabled requires networkPolicy.egress for the backend; see docs/DEPLOYMENT.md#chart-070-network-policy-migration" }}
+{{- end }}
+{{- if and .Values.serviceMonitor.enabled (not .Values.networkPolicy.metricsFrom) (not .Values.networkPolicy.ingress) }}
+{{- fail "serviceMonitor.enabled requires networkPolicy.metricsFrom or networkPolicy.ingress; see docs/DEPLOYMENT.md#chart-070-network-policy-migration" }}
+{{- end }}
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -12,8 +18,27 @@ spec:
     matchLabels:
       {{- include "otelcol-genai-sketches.selectorLabels" . | nindent 6 }}
   policyTypes: [Ingress, Egress]
-  ingress:
-    {{- toYaml .Values.networkPolicy.ingress | nindent 4 }}
-  egress:
-    {{- toYaml .Values.networkPolicy.egress | nindent 4 }}
+  {{- $otlp := .Values.networkPolicy.otlpFrom }}
+  {{- if .Values.networkPolicy.allowSameNamespace }}
+  {{- $otlp = append $otlp (dict "podSelector" (dict)) }}
+  {{- end }}
+  {{- $ingress := .Values.networkPolicy.ingress }}
+  {{- if $otlp }}
+  {{- $ingress = append $ingress (dict "from" $otlp "ports" (list
+      (dict "protocol" "TCP" "port" .Values.service.otlpGrpcPort)
+      (dict "protocol" "TCP" "port" .Values.service.otlpHTTPPort))) }}
+  {{- end }}
+  {{- if .Values.networkPolicy.metricsFrom }}
+  {{- $ingress = append $ingress (dict "from" .Values.networkPolicy.metricsFrom "ports" (list
+      (dict "protocol" "TCP" "port" .Values.service.metricsPort))) }}
+  {{- end }}
+  ingress: {{ $ingress | toJson }}
+  {{- $egress := .Values.networkPolicy.egress }}
+  {{- if .Values.networkPolicy.allowDNS }}
+  {{- $egress = append $egress (dict "to" (list (dict
+      "namespaceSelector" (dict "matchLabels" (dict "kubernetes.io/metadata.name" "kube-system"))
+      "podSelector" (dict "matchLabels" (dict "k8s-app" "kube-dns"))))
+      "ports" (list (dict "protocol" "UDP" "port" 53) (dict "protocol" "TCP" "port" 53))) }}
+  {{- end }}
+  egress: {{ $egress | toJson }}
 {{- end }}

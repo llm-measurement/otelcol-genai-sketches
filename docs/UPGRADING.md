@@ -1,5 +1,8 @@
 # Upgrading And Rollback
 
+For chart 0.7.0, see the [NetworkPolicy migration](DEPLOYMENT.md#chart-070-network-policy-migration)
+before upgrading: the default changes to deny unlisted traffic.
+
 The distribution currently follows pre-1.0 semantic versioning. Read release notes
 and the [accounting contract](ACCOUNTING.md) for every upgrade. A change to request
 scope, missing-usage meaning, alias precedence, token arithmetic, deduplication, or
@@ -55,7 +58,7 @@ known window boundary, record the event, and allow old windows to expire.
 
 ## Compatibility
 
-### Hash-Key And Label Hardening (Unreleased)
+### Hash-Key And Label Hardening In v0.7.0
 
 Startup now requires a private hash key of at least 32 bytes and refuses the
 repository's published example keys. Keep an existing private key that meets
