@@ -4,10 +4,10 @@ go 1.26.6
 
 require (
 	github.com/llm-measurement/llm-sketchkit v0.4.0
-	github.com/prometheus/common v0.72.1
+	github.com/prometheus/common v0.73.1
 	go.opentelemetry.io/proto/otlp v1.11.1
-	go.yaml.in/yaml/v3 v3.0.5
-	google.golang.org/grpc v1.84.0
+	go.yaml.in/yaml/v3 v3.0.6
+	google.golang.org/grpc v1.85.0
 	google.golang.org/protobuf v1.36.12
 )
 
@@ -22,6 +22,7 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/otiai10/copy v1.14.1 // indirect
 	github.com/otiai10/mint v1.6.3 // indirect
+	github.com/pandatix/go-abnf v0.5.3 // indirect
 	github.com/prometheus/client_model v0.6.3 // indirect
 	github.com/sergi/go-diff v1.4.0 // indirect
 	github.com/spf13/cobra v1.10.2 // indirect
