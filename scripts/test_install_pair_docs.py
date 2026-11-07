@@ -18,8 +18,8 @@ class InstallPairDocsTests(unittest.TestCase):
 
     def test_readme_pair(self):
         source = (ROOT / "README.md").read_text()
-        self.assertIn("| Collector image | `v0.6.2` |", source)
-        self.assertIn("| Helm chart | `0.6.2` |", source)
+        self.assertIn("| Collector image | `v0.7.0` |", source)
+        self.assertIn("| Helm chart | `0.7.1` |", source)
 
     def test_standalone_connector_pin(self):
         source = (ROOT / "connector/genaisketchconnector/README.md").read_text()
@@ -30,15 +30,15 @@ class InstallPairDocsTests(unittest.TestCase):
         source = (ROOT / "docs/DEPLOYMENT.md").read_text()
         self.assertIn("signed in for OCI provenance API checks", source)
 
-    def test_both_artifacts_use_the_runtime_release_identity(self):
+    def test_artifacts_use_their_separate_release_identities(self):
         source = (ROOT / "docs/DEPLOYMENT.md").read_text()
-        self.assertIn("\nRELEASE=v0.6.2\n", source)
-        self.assertIn("\nCHART_RELEASE=v0.6.2\nCHART_VERSION=0.6.2\n", source)
-        for variable in ("RELEASE", "CHART_RELEASE"):
-            identity = f".github/workflows/release.yml@refs/tags/${{{variable}}}"
+        self.assertIn("\nRELEASE=v0.7.0\n", source)
+        self.assertIn("\nCHART_RELEASE=chart-v0.7.1\nCHART_VERSION=0.7.1\n", source)
+        for workflow, variable in (("release", "RELEASE"), ("chart-release", "CHART_RELEASE")):
+            identity = f".github/workflows/{workflow}.yml@refs/tags/${{{variable}}}"
             self.assertEqual(source.count(identity), 2)
-        self.assertNotIn("chart-v0.6.2", source)
-        self.assertNotIn("chart-release.yml", source)
+        self.assertIn('--source-ref "refs/tags/${CHART_RELEASE}" --deny-self-hosted-runners', source)
+        self.assertNotIn(".github/workflows/release.yml@refs/tags/${CHART_RELEASE}", source)
 
     def test_metadata_is_authenticated_before_checksums(self):
         source = (ROOT / "docs/DEPLOYMENT.md").read_text()
