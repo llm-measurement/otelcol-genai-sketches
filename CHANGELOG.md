@@ -2,6 +2,21 @@
 
 Notable user-visible changes are recorded here.
 
+## v0.7.1 / Intermediate Helm chart 0.7.2-rc.1 - 2026-11-07
+
+Security fix: updates two dependencies with published advisories.
+
+- Update `klauspost/compress` to v1.20.2 for GO-2026-6865 and `golang.org/x/net`
+  to v0.62.0 for CVE-2026-78661 / GO-2026-6860.
+- No breaking changes from v0.7.0. Keep configuration, accounting contracts and
+  feature defaults unchanged.
+- Publish the runtime through the normal signed and attested release workflow.
+  The intermediate chart selects runtime 0.7.1; stable chart 0.7.2 follows
+  separately with the published image index pinned by digest.
+
+See the [security release notes](docs/releases/v0.7.1.md) for advisory and
+reachability-scan scope. The existing v0.7.0 upgrade requirements still apply.
+
 ## v0.7.0 / Helm chart 0.7.0 - 2026-10-31
 
 - Enable NetworkPolicy by default in this next minor chart: allow same-namespace
