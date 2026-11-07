@@ -2,6 +2,18 @@
 
 Notable user-visible changes are recorded here.
 
+## Helm chart 0.7.2 - 2026-11-07
+
+Security fix: updates two dependencies with published advisories through
+collector v0.7.1. Pin its published multi-architecture image index by digest.
+
+- Select `klauspost/compress` v1.20.2 for GO-2026-6865 and `golang.org/x/net`
+  v0.62.0 for CVE-2026-78661 / GO-2026-6860 in the collector image.
+- No breaking changes from chart 0.7.1; feature defaults and configuration stay
+  unchanged. App version is 0.7.1.
+- Publish through the separate `chart-release.yml` identity, not a rerun of the
+  runtime release. See the [chart release notes](docs/releases/chart-v0.7.2.md).
+
 ## v0.7.1 / Intermediate Helm chart 0.7.2-rc.1 - 2026-11-07
 
 Security fix: updates two dependencies with published advisories.
