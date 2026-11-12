@@ -4,8 +4,8 @@
 # Summary Export With Helm
 
 Keep summary windows in Kubernetes, copy them locally, and use fleetdiff to find
-the users and sessions behind a change. Chart **0.7.2** provides private storage,
-a read-only reader sidecar, and JSON log encoding with collector **v0.7.1**.
+the users and sessions behind a change. Chart **0.7.4** provides private storage,
+a read-only reader sidecar, and JSON log encoding with collector **v0.7.3**.
 Summary storage and readback were introduced in chart 0.3.2; chart and collector
 versions advance independently.
 
@@ -16,7 +16,7 @@ Use Helm, kubectl with pod-exec permission, local Python **3.10+**, and
 Clone the matching release for the example values and copy helper:
 
 ```sh
-git clone --depth 1 --branch chart-v0.7.2 https://github.com/llm-measurement/otelcol-genai-sketches.git collector-summary
+git clone --depth 1 --branch chart-v0.7.4 https://github.com/llm-measurement/otelcol-genai-sketches.git collector-summary
 cd collector-summary
 ```
 
@@ -24,7 +24,7 @@ Follow
 [Deployment](DEPLOYMENT.md) to verify the chart and collector image, obtain
 `DIGEST`, and create the `observability` namespace and hashing Secret.
 Use a private random hashing key of at least 32 bytes; published example keys
-are rejected. Chart 0.7.2 keeps NetworkPolicy enabled by default. Configure
+are rejected. Chart 0.7.4 keeps NetworkPolicy enabled by default. Configure
 `networkPolicy.metricsFrom` for your actual Prometheus namespace and pods before
 scraping metrics, and review the rendered policy when upgrading from 0.6.x.
 
@@ -42,13 +42,13 @@ image digest, TLS, shadow, and resource settings when upgrading:
 ```sh
 umask 077
 helm template genai-sketches \
-  oci://ghcr.io/llm-measurement/charts/otelcol-genai-sketches --version 0.7.2 \
+  oci://ghcr.io/llm-measurement/charts/otelcol-genai-sketches --version 0.7.4 \
   --namespace observability \
   -f deploy/kubernetes/central/summary-values.yaml \
-  --set-string image.digest="${DIGEST:?verify the released v0.7.1 image first}"
+  --set-string image.digest="${DIGEST:?verify the released v0.7.3 image first}"
 
 helm upgrade --install genai-sketches \
-  oci://ghcr.io/llm-measurement/charts/otelcol-genai-sketches --version 0.7.2 \
+  oci://ghcr.io/llm-measurement/charts/otelcol-genai-sketches --version 0.7.4 \
   --namespace observability \
   -f deploy/kubernetes/central/summary-values.yaml \
   --set-string image.digest="${DIGEST:?verify the release image first}"
