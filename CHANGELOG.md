@@ -2,6 +2,12 @@
 
 Notable user-visible changes are recorded here.
 
+## Helm chart 0.7.4
+
+Pin the published, signed collector v0.7.3 image index by digest. The chart
+retains the configuration and feature defaults of chart 0.7.2. See the
+[chart release notes](docs/releases/chart-v0.7.4.md).
+
 ## v0.7.3 / Intermediate Helm chart 0.7.4-rc.1
 
 - Keep Go 1.26.11 for GO-2026-6859 and update x/crypto to v0.59.0 for
