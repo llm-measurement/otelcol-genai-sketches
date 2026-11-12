@@ -43,6 +43,14 @@ class InstallPairDocsTests(unittest.TestCase):
         self.assertIn('--source-ref "refs/tags/${CHART_RELEASE}" --deny-self-hosted-runners', source)
         self.assertNotIn(".github/workflows/release.yml@refs/tags/${CHART_RELEASE}", source)
 
+    def test_deployment_prose_matches_chart_app_version(self):
+        chart = (ROOT / "deploy/helm/otelcol-genai-sketches/Chart.yaml").read_text()
+        app_versions = re.findall(r'^appVersion: "([0-9]+\.[0-9]+\.[0-9]+)"$', chart, re.M)
+        self.assertEqual(len(app_versions), 1)
+        source = (ROOT / "docs/DEPLOYMENT.md").read_text()
+        self.assertEqual(re.findall(r"^Collector appVersion is ([0-9]+\.[0-9]+\.[0-9]+)\.", source, re.M),
+                         app_versions)
+
     def test_metadata_is_authenticated_before_checksums(self):
         source = (ROOT / "docs/DEPLOYMENT.md").read_text()
         self.assertIn("for subject in SHA256SUMS sbom-index.json openvex.json; do", source)

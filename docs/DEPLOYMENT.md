@@ -258,7 +258,7 @@ receiverTLS:
 ## Chart 0.7.0 Network Policy Migration
 
 **Chart 0.7.0 enables NetworkPolicy by default; chart 0.7.4 retains those defaults.**
-Collector appVersion is 0.7.1. Chart 0.6.x leaves NetworkPolicy off by default.
+Collector appVersion is 0.7.3. Chart 0.6.x leaves NetworkPolicy off by default.
 Before upgrading, configure allowed senders, Prometheus peers and shadow-backend
 egress. Reusing old values without the new defaults can preserve the old opt-out;
 review the merged values and rendered policy before applying the upgrade.
