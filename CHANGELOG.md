@@ -2,6 +2,14 @@
 
 Notable user-visible changes are recorded here.
 
+## v0.7.2 / Intermediate Helm chart 0.7.3-rc.1
+
+- Rebuild the collector with Go 1.26.11 for GO-2026-6859 in the standard
+  library. No collector behavior, defaults or dependency versions change.
+- Stable chart 0.7.3 follows with the signed runtime image pinned by digest.
+
+See the [security release notes](docs/releases/v0.7.2.md).
+
 ## Helm chart 0.7.2 - 2026-11-07
 
 Security fix: updates two dependencies with published advisories through
