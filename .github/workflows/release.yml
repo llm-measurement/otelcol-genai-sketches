@@ -320,7 +320,7 @@ jobs:
           docker buildx imagetools inspect "${IMAGE_NAME}@${DIGEST}" \
             --format '{{ json .SBOM }}' > release/sbom-index.json
 
-      - name: Verify exact Linux import graphs and generate OpenVEX
+      - name: Scan exact Linux distributions and generate OpenVEX
         env:
           DIGEST: ${{ steps.push.outputs.digest }}
           VERSION: ${{ github.ref_name }}
@@ -336,6 +336,9 @@ jobs:
           RUN --mount=type=cache,target=/go/pkg/mod \
               --mount=type=cache,target=/root/.cache/go-build \
               mkdir /vex-evidence && \
+              GOWORK=off GOBIN=/tmp/release-tools go install golang.org/x/vuln/cmd/govulncheck@v1.6.0 && \
+              (cd /out && GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH="$TARGETARCH" \
+                /tmp/release-tools/govulncheck -scan=package ./...) && \
               GOWORK=off go run /vex/main.go collect \
                 --dist /out --manifest /tmp/builder.yaml --arch "$TARGETARCH" \
                 --version "v${VERSION#v}" --out "/vex-evidence/vex-linux-${TARGETARCH}.json"

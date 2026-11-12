@@ -22,7 +22,11 @@ type chartMetadata struct {
 	AppVersion string `yaml:"appVersion"`
 }
 
-const expectedRuntimeImage = "ghcr.io/llm-measurement/otelcol-genai-sketches:0.7.2"
+const (
+	expectedChartVersion = "0.7.4-rc.1"
+	expectedAppVersion   = "0.7.3"
+	expectedRuntimeImage = "ghcr.io/llm-measurement/otelcol-genai-sketches:" + expectedAppVersion
+)
 
 func TestChartReleaseMetadata(t *testing.T) {
 	data, err := os.ReadFile("../otelcol-genai-sketches/Chart.yaml")
@@ -33,7 +37,7 @@ func TestChartReleaseMetadata(t *testing.T) {
 	if err := yaml.Unmarshal(data, &chart); err != nil {
 		t.Fatal(err)
 	}
-	if chart.Version != "0.7.3-rc.1" || chart.AppVersion != "0.7.2" {
+	if chart.Version != expectedChartVersion || chart.AppVersion != expectedAppVersion {
 		t.Fatalf("chart-only release metadata changed: %+v", chart)
 	}
 	if tag := os.Getenv("CHART_RELEASE_TAG"); tag != "" && tag != "chart-v"+chart.Version {
@@ -109,7 +113,7 @@ func TestChartReleasePackage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("package: %v\n%s", err, output)
 	}
-	file, err := os.Open(filepath.Join(dir, "otelcol-genai-sketches-0.7.3-rc.1.tgz"))
+	file, err := os.Open(filepath.Join(dir, "otelcol-genai-sketches-"+expectedChartVersion+".tgz"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +137,7 @@ func TestChartReleasePackage(t *testing.T) {
 			if err := yaml.NewDecoder(archive).Decode(&chart); err != nil {
 				t.Fatal(err)
 			}
-			if chart.Version != "0.7.3-rc.1" || chart.AppVersion != "0.7.2" {
+			if chart.Version != expectedChartVersion || chart.AppVersion != expectedAppVersion {
 				t.Fatalf("packaging changed chart or runtime version: %+v", chart)
 			}
 			break

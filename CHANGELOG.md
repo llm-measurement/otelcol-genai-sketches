@@ -2,13 +2,16 @@
 
 Notable user-visible changes are recorded here.
 
-## v0.7.2 / Intermediate Helm chart 0.7.3-rc.1
+## v0.7.3 / Intermediate Helm chart 0.7.4-rc.1
 
-- Rebuild the collector with Go 1.26.11 for GO-2026-6859 in the standard
-  library. No collector behavior, defaults or dependency versions change.
-- Stable chart 0.7.3 follows with the signed runtime image pinned by digest.
+- Keep Go 1.26.11 for GO-2026-6859 and update x/crypto to v0.59.0 for
+  GO-2026-5932. Collector behavior and configuration defaults are unchanged.
+- Add blocking package scans for both Linux distributions alongside the
+  existing blocking binary scans. Stable chart 0.7.4 follows with the
+  published runtime image pinned by digest.
 
-See the [security release notes](docs/releases/v0.7.2.md).
+The signed v0.7.2 tag was created but never published. See the
+[v0.7.3 security release notes](docs/releases/v0.7.3.md).
 
 ## Helm chart 0.7.2 - 2026-11-07
 

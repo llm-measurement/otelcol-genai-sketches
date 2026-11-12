@@ -18,6 +18,31 @@ visible. No scanner ignore rule, severity change or suppression is added.
 The statement covers only the identified image's Linux amd64/arm64 collector,
 not custom builds, additional components or unrelated vulnerabilities.
 
+## Review a module-level finding
+
+A stripped binary may expose module versions but not enough symbols to tell
+whether an affected package was linked. This is a reason to investigate, not a
+reason to ignore a failed scan. The release job scans the generated distribution
+at package level for both Linux targets and scans each exact shipped binary in
+binary mode. Both scans block publication on failure.
+
+For a future suspected module-level false positive:
+
+1. Retain the original scan output, advisory version and affected package list.
+   Regenerate the distribution for both Linux targets using the same manifest,
+   Go version, CGO setting and build tags as the image. Match the generated
+   binary hashes to those extracted from the exact staged image digest.
+2. Retain both full import graphs and both source package scan results. Reject
+   a `not_affected` claim if any affected package is present, the advisory does
+   not identify the affected packages, or any required evidence is missing.
+3. Submit the advisory, graphs, scanner outputs and digest-bound evidence for
+   review. Only a separately reviewed, advisory-specific release change may
+   use a generated `not_affected` statement with
+   `vulnerable_code_not_present` for that exact product digest. Keep the raw
+   finding visible and authenticate the statement and graph receipts with the
+   release attestations. Do not hand-edit a statement, ignore a scanner exit,
+   or treat the assessment as a reusable waiver.
+
 After the release has published these assets, use its exact tag and verify the
 image signature/provenance as described in [Deployment](DEPLOYMENT.md). Then
 verify the VEX asset's own attestation, as well as the checksum manifest:

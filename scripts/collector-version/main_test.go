@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -47,7 +48,7 @@ func TestDistributionRuntimeDependencyPins(t *testing.T) {
 		}
 		return resolved.Version
 	}
-	for _, module := range []string{"github.com/prometheus/common", "google.golang.org/grpc", "golang.org/x/crypto", "golang.org/x/net"} {
+	for _, module := range []string{"github.com/prometheus/common", "google.golang.org/grpc", "golang.org/x/net"} {
 		want := module + " => " + module + " " + version("../..", module)
 		found := false
 		for _, replace := range manifest.Replaces {
@@ -56,6 +57,12 @@ func TestDistributionRuntimeDependencyPins(t *testing.T) {
 		if !found {
 			t.Errorf("distribution must pin the root dependency: %s", want)
 		}
+	}
+	// The runtime override removes a binary-scan module match without changing
+	// the separate root tooling and test graph.
+	const cryptoPin = "golang.org/x/crypto => golang.org/x/crypto v0.59.0"
+	if !slices.Contains(manifest.Replaces, cryptoPin) {
+		t.Errorf("distribution missing reviewed runtime override: %s", cryptoPin)
 	}
 	const sketchkit = "github.com/llm-measurement/llm-sketchkit"
 	if version("../..", sketchkit) != version("../../connector/genaisketchconnector", sketchkit) {
