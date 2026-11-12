@@ -23,9 +23,10 @@ type chartMetadata struct {
 }
 
 const (
-	expectedChartVersion = "0.7.4-rc.1"
+	expectedChartVersion = "0.7.4"
 	expectedAppVersion   = "0.7.3"
-	expectedRuntimeImage = "ghcr.io/llm-measurement/otelcol-genai-sketches:" + expectedAppVersion
+	expectedRuntimeRepo  = "ghcr.io/llm-measurement/otelcol-genai-sketches"
+	expectedRuntimeImage = expectedRuntimeRepo + "@sha256:64a8002d2bd524772d00a60c8482bf76152731bf2792c948d0a25994a6e5487d"
 )
 
 func TestChartReleaseMetadata(t *testing.T) {
