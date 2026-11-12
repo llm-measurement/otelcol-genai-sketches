@@ -205,6 +205,10 @@ func TestReleaseWorkflowBindsAndAuthenticatesVEX(t *testing.T) {
 	source := string(data)
 	for _, want := range []string{
 		"cp packaging/docker/Dockerfile .cache/vex.Dockerfile", "FROM build AS vex-evidence", "for arch in amd64 arm64; do",
+		"GOBIN=/tmp/release-tools go install golang.org/x/vuln/cmd/govulncheck@v1.6.0 &&",
+		`(cd /out && GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH="$TARGETARCH"`,
+		"/tmp/release-tools/govulncheck -scan=package ./...) &&",
+		`govulncheck@v1.6.0 -mode=binary ".cache/vex-binaries/collector-linux-$arch"`,
 		"--target vex-export", "docker cp", "--binaries .cache/vex-binaries", "--image \"${IMAGE_NAME}@${DIGEST}\"",
 		"sbom-index.json openvex.json vex-linux-*.json *.tgz > SHA256SUMS", "            release/openvex.json\n",
 		"for subject in release/SHA256SUMS release/sbom-index.json release/openvex.json; do", "--source-ref \"refs/tags/$TAG\" --source-digest \"$GITHUB_SHA\" --deny-self-hosted-runners",
