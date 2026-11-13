@@ -8,7 +8,7 @@ filesystem, contains no shell, and uses pinned build and runtime base images.
 The example Compose stack remains a demonstration. Use the production image or Helm
 chart for a persistent environment.
 
-The commands below select collector **v0.7.1** and chart **0.7.2**.
+The commands below select collector **v0.7.3** and chart **0.7.4**.
 Chart and collector versions advance independently.
 
 ## Verify An Image
@@ -24,7 +24,7 @@ Use an immutable digest from the GitHub release, not a mutable tag:
 Fetch the references from that release's published metadata:
 
 ```bash
-RELEASE=v0.7.1
+RELEASE=v0.7.3
 IMAGE_REF="$(curl -fsSL \
   "https://github.com/llm-measurement/otelcol-genai-sketches/releases/download/${RELEASE}/image-digest.txt")"
 IMAGE="${IMAGE_REF%@*}"
@@ -42,14 +42,14 @@ gh attestation verify "oci://$IMAGE@$DIGEST" \
   --source-ref "refs/tags/${RELEASE}" --deny-self-hosted-runners
 ```
 
-Chart 0.7.2 pins collector v0.7.1 by its multi-architecture image index digest.
-The image uses `release.yml` at `refs/tags/v0.7.1`; the chart uses
-`chart-release.yml` at `refs/tags/chart-v0.7.2`.
+Chart 0.7.4 pins collector v0.7.3 by its multi-architecture image index digest.
+The image uses `release.yml` at `refs/tags/v0.7.3`; the chart uses
+`chart-release.yml` at `refs/tags/chart-v0.7.4`.
 Verify the chart's immutable reference too:
 
 ```bash
-CHART_RELEASE=chart-v0.7.2
-CHART_VERSION=0.7.2
+CHART_RELEASE=chart-v0.7.4
+CHART_VERSION=0.7.4
 CHART_REF="$(curl -fsSL \
   "https://github.com/llm-measurement/otelcol-genai-sketches/releases/download/${CHART_RELEASE}/chart-digest.txt")"
 CHART="${CHART_REF%@*}"
@@ -78,7 +78,7 @@ Runtime releases carry image and chart digests, an SBOM index export, a packaged
 chart, and checksums. Collector v0.3.3 introduced `provenance.jsonl` for
 `SHA256SUMS` and `sbom-index.json`; v0.4.1 adds `openvex.json`
 as a separate attestation subject. Verify those metadata subjects before checking
-the downloaded files. These runtime assets, including the bundled intermediate chart 0.7.2-rc.1,
+the downloaded files. These runtime assets, including the bundled intermediate chart 0.7.4-rc.1,
 use the collector release's signing identity:
 
 ```bash
@@ -96,7 +96,7 @@ done
 (cd release-assets && shasum -a 256 -c SHA256SUMS)
 ```
 
-Verify the selected chart 0.7.2 release's checksum bundle separately:
+Verify the selected chart 0.7.4 release's checksum bundle separately:
 
 ```bash
 mkdir -p chart-release-assets
@@ -195,7 +195,7 @@ It exports complete state for local combination across independent collectors;
 it does not make Prometheus able to merge sketches. Chart **0.3.2** adds opt-in
 summary storage, a read-only reader sidecar, and independent JSON logging.
 [Summary Export With Helm](SUMMARY_EXPORT_HELM.md) walks through copy,
-investigate, and scan with the v0.7.1 collector image.
+investigate, and scan with the v0.7.3 collector image.
 
 The chart's `connector.topKKeys` passes through the optional
 key list; its default `[]` omits `topk_keys` and preserves prompt-only ranking.
@@ -257,8 +257,8 @@ receiverTLS:
 
 ## Chart 0.7.0 Network Policy Migration
 
-**Chart 0.7.0 enables NetworkPolicy by default; chart 0.7.2 retains those defaults.**
-Collector appVersion is 0.7.1. Chart 0.6.x leaves NetworkPolicy off by default.
+**Chart 0.7.0 enables NetworkPolicy by default; chart 0.7.4 retains those defaults.**
+Collector appVersion is 0.7.3. Chart 0.6.x leaves NetworkPolicy off by default.
 Before upgrading, configure allowed senders, Prometheus peers and shadow-backend
 egress. Reusing old values without the new defaults can preserve the old opt-out;
 review the merged values and rendered policy before applying the upgrade.
@@ -314,7 +314,7 @@ For a deliberate opt-out, set `networkPolicy.enabled: false`. This removes the
 chart's policy; it does not remove other cluster policies. NetworkPolicy limits
 reachability, not sender identity. Use mTLS when client authentication is needed.
 
-Chart 0.7.2 pins collector v0.7.1 by image index digest, with empty `image.tag`.
+Chart 0.7.4 pins collector v0.7.3 by image index digest, with empty `image.tag`.
 It enforces non-root execution, dropped capabilities, no privilege escalation
 and a read-only root filesystem even when summary export is disabled. Unknown
 top-level and security-related values now fail validation instead of being ignored.
