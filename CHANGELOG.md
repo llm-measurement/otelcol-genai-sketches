@@ -2,6 +2,24 @@
 
 Notable user-visible changes are recorded here.
 
+## v0.7.4 / Intermediate Helm chart 0.7.5-rc.1
+
+Security fix: updates the OpenTelemetry Go SDK.
+
+- Update `go.opentelemetry.io/otel`, `trace`, `metric`, `log`, `sdk`,
+  `sdk/metric` and `sdk/log` together to v1.47.0 for CVE-2026-128085 /
+  GO-2026-6974. This is the first stable release of the Logs API and SDK.
+- Refresh the no-longer-updated Debian 12 runtime to digest-pinned
+  `gcr.io/distroless/static-debian13:nonroot` with current `tzdata` and
+  `ca-certificates`. Retain the existing Collector components and Go 1.26.11.
+- Keep configuration, accounting and defaults unchanged from v0.7.3.
+- Publish intermediate chart 0.7.5-rc.1 with appVersion 0.7.4 through the
+  runtime release. Stable chart 0.7.5 follows after the image exists, pins its
+  multi-architecture index digest and uses the separate `chart-release.yml`
+  signing identity.
+
+See the [v0.7.4 security patch notes](docs/releases/v0.7.4.md).
+
 ## Helm chart 0.7.4
 
 Pin the published, signed collector v0.7.3 image index by digest. The chart

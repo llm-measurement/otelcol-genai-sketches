@@ -138,12 +138,16 @@ func TestSecurityDefaultsRejectUnsafeValues(t *testing.T) {
 }
 
 func TestImageDigestOverrides(t *testing.T) {
+	customTagImage := expectedRuntimeRepo + ":custom"
+	if strings.HasPrefix(expectedRuntimeImage, expectedRuntimeRepo+"@") {
+		customTagImage = expectedRuntimeImage
+	}
 	for _, tc := range []struct {
 		settings []string
 		want     string
 	}{
 		{nil, expectedRuntimeImage},
-		{[]string{"image.tag=custom"}, expectedRuntimeImage},
+		{[]string{"image.tag=custom"}, customTagImage},
 		{[]string{"image.tag=custom", "image.digest=sha256:" + strings.Repeat("a", 64)}, "ghcr.io/llm-measurement/otelcol-genai-sketches@sha256:" + strings.Repeat("a", 64)},
 		{[]string{"image.digest="}, expectedRuntimeRepo + ":" + expectedAppVersion},
 		{[]string{"image.repository=registry.example/collector", "image.digest=sha256:" + strings.Repeat("a", 64)}, "registry.example/collector@sha256:" + strings.Repeat("a", 64)},
