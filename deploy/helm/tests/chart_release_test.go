@@ -6,11 +6,13 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"errors"
 	"io"
 	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -28,6 +30,47 @@ const (
 	expectedRuntimeRepo  = "ghcr.io/llm-measurement/otelcol-genai-sketches"
 	expectedRuntimeImage = expectedRuntimeRepo + "@sha256:c295dfdd4174c2d0c86954f979295a80f4f96fc24a993ed333c848ccaa5c6cf6"
 )
+
+func validateChartImagePin(version, digest string) error {
+	const release = `(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)`
+	switch {
+	case regexp.MustCompile("^" + release + `-rc\.(0|[1-9][0-9]*)$`).MatchString(version):
+		if digest != "" {
+			return errors.New("prerelease chart requires an empty image digest")
+		}
+	case regexp.MustCompile("^" + release + "$").MatchString(version):
+		if !regexp.MustCompile(`^sha256:[0-9a-f]{64}$`).MatchString(digest) {
+			return errors.New("stable chart requires a 64-hex sha256 image digest")
+		}
+	default:
+		return errors.New("unsupported chart release version")
+	}
+	return nil
+}
+
+func TestChartImagePinPolicy(t *testing.T) {
+	valid := "sha256:" + strings.Repeat("a", 64)
+	for _, tc := range []struct {
+		name, version, digest string
+		wantError             bool
+	}{
+		{"prerelease empty", "0.7.5-rc.1", "", false},
+		{"prerelease pinned", "0.7.5-rc.1", valid, true},
+		{"stable pinned", "0.7.5", valid, false},
+		{"stable empty", "0.7.5", "", true},
+		{"stable missing algorithm", "0.7.5", strings.Repeat("a", 64), true},
+		{"stable short digest", "0.7.5", "sha256:" + strings.Repeat("a", 63), true},
+		{"stable nonhex digest", "0.7.5", "sha256:" + strings.Repeat("g", 64), true},
+		{"stable uppercase digest", "0.7.5", "sha256:" + strings.Repeat("A", 64), true},
+		{"unsupported prerelease", "0.7.5-beta.1", "", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := validateChartImagePin(tc.version, tc.digest); (err != nil) != tc.wantError {
+				t.Fatalf("validateChartImagePin(%q, %q) = %v, want error %t", tc.version, tc.digest, err, tc.wantError)
+			}
+		})
+	}
+}
 
 func TestChartReleaseMetadata(t *testing.T) {
 	data, err := os.ReadFile("../otelcol-genai-sketches/Chart.yaml")
@@ -49,6 +92,9 @@ func TestChartReleaseMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 	var values struct {
+		Image struct {
+			Digest string `yaml:"digest"`
+		} `yaml:"image"`
 		PrometheusRule struct {
 			Enabled   *bool `yaml:"enabled"`
 			Anomalies struct {
@@ -57,6 +103,9 @@ func TestChartReleaseMetadata(t *testing.T) {
 		} `yaml:"prometheusRule"`
 	}
 	if err := yaml.Unmarshal(data, &values); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateChartImagePin(chart.Version, values.Image.Digest); err != nil {
 		t.Fatal(err)
 	}
 	for _, enabled := range []*bool{values.PrometheusRule.Enabled, values.PrometheusRule.Anomalies.Enabled} {
