@@ -20,6 +20,15 @@ Count workflow and framework entrypoint roots with an opt-in invocation count.
 
 See the [v0.8.0 notes](docs/releases/v0.8.0.md).
 
+## Helm chart 0.7.5
+
+Pin the published, signed collector v0.7.4 image index by digest. This brings
+the OpenTelemetry Go SDK security fix for GO-2026-6974 and the updated
+Debian 13 runtime to stable-chart installations. Chart configuration and
+feature defaults remain unchanged.
+
+See the [chart release notes](docs/releases/chart-v0.7.5.md).
+
 ## v0.7.4 / Intermediate Helm chart 0.7.5-rc.1
 
 Security fix: updates the OpenTelemetry Go SDK.
