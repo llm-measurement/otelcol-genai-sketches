@@ -88,6 +88,48 @@ document signals. When the operation attribute is absent, a span-level
 `gen_ai.request.model` provides compatibility with older instrumentation. The
 connector does not inherit operation or model attributes from parent spans.
 
+V0.1.0 classes embeddings separately from inference. They remain in this default
+list to preserve billed-token coverage and existing totals. To exclude them, use
+`llm_operations: [chat, generate_content, text_completion]`.
+
+## Root Invocations
+
+Root in-process invocation counting is opt-in and independent of the model
+operation filter. This option requires v0.8.0 or later; omit it on earlier runtimes:
+
+```yaml
+root_invocations:
+  enabled: false
+  operations: [invoke_agent, invoke_workflow]
+```
+
+Set `enabled: true` to emit `gen_ai_sketch_root_invocations_total`. A matching
+span must have kind `INTERNAL`, an empty parent span ID, and an operation in this
+list. Framework entrypoints are explicit additions; for example:
+
+```yaml
+root_invocations:
+  enabled: true
+  operations: [invoke_agent, invoke_workflow, invoke_runner]
+```
+
+The list accepts 1 to 32 distinct operation names of at most 64 bytes each.
+Names start with `invoke_` and have a nonempty suffix containing only lowercase
+ASCII letters, digits, or underscores. Omitting the list uses the two defaults;
+an explicitly empty list is invalid, even when counting is disabled.
+No operation-name or identity label is added to the metric; existing slice
+capacity, deterministic eviction, and `__overflow__` handling still apply.
+The legacy `gen_ai_sketch_agent_runs_total` rule is unchanged.
+
+Helm uses `connector.rootInvocations.enabled` and
+`connector.rootInvocations.operations`, with the same disabled default and two
+default operations. When summary export is enabled, the optional count and
+zero-valued definition keys live in `Envelope.Counters`; disabling this feature
+omits the whole group without changing the base accounting ID. See
+[Root Invocations](SEMANTIC_CONVENTIONS.md#root-invocations) for the exact keys,
+remote-span behavior, and compatibility checks, and
+[Limits](SEMANTIC_CONVENTIONS.md#limits) for counting coverage.
+
 ## Field Mapping
 
 The `fields` map selects ordered attribute candidates for user identity, prompt

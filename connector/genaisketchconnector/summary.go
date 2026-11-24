@@ -61,6 +61,7 @@ type summaryExporter struct {
 	sequence           uint64
 	topKContracts      []string
 	modelUsageContract string
+	rootOperations     []string
 }
 
 func newSummaryExporter(cfg *Config, now time.Time) (*summaryExporter, error) {
@@ -129,12 +130,9 @@ func newSummaryExporter(cfg *Config, now time.Time) (*summaryExporter, error) {
 	}
 	digest := sha256.Sum256(encoded)
 	e := &summaryExporter{root: root, cfg: cfg.SummaryExport, accountingID: "genai-accounting-v1:" + hex.EncodeToString(digest[:]), epoch: hex.EncodeToString(epoch), started: now, topKContracts: contracts}
-	if cfg.SummaryExport.ModelUsage != nil {
-		e.modelUsageContract, err = modelUsageContract(cfg, e.accountingID)
-		if err != nil {
-			_ = root.Close()
-			return nil, err
-		}
+	if err := e.configureOptionalMeasurements(cfg); err != nil {
+		_ = root.Close()
+		return nil, err
 	}
 	return e, nil
 }
@@ -172,6 +170,7 @@ func (s *collectorState) summaryDocuments(e *summaryExporter, now time.Time) ([]
 		for _, contract := range e.topKContracts {
 			doc.Counters[contract] = 0
 		}
+		addRootInvocationSummary(doc.Counters, e.rootOperations, window.counters.rootInvocations)
 		if e.modelUsageContract != "" {
 			doc.ModelUsage = modelUsageBlock(e.modelUsageContract, window.modelUsage)
 		}

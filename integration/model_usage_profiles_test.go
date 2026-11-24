@@ -326,7 +326,7 @@ func profileBoolKV(key string, value bool) *commonpb.KeyValue {
 type modelUsageProfileProducer struct {
 	dir    string
 	prom   int
-	logs   *bytes.Buffer
+	logs   *collectorOutput
 	idle   summary.Envelope
 	client tracecollectorpb.TraceServiceClient
 }

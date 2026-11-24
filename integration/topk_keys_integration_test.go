@@ -64,7 +64,7 @@ func TestSessionTopKPrivateSummaryPipeline(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
-	var logs *bytes.Buffer
+	var logs *collectorOutput
 	if image == "" {
 		_, logs = startCollector(t, ctx, binary, path)
 	} else {

@@ -2,7 +2,7 @@
 
 Contract version: `genai-accounting/v1`
 
-Last reviewed: 2026-10-20
+Last reviewed: 2026-11-24
 
 This document defines how `otelcol-genai-sketches` turns GenAI spans into request
 and token counters. Changes that alter a counter's meaning require a new contract
@@ -18,8 +18,8 @@ for six extreme-input cases intentionally differ, as described under
 deliberately changing the shared contract; this hardening does not rewrite it.
 
 The contract is based on the
-[OpenTelemetry GenAI span conventions](https://github.com/open-telemetry/semantic-conventions-genai/blob/547934afa90a34298441caf80c43b27255c3a292/docs/gen-ai/gen-ai-spans.md)
-reviewed on 2026-10-20. Those conventions are still developing, so this repository
+[OpenTelemetry GenAI client inference conventions](https://github.com/open-telemetry/semantic-conventions-genai/blob/d0e74ba6c48bcc4ded473b1828a8212f06b23753/docs/gen-ai/client-inference.md)
+v0.1.0, reviewed on 2026-11-24. Those conventions are still developing, so this repository
 pins its own behavior instead of inheriting changes from a moving document.
 See the [semantic-convention compatibility notes](SEMANTIC_CONVENTIONS.md) for
 the reviewed revision, supported fields, and deliberate differences.
@@ -30,6 +30,14 @@ One span that matches `operation_filter.llm_operations` is one observed model
 request. The defaults are `chat`, `generate_content`, `text_completion`, and
 `embeddings`. A span-level `gen_ai.request.model` is used only when
 `gen_ai.operation.name` is absent, for compatibility with older instrumentation.
+Embeddings retain their place in this filter even though upstream now classes
+them separately from inference. Removing them is an explicit configuration change.
+
+The connector consumes spans, filters model operations, and produces usage
+counters. It does not ingest `gen_ai.client.inference.usage.*` metric counters or
+sum `gen_ai.usage.*` across all spans. This follows the operation-filtering
+guidance in the pinned
+[token aggregation conventions](https://github.com/open-telemetry/semantic-conventions-genai/blob/d0e74ba6c48bcc4ded473b1828a8212f06b23753/docs/gen-ai/gen-ai-token-metrics.md#how-to-aggregate-token-usage).
 
 The counting unit is the matching exported span, not an inferred logical call. If
 both client-side and server-side instrumentation emit matching spans for one call,
@@ -46,6 +54,14 @@ transport spans do not enter the model request denominator. A root `invoke_agent
 span increments the separate agent-run
 counter. Attributes are read from the span being classified; parent attributes are
 never inherited.
+
+The opt-in `gen_ai_sketch_root_invocations_total` is a separate observed-span
+count: configured operation, kind `INTERNAL`, and empty parent span ID. Its
+default operations are `invoke_agent` and `invoke_workflow`; entrypoints such as
+`invoke_runner` must be configured. It adds neither model attempts nor tokens and
+does not change the legacy agent-run counter, which has no span-kind restriction.
+See [Root Invocations](SEMANTIC_CONVENTIONS.md#root-invocations) for the definition
+and [Limits](SEMANTIC_CONVENTIONS.md#limits) for coverage.
 
 This is observed-span accounting. If instrumentation emits separate model spans for
 retries, each span is counted unless optional deduplication suppresses it. Automatic
@@ -193,6 +209,17 @@ Additive metrics or fixtures may be added within `genai-accounting/v1` when exis
 counter meanings do not change. A change to request scope, alias precedence,
 missing-usage rules, token arithmetic, deduplication behavior, or attribution
 requires a new contract version and a migration note.
+
+Root invocation counting is an optional `root_invocations.v1` measurement group
+within the existing summary `counters` map, not a new top-level envelope field.
+`root_invocations.v1.count` holds the measurement;
+`root_invocations.v1.rule.root_internal_parentless` and one
+`root_invocations.v1.operation.<name>` key for each configured operation are
+zero-valued definition markers. Canonical key sorting makes operation-list order
+irrelevant. The base accounting ID and existing counters are unchanged; when the
+feature is disabled all group keys are absent. Existing `Compatible` and
+`Combine` checks reject mismatched counter-key sets, so different definitions
+and enabled/disabled summaries cannot be silently combined.
 
 ### Extreme-Input Hardening
 

@@ -312,6 +312,18 @@
         "windowDuration": {"type":"string"},
         "profiles": {"type":"object"},
         "operations": {"type":"array"},
+        "rootInvocations": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "operations"],
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "operations": {
+              "type": "array", "minItems": 1, "maxItems": 32, "uniqueItems": true,
+              "items": {"type": "string", "maxLength": 64, "pattern": "^invoke_[a-z0-9_]+$"}
+            }
+          }
+        },
         "mcp": {"type":"object"},
         "fields": {"type":"object"},
         "weights": {"type":"object"},

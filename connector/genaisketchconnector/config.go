@@ -33,6 +33,7 @@ type Config struct {
 	Profiles         ProfilesConfig         `mapstructure:"profiles"`
 	Hashing          HashingConfig          `mapstructure:"hashing"`
 	OperationFilter  OperationFilterConfig  `mapstructure:"operation_filter"`
+	RootInvocations  RootInvocationsConfig  `mapstructure:"root_invocations"`
 	MCP              MCPConfig              `mapstructure:"mcp"`
 	Slices           []SliceConfig          `mapstructure:"slices"`
 	Fields           map[string]FieldConfig `mapstructure:"fields"`
@@ -110,6 +111,7 @@ func defaultConfig() *Config {
 		OperationFilter: OperationFilterConfig{
 			LLMOperations: []string{"chat", "generate_content", "text_completion", "embeddings"},
 		},
+		RootInvocations: RootInvocationsConfig{Operations: []string{"invoke_agent", "invoke_workflow"}},
 		Slices: []SliceConfig{
 			{Name: "by_model", Keys: []string{"gen_ai.request.model"}, FromResourceAttributes: []string{"gen_ai.request.model"}},
 			{Name: "by_team_model", Keys: []string{"team.id", "gen_ai.request.model"}, FromResourceAttributes: []string{"team.id", "gen_ai.request.model"}},

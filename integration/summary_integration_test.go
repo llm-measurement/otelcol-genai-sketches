@@ -33,7 +33,7 @@ func TestIndependentCollectorsExportMergeablePrivateSummaries(t *testing.T) {
 	type producer struct {
 		id, dir    string
 		otlp, prom int
-		logs       *bytes.Buffer
+		logs       *collectorOutput
 	}
 	producers := []producer{}
 	for _, id := range []string{"platform", "data"} {
@@ -135,7 +135,7 @@ func TestIndependentCollectorsExportMergeablePrivateSummaries(t *testing.T) {
 	}
 }
 
-func startSummaryContainer(t *testing.T, ctx context.Context, image, config, dir string, otlp, prom int) *bytes.Buffer {
+func startSummaryContainer(t *testing.T, ctx context.Context, image, config, dir string, otlp, prom int) *collectorOutput {
 	t.Helper()
 	name := fmt.Sprintf("genai-summary-%d-%d", os.Getpid(), otlp)
 	args := []string{

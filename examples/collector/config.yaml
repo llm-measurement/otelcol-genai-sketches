@@ -20,6 +20,11 @@ connectors:
     hashing: {algo: hmac_sha256_64, secret_env: GENAI_SKETCH_SECRET}
     operation_filter:
       llm_operations: [chat, generate_content, text_completion, embeddings]
+    # Optional with v0.8.0 or later; omit on older runtimes.
+    # root_invocations:
+    #   enabled: false
+    #   operations: [invoke_agent, invoke_workflow]
+    # Add invoke_runner only for a framework that documents that entrypoint.
     mcp: {enabled: false, tool_errors: {enabled: false}}
     slices:
       - {name: by_model, keys: ["gen_ai.request.model"], from_resource_attributes: ["gen_ai.request.model"]}

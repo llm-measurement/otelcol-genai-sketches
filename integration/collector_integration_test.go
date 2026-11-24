@@ -379,16 +379,16 @@ service:
 	return path
 }
 
-func startCollector(t *testing.T, ctx context.Context, binary string, configPath string) (*exec.Cmd, *bytes.Buffer) {
+func startCollector(t *testing.T, ctx context.Context, binary string, configPath string) (*exec.Cmd, *collectorOutput) {
 	t.Helper()
 
 	return startCollectorCommand(t, exec.CommandContext(ctx, binary, "--config", configPath))
 }
 
-func startCollectorCommand(t *testing.T, cmd *exec.Cmd) (*exec.Cmd, *bytes.Buffer) {
+func startCollectorCommand(t *testing.T, cmd *exec.Cmd) (*exec.Cmd, *collectorOutput) {
 	t.Helper()
 
-	var output bytes.Buffer
+	var output collectorOutput
 	cmd.Stdout = &output
 	cmd.Stderr = &output
 	cmd.Env = append(os.Environ(), "GENAI_SKETCH_SECRET="+testSketchSecret)
@@ -414,7 +414,7 @@ func startCollectorCommand(t *testing.T, cmd *exec.Cmd) (*exec.Cmd, *bytes.Buffe
 	return cmd, &output
 }
 
-func waitForProcessAlive(t *testing.T, cmd *exec.Cmd, output *bytes.Buffer) {
+func waitForProcessAlive(t *testing.T, cmd *exec.Cmd, output *collectorOutput) {
 	t.Helper()
 
 	time.Sleep(250 * time.Millisecond)
@@ -610,7 +610,7 @@ func eventually(t *testing.T, timeout time.Duration, fn func() error) {
 	t.Fatalf("condition not met within %s: %v", timeout, lastErr)
 }
 
-func waitForOutputEventually(t *testing.T, output *bytes.Buffer, pattern *regexp.Regexp) string {
+func waitForOutputEventually(t *testing.T, output *collectorOutput, pattern *regexp.Regexp) string {
 	t.Helper()
 
 	var body string
