@@ -31,7 +31,7 @@ import (
 type rootInvocationProducer struct {
 	dir, path  string
 	otlp, prom int
-	logs       *bytes.Buffer
+	logs       *collectorOutput
 	client     tracecollectorpb.TraceServiceClient
 }
 
@@ -46,7 +46,7 @@ func TestRootInvocationsRealOTLP(t *testing.T) {
 	requireExecutable(t, binary)
 	var baseline []summary.Envelope
 	for _, mode := range []string{"default-off", "explicit-off", "enabled-default", "enabled-runner"} {
-		var logs []*bytes.Buffer
+		var logs []*collectorOutput
 		t.Run(mode, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 			defer cancel()
