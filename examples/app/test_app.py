@@ -75,6 +75,26 @@ class ExampleTrafficTest(unittest.TestCase):
 
 
 class TraceContextTest(unittest.TestCase):
+    def test_traceparent_length_boundary(self):
+        traceparent = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"
+        for length, valid in ((512, True), (513, False)):
+            with self.subTest(length=length):
+                context = TraceContextTextMapPropagator().extract(
+                    {"traceparent": traceparent.ljust(length)}
+                )
+                span_context = app.trace.get_current_span(context).get_span_context()
+                self.assertEqual(span_context.is_valid, valid)
+
+    def test_malformed_traceparent_with_embedded_newline_is_rejected(self):
+        traceparent = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"
+        for whitespace_length in (128, 4096):
+            with self.subTest(whitespace_length=whitespace_length):
+                context = TraceContextTextMapPropagator().extract(
+                    {"traceparent": traceparent + " " * whitespace_length + "\n!"}
+                )
+                span_context = app.trace.get_current_span(context).get_span_context()
+                self.assertFalse(span_context.is_valid)
+
     def test_valid_tracestate_survives_extraction(self):
         context = TraceContextTextMapPropagator().extract(
             {
