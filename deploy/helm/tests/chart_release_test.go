@@ -25,8 +25,8 @@ type chartMetadata struct {
 }
 
 const (
-	expectedChartVersion = "0.7.5-rc.1"
-	expectedAppVersion   = "0.7.4"
+	expectedChartVersion = "0.8.0-rc.1"
+	expectedAppVersion   = "0.8.0"
 	expectedRuntimeRepo  = "ghcr.io/llm-measurement/otelcol-genai-sketches"
 	expectedRuntimeImage = expectedRuntimeRepo + ":" + expectedAppVersion
 )

@@ -234,6 +234,11 @@ func (s *collectorState) modelUsageFixedBytes() (int, error) {
 		reserveFrequent("top_tool_errors", w.topToolErrors)
 	}
 	counters := w.counters.export()
+	operations := make([]string, 0, len(s.cfg.rootInvocationOperations))
+	for operation := range s.cfg.rootInvocationOperations {
+		operations = append(operations, operation)
+	}
+	addRootInvocationSummary(counters, operations, 0)
 	for key := range counters {
 		counters[key] = uint64(maxInt64Value)
 	}

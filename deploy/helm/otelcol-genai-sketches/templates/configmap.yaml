@@ -86,6 +86,12 @@ data:
         operation_filter:
           llm_operations:
             {{- toYaml .Values.connector.operations | nindent 12 }}
+        {{- if .Values.connector.rootInvocations.enabled }}
+        root_invocations:
+          enabled: true
+          operations:
+            {{- toYaml .Values.connector.rootInvocations.operations | nindent 12 }}
+        {{- end }}
         mcp:
           enabled: {{ .Values.connector.mcp.enabled }}
           tool_errors:

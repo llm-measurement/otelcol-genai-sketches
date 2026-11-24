@@ -12,7 +12,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -158,7 +157,11 @@ func TestChartDigestRoundTripWithHelmAndORAS(t *testing.T) {
 		t.Skip("Helm and ORAS are required for the offline OCI round-trip")
 	}
 	root, dir := chartPublishWorkspace(t)
-	for name, target := range map[string]string{"helm": helm, "go": filepath.Join(runtime.GOROOT(), "bin/go")} {
+	goBinary, err := exec.LookPath("go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, target := range map[string]string{"helm": helm, "go": goBinary} {
 		if err := os.Symlink(target, filepath.Join(dir, "bin", name)); err != nil {
 			t.Fatal(err)
 		}

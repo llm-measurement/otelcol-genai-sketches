@@ -45,27 +45,28 @@ const (
 )
 
 type runtimeConfig struct {
-	windowDuration       time.Duration
-	retentionWindows     int
-	maxSlices            int
-	topK                 int
-	topKKeys             []TopKKeyConfig
-	hllppProfile         hllpp.Profile
-	frequentProfile      sketchfi.Profile
-	bloomProfile         sketchbloom.Profile
-	slices               []SliceConfig
-	fields               map[string]compiledField
-	llmOperations        map[string]struct{}
-	inputTokenAttrs      []string
-	outputTokenAttrs     []string
-	cacheReadTokenAttrs  []string
-	cacheWriteTokenAttrs []string
-	reasoningTokenAttrs  []string
-	dedupEnabled         bool
-	requestIDAttrs       []string
-	mcpEnabled           bool
-	toolErrors           bool
-	modelUsage           *compiledModelUsage
+	windowDuration           time.Duration
+	retentionWindows         int
+	maxSlices                int
+	topK                     int
+	topKKeys                 []TopKKeyConfig
+	hllppProfile             hllpp.Profile
+	frequentProfile          sketchfi.Profile
+	bloomProfile             sketchbloom.Profile
+	slices                   []SliceConfig
+	fields                   map[string]compiledField
+	llmOperations            map[string]struct{}
+	rootInvocationOperations map[string]struct{}
+	inputTokenAttrs          []string
+	outputTokenAttrs         []string
+	cacheReadTokenAttrs      []string
+	cacheWriteTokenAttrs     []string
+	reasoningTokenAttrs      []string
+	dedupEnabled             bool
+	requestIDAttrs           []string
+	mcpEnabled               bool
+	toolErrors               bool
+	modelUsage               *compiledModelUsage
 }
 
 type compiledField struct {
@@ -102,6 +103,7 @@ type accountingCounters struct {
 	totalSaturated        bool
 	requests              uint64
 	agentRuns             uint64
+	rootInvocations       uint64
 	inputTokens           uint64
 	outputTokens          uint64
 	cacheReadInputTokens  uint64
@@ -238,11 +240,12 @@ type tokenObservation struct {
 }
 
 type spanUpdate struct {
-	totals    spanTotals
-	request   bool
-	agentRun  bool
-	mcp       bool
-	toolError bool
+	totals         spanTotals
+	request        bool
+	agentRun       bool
+	rootInvocation bool
+	mcp            bool
+	toolError      bool
 }
 
 type optionalHash struct {
@@ -299,6 +302,10 @@ func compileRuntimeConfig(cfg *Config) (runtimeConfig, error) {
 	if err != nil {
 		return runtimeConfig{}, err
 	}
+	rootOperations, err := compileRootInvocations(cfg.RootInvocations)
+	if err != nil {
+		return runtimeConfig{}, err
+	}
 	fields := make(map[string]compiledField, len(cfg.Fields))
 	for name, field := range cfg.Fields {
 		fields[name] = compiledField{
@@ -314,26 +321,27 @@ func compileRuntimeConfig(cfg *Config) (runtimeConfig, error) {
 	}
 
 	runtimeCfg := runtimeConfig{
-		windowDuration:       cfg.WindowDuration,
-		retentionWindows:     cfg.RetentionWindows,
-		maxSlices:            cfg.MaxSlices,
-		topK:                 cfg.TopK,
-		topKKeys:             keys,
-		hllppProfile:         hllpp.Profile(cfg.Profiles.HLLPP),
-		frequentProfile:      sketchfi.Profile(cfg.Profiles.FrequentItems),
-		bloomProfile:         sketchbloom.Profile(cfg.Profiles.Bloom),
-		slices:               append([]SliceConfig(nil), cfg.Slices...),
-		fields:               fields,
-		llmOperations:        llmOperations,
-		inputTokenAttrs:      append([]string(nil), cfg.Weights.InputTokensFrom...),
-		outputTokenAttrs:     append([]string(nil), cfg.Weights.OutputTokensFrom...),
-		cacheReadTokenAttrs:  append([]string(nil), cfg.Weights.CacheReadInputTokensFrom...),
-		cacheWriteTokenAttrs: append([]string(nil), cfg.Weights.CacheWriteInputTokensFrom...),
-		reasoningTokenAttrs:  append([]string(nil), cfg.Weights.ReasoningOutputTokensFrom...),
-		dedupEnabled:         cfg.Dedup.Enabled,
-		requestIDAttrs:       append([]string(nil), cfg.Dedup.RequestIDFrom...),
-		mcpEnabled:           cfg.MCP.Enabled,
-		toolErrors:           cfg.MCP.ToolErrors.Enabled,
+		windowDuration:           cfg.WindowDuration,
+		retentionWindows:         cfg.RetentionWindows,
+		maxSlices:                cfg.MaxSlices,
+		topK:                     cfg.TopK,
+		topKKeys:                 keys,
+		hllppProfile:             hllpp.Profile(cfg.Profiles.HLLPP),
+		frequentProfile:          sketchfi.Profile(cfg.Profiles.FrequentItems),
+		bloomProfile:             sketchbloom.Profile(cfg.Profiles.Bloom),
+		slices:                   append([]SliceConfig(nil), cfg.Slices...),
+		fields:                   fields,
+		llmOperations:            llmOperations,
+		rootInvocationOperations: rootOperations,
+		inputTokenAttrs:          append([]string(nil), cfg.Weights.InputTokensFrom...),
+		outputTokenAttrs:         append([]string(nil), cfg.Weights.OutputTokensFrom...),
+		cacheReadTokenAttrs:      append([]string(nil), cfg.Weights.CacheReadInputTokensFrom...),
+		cacheWriteTokenAttrs:     append([]string(nil), cfg.Weights.CacheWriteInputTokensFrom...),
+		reasoningTokenAttrs:      append([]string(nil), cfg.Weights.ReasoningOutputTokensFrom...),
+		dedupEnabled:             cfg.Dedup.Enabled,
+		requestIDAttrs:           append([]string(nil), cfg.Dedup.RequestIDFrom...),
+		mcpEnabled:               cfg.MCP.Enabled,
+		toolErrors:               cfg.MCP.ToolErrors.Enabled,
 	}
 	if err := validateRuntimeFields(runtimeCfg); err != nil {
 		return runtimeConfig{}, err
@@ -380,7 +388,7 @@ func (s *collectorState) visitRelevantSpans(traces ptrace.Traces, now time.Time,
 				if err != nil {
 					return false, err
 				}
-				if !update.request && !update.agentRun && !update.mcp && !update.toolError {
+				if !update.request && !update.agentRun && !update.rootInvocation && !update.mcp && !update.toolError {
 					continue
 				}
 				relevant = true
@@ -461,10 +469,11 @@ func (s *collectorState) classifySpan(span ptrace.Span, data spanData) (spanUpda
 	request := llmOperation || (!operationOK && modelFallback)
 
 	update := spanUpdate{
-		request:   request,
-		agentRun:  operation == "invoke_agent" && span.ParentSpanID().IsEmpty(),
-		mcp:       s.cfg.mcpEnabled && hasMCPAttributes(data),
-		toolError: s.cfg.mcpEnabled && s.cfg.toolErrors && hasToolError(data),
+		request:        request,
+		agentRun:       operation == "invoke_agent" && span.ParentSpanID().IsEmpty(),
+		rootInvocation: s.isRootInvocation(span, operation),
+		mcp:            s.cfg.mcpEnabled && hasMCPAttributes(data),
+		toolError:      s.cfg.mcpEnabled && s.cfg.toolErrors && hasToolError(data),
 	}
 	if request {
 		totals, err := tokenTotals(span.Attributes(), s.cfg)
@@ -667,6 +676,7 @@ func (s *accountingCounters) checkCounters(update spanUpdate, prepared preparedU
 		{name: "slice.cache_write_input_tokens", current: s.cacheWriteInputTokens, delta: update.totals.cacheWriteInputTokens},
 		{name: "slice.reasoning_output_tokens", current: s.reasoningOutputTokens, delta: update.totals.reasoningOutputTokens},
 		{name: "slice.missing_tokens", current: s.missingTokens, delta: update.totals.missingTokens},
+		{name: "slice.root_invocations", current: s.rootInvocations, delta: update.rootInvocationCount()},
 	} {
 		if err := check(item.name, item.current, item.delta); err != nil {
 			return err
@@ -787,6 +797,7 @@ func (s *accountingCounters) addCounters(update spanUpdate, prepared preparedUpd
 	if update.agentRun {
 		s.add(&s.agentRuns, 1)
 	}
+	s.add(&s.rootInvocations, update.rootInvocationCount())
 	s.totalSaturated = s.totalSaturated || s.inputTokens > math.MaxInt64-s.outputTokens
 }
 
@@ -1200,6 +1211,9 @@ func (s *collectorState) buildMetrics(now time.Time) pmetric.Metrics {
 		labels := slice.metricLabels()
 		appendSum(scopeMetrics, requestsMetricName, "Cumulative count of spans matching the configured GenAI LLM operation filter.", "{request}", slice.requests, labels, slice.startTime, timestamp)
 		appendSum(scopeMetrics, agentRunsMetricName, "Cumulative count of root invoke_agent operations.", "{run}", slice.agentRuns, labels, slice.startTime, timestamp)
+		if len(s.cfg.rootInvocationOperations) > 0 {
+			appendSum(scopeMetrics, rootInvocationsMetricName, "Cumulative count of parentless INTERNAL invocations in the configured operation set.", "{run}", slice.rootInvocations, labels, slice.startTime, timestamp)
+		}
 		appendSum(scopeMetrics, inputTokensMetricName, "Cumulative input tokens observed on operation-filter matches.", "{token}", slice.inputTokens, labels, slice.startTime, timestamp)
 		appendSum(scopeMetrics, outputTokensMetricName, "Cumulative output tokens observed on operation-filter matches.", "{token}", slice.outputTokens, labels, slice.startTime, timestamp)
 		appendSum(scopeMetrics, cacheReadInputTokensMetricName, "Cumulative cache-read input tokens reported as a subset of input usage.", "{token}", slice.cacheReadInputTokens, labels, slice.startTime, timestamp)

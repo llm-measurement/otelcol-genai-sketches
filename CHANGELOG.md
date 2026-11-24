@@ -2,6 +2,24 @@
 
 Notable user-visible changes are recorded here.
 
+## v0.8.0 / Intermediate Helm chart 0.8.0-rc.1
+
+Count workflow and framework entrypoint roots with an opt-in invocation count.
+
+- Add `root_invocations` for configured, parentless INTERNAL invocations.
+  The enabled defaults are `invoke_agent` and `invoke_workflow`; operators
+  can add documented entrypoints such as `invoke_runner`.
+- Keep the existing agent-run metric and disabled-option output unchanged.
+  Optional summary counter groups include their root-operation definition,
+  and incompatible definitions reject comparison or merging.
+- Update semantic-convention references to GenAI v0.1.0, retain legacy token
+  aliases and embeddings accounting, and use `gen_ai.agent.name` for workflows.
+- Retain the v0.7.4 security dependencies and digest-pinned runtime base.
+  The runtime release includes chart 0.8.0-rc.1; stable chart 0.8.0 follows
+  with the independently verified image index pinned by digest.
+
+See the [v0.8.0 notes](docs/releases/v0.8.0.md).
+
 ## v0.7.4 / Intermediate Helm chart 0.7.5-rc.1
 
 Security fix: updates the OpenTelemetry Go SDK.

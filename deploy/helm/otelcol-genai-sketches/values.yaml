@@ -6,7 +6,7 @@ image:
   repository: ghcr.io/llm-measurement/otelcol-genai-sketches
   pullPolicy: IfNotPresent
   tag: ""
-  # The runtime release uses appVersion; stable chart 0.7.5 will pin its image digest.
+  # The runtime release uses appVersion; stable chart 0.8.0 will pin its image digest.
   digest: ""
 
 imagePullSecrets: []
@@ -100,6 +100,10 @@ connector:
     frequentItems: small
     bloom: micro
   operations: [chat, generate_content, text_completion, embeddings]
+  rootInvocations:
+    enabled: false
+    # Add invoke_runner only for a framework that documents that entrypoint.
+    operations: [invoke_agent, invoke_workflow]
   mcp:
     enabled: false
     toolErrors: false
