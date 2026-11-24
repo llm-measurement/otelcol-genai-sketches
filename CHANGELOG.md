@@ -2,6 +2,15 @@
 
 Notable user-visible changes are recorded here.
 
+## Helm chart 0.7.5
+
+Pin the published, signed collector v0.7.4 image index by digest. This brings
+the OpenTelemetry Go SDK security fix for GO-2026-6974 and the updated
+Debian 13 runtime to stable-chart installations. Chart configuration and
+feature defaults remain unchanged.
+
+See the [chart release notes](docs/releases/chart-v0.7.5.md).
+
 ## Helm chart 0.7.4
 
 Pin the published, signed collector v0.7.3 image index by digest. The chart
