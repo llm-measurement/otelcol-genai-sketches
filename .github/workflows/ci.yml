@@ -34,7 +34,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Review dependency changes
-        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        uses: actions/dependency-review-action@bbc44d14a204704ccc493733616cd1e93a0321ec # v5.0.1
         with:
           fail-on-severity: moderate
           deny-licenses: AGPL-3.0, GPL-2.0, GPL-3.0, SSPL-1.0
@@ -52,7 +52,7 @@ jobs:
           path: otelcol-genai-sketches
           persist-credentials: false
           fetch-depth: 0
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version: "1.26.11"
           cache: true
@@ -158,7 +158,7 @@ jobs:
           path: otelcol-genai-sketches
           persist-credentials: false
       - name: Set up Helm
-        uses: Azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        uses: Azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5.1.0
         with:
           version: v4.2.4
       - name: Validate Helm chart
@@ -184,7 +184,7 @@ jobs:
           docker run --rm --read-only --network=none \
             -e GENAI_SKETCH_SECRET=ci-validation-secret-32-bytes-only \
             otelcol-genai-sketches:ci validate --config=/etc/otelcol-genai-sketches/config.yaml
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version: "1.26.11"
           cache-dependency-path: otelcol-genai-sketches/go.sum
@@ -302,7 +302,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: Azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+      - uses: Azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5.1.0
         with:
           version: v4.2.4
       - name: Install pinned kind and verified fleetdiff
@@ -381,7 +381,7 @@ jobs:
       - name: Check privacy-scanner positive controls
         run: python3 -B -m unittest discover -s examples/integrations/agentgateway -p 'test_*.py' -v
       - name: Set up Helm
-        uses: Azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        uses: Azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5.1.0
         with:
           version: v4.2.4
       - name: Render mappings with released chart 0.3.4
