@@ -233,7 +233,11 @@ jobs:
           export GENAI_SKETCH_SECRET
           sh examples/demo.sh up
       - name: Check synthetic span mix
-        run: docker compose -f examples/compose.yaml run --rm --no-deps app python -m unittest -v test_app
+        run: |
+          docker compose -f examples/compose.yaml run --rm --no-deps \
+            --volume "$PWD/examples/app/test_app.py:/app/test_app.py:ro" \
+            --volume "$PWD/examples/app/investigate.py:/app/investigate.py:ro" \
+            app python -m unittest -v test_app
       - name: Check dashboard aggregation and top-k presentation
         run: |
           python3 -m unittest discover -s examples -p test_dashboard.py
@@ -253,7 +257,9 @@ jobs:
           exit 1
       - name: Reconcile worked investigations
         run: |
-          docker compose -f examples/compose.yaml run --rm -T --no-deps app python /app/investigate.py > /tmp/investigation-results.json
+          docker compose -f examples/compose.yaml run --rm -T --no-deps \
+            --volume "$PWD/examples/app/investigate.py:/app/investigate.py:ro" \
+            app python /app/investigate.py > /tmp/investigation-results.json
           diff -u docs/investigations/results.json /tmp/investigation-results.json
       - name: Require the bounded top-k surface
         run: |
