@@ -18,8 +18,8 @@ class InstallPairDocsTests(unittest.TestCase):
 
     def test_readme_pair(self):
         source = (ROOT / "README.md").read_text()
-        self.assertIn("| Collector image | `v0.7.4` |", source)
-        self.assertIn("| Helm chart | `0.7.5` |", source)
+        self.assertIn("| Collector image | `v0.8.0` |", source)
+        self.assertIn("| Helm chart | `0.8.0` |", source)
 
     def test_standalone_connector_pin(self):
         source = (ROOT / "connector/genaisketchconnector/README.md").read_text()
@@ -32,11 +32,11 @@ class InstallPairDocsTests(unittest.TestCase):
 
     def test_artifacts_use_their_separate_release_identities(self):
         source = (ROOT / "docs/DEPLOYMENT.md").read_text()
-        self.assertIn("\nRELEASE=v0.7.4\n", source)
-        self.assertIn("\nCHART_RELEASE=chart-v0.7.5\nCHART_VERSION=0.7.5\n", source)
-        self.assertIn("Chart 0.7.5 pins collector v0.7.4", source)
-        self.assertIn("`release.yml` at `refs/tags/v0.7.4`", source)
-        self.assertIn("`chart-release.yml` at `refs/tags/chart-v0.7.5`", source)
+        self.assertIn("\nRELEASE=v0.8.0\n", source)
+        self.assertIn("\nCHART_RELEASE=chart-v0.8.0\nCHART_VERSION=0.8.0\n", source)
+        self.assertIn("Chart 0.8.0 pins collector v0.8.0", source)
+        self.assertIn("`release.yml` at `refs/tags/v0.8.0`", source)
+        self.assertIn("`chart-release.yml` at `refs/tags/chart-v0.8.0`", source)
         for workflow, variable in (("release", "RELEASE"), ("chart-release", "CHART_RELEASE")):
             identity = f".github/workflows/{workflow}.yml@refs/tags/${{{variable}}}"
             self.assertEqual(source.count(identity), 2)
@@ -62,8 +62,8 @@ class InstallPairDocsTests(unittest.TestCase):
     def test_summary_guide_pins_source_chart_and_verified_image(self):
         source = (ROOT / "docs/SUMMARY_EXPORT_HELM.md").read_text()
         install, validation = source.split("## Validation", 1)
-        self.assertIn("--branch chart-v0.7.5", install)
-        self.assertEqual(install.count("--version 0.7.5"), 2)
+        self.assertIn("--branch chart-v0.8.0", install)
+        self.assertEqual(install.count("--version 0.8.0"), 2)
         self.assertIn("private random hashing key of at least 32 bytes", install)
         self.assertIn("networkPolicy.metricsFrom", install)
         self.assertEqual(install.count('--set-string image.digest="${DIGEST:?'), 2)
