@@ -6,8 +6,8 @@ image:
   repository: ghcr.io/llm-measurement/otelcol-genai-sketches
   pullPolicy: IfNotPresent
   tag: ""
-  # The runtime release uses appVersion; stable chart 0.8.0 will pin its image digest.
-  digest: ""
+  # Pin the published collector v0.8.0 multi-architecture image index.
+  digest: "sha256:0c46145b2d0924010c49659013ba02eddc61fb82bb3476ffd52514e5b7f5522a"
 
 imagePullSecrets: []
 nameOverride: ""

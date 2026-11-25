@@ -2,6 +2,14 @@
 
 Notable user-visible changes are recorded here.
 
+## Helm chart 0.8.0
+
+Pin the published, signed collector v0.8.0 image index by digest. This brings
+the opt-in workflow and framework root-invocation count to stable-chart
+installations. Chart configuration and feature defaults remain unchanged.
+
+See the [chart release notes](docs/releases/chart-v0.8.0.md).
+
 ## v0.8.0 / Intermediate Helm chart 0.8.0-rc.1
 
 Count workflow and framework entrypoint roots with an opt-in invocation count.
