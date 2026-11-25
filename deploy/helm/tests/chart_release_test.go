@@ -25,10 +25,10 @@ type chartMetadata struct {
 }
 
 const (
-	expectedChartVersion = "0.8.0-rc.1"
+	expectedChartVersion = "0.8.0"
 	expectedAppVersion   = "0.8.0"
 	expectedRuntimeRepo  = "ghcr.io/llm-measurement/otelcol-genai-sketches"
-	expectedRuntimeImage = expectedRuntimeRepo + ":" + expectedAppVersion
+	expectedRuntimeImage = expectedRuntimeRepo + "@sha256:0c46145b2d0924010c49659013ba02eddc61fb82bb3476ffd52514e5b7f5522a"
 )
 
 func validateChartImagePin(version, digest string) error {
